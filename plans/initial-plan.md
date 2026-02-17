@@ -37,7 +37,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 1.1 Project Setup
 
-- [ ] Initialize monorepo structure:
+- [x] Initialize monorepo structure:
   ```
   notebook-md/
   ├── apps/
@@ -51,22 +51,22 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   ├── requirements/
   └── reviews/
   ```
-- [ ] Configure TypeScript, ESLint, Prettier across the monorepo (shared configs)
-- [ ] Set up Tailwind CSS in the web app
-- [ ] Set up `react-i18next` with English locale file structure (all strings externalized from day one)
-- [ ] Create `docker-compose.yml` with services: `web` (Vite dev), `api` (Node.js), `db` (PostgreSQL), `cache` (Redis), `mailpit` (SMTP trap)
-- [ ] Verify `docker compose up` starts everything and the web app is accessible at `localhost:5173`
+- [x] Configure TypeScript, ESLint, Prettier across the monorepo (shared configs)
+- [x] Set up Tailwind CSS in the web app
+- [x] Set up `react-i18next` with English locale file structure (all strings externalized from day one)
+- [x] Create `docker-compose.yml` with services: `web` (Vite dev), `api` (Node.js), `db` (PostgreSQL), `cache` (Redis), `mailpit` (SMTP trap)
+- [x] Verify `docker compose up` starts everything and the web app is accessible at `localhost:5173`
 
 ### 1.2 Application Shell & Layout
 
-- [ ] Implement the main application layout (§5):
+- [x] Implement the main application layout (§5):
   - Title bar with logo placeholder + "Notebook.md" text
   - Notebook pane (left sidebar) — collapsible to thin strip, resizable via drag handle
   - Document pane (right) with tab bar
   - Status bar (bottom) — word count, character count, last saved timestamp
   - Account dropdown area (top-right) — placeholder for now
-- [ ] Implement light/dark/system display mode toggle (Tailwind `dark:` classes)
-- [ ] Welcome screen (§6.1) — logo, tagline, sign-in/sign-up buttons (non-functional; just the UI)
+- [x] Implement light/dark/system display mode toggle (Tailwind `dark:` classes)
+- [x] Welcome screen (§6.1) — logo, tagline, sign-in/sign-up buttons (non-functional; just the UI)
 
 ### 1.3 WYSIWYG Markdown Editor
 
