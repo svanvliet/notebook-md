@@ -1,0 +1,1189 @@
+# Notebook.md — Product Requirements Document
+
+**Version:** 1.3  
+**Last Updated:** 2026-02-17  
+**Status:** Draft  
+**Domain:** notebookmd.io
+
+---
+
+## 1. Product Overview
+
+Notebook.md is a web application (with future native desktop and mobile apps) that enables users to create, edit, and organize Markdown notebooks through an intuitive WYSIWYG canvas interface. Notebooks are stored in users' existing cloud storage and version control systems — the app itself stores only user account metadata and notebook configuration, not document content.
+
+### 1.1 Design Principles
+
+- **Simplicity first** — easy to use, easy to deploy, minimal friction
+- **Leverage existing systems** — storage, sharing, and version control are delegated to source providers (OneDrive, Google Drive, GitHub)
+- **Minimal data footprint** — the central system stores only account metadata and notebook linkages, never document content
+- **Cross-platform** — single codebase targeting web first, with macOS and Windows desktop apps planned (deferred from V1), and future iOS/Android via Tauri Mobile
+- **Internationalization-ready** — English only for V1, but all user-facing strings externalized for easy localization
+
+---
+
+## 2. User Accounts & Authentication
+
+### 2.1 Identity Providers
+
+Users can sign in or sign up using any of the following:
+
+| Provider | Protocol | Account Types |
+|----------|----------|---------------|
+| Microsoft | OAuth 2.0 / OpenID Connect | Personal (MSA) and Enterprise (Microsoft Entra ID / M365) — individual user consent only (no tenant admin consent for V1) |
+| GitHub | OAuth 2.0 | GitHub accounts (personal repos only; organization-owned repos deferred) |
+| Google | OAuth 2.0 / OpenID Connect | Google accounts |
+| Apple | Sign in with Apple | Apple ID (for authentication only; iCloud storage deferred) |
+| Email | Magic link **and** email + password (user's choice) | Any email address |
+
+### 2.2 Email Authentication
+
+Email-based auth supports **both** options — the user chooses their preferred method:
+
+- **Magic link:** User enters email → receives a one-time sign-in link → clicks to authenticate
+- **Email + password:** User creates a password during sign-up; standard password-based login thereafter
+  - Password reset via email link
+  - Passwords hashed with bcrypt (cost factor 12+)
+
+**Two-Factor Authentication (2FA):**
+- 2FA is **optional for all email/password users** and can be enabled in Account Settings
+- When enabled, after entering a correct password the user must complete a second factor:
+  - **Option 1:** Emailed 6-digit code (sent to the account's verified email)
+  - **Option 2:** TOTP authenticator app (e.g., Google Authenticator, Authy) — user scans a QR code during setup
+- **Admin console access:** 2FA is **required** for email/password users accessing the admin console. OAuth-based logins (Microsoft, GitHub, Google, Apple) are considered sufficient for V1 and do not require an additional factor.
+
+> **Future consideration:** Enforce that OAuth providers have MFA enabled (by checking the `amr` claim where available) before granting admin console access.
+- Recovery codes: When 2FA is enabled, the user is given a set of one-time recovery codes to store securely
+
+**Email delivery infrastructure:**
+- Transactional email service required (e.g., SendGrid, AWS SES, or Azure Communication Services)
+- Sender address: `noreply@notebookmd.io` (requires DNS records: SPF, DKIM, DMARC on the `notebookmd.io` domain)
+- Used for: magic links, password reset links, account verification, 2FA codes
+
+**Local development email testing:**
+- Dev mode uses a local SMTP trap (e.g., Mailpit or MailHog) to capture all outgoing emails
+- Dev mode also logs magic links, reset URLs, and 2FA codes directly to the API console output
+- A `DEV_MODE` environment flag controls this behavior; automatically enabled when running locally
+
+### 2.3 Account Linking & Merging
+
+- A single Notebook.md account can be linked to multiple identity providers
+- Users can add, edit, or remove linked providers from their account settings
+- The first sign-in creates the account; subsequent providers are linked to the existing account (matched by verified email where possible)
+- **Automatic account merging:** If a user signs in with Provider A (e.g., Google, user@gmail.com) and later signs in with Provider B (e.g., Email, user@gmail.com) using the same verified email address, the accounts are automatically merged. The user is informed of the merge.
+- Manual linking: Users can also link additional providers from account settings, even if email addresses differ
+
+### 2.4 Central Account System
+
+The backend account system stores **only**:
+
+- Unique user ID (internal)
+- Display name, avatar URL (sourced from providers where available)
+- Linked identity provider references (provider type + provider-specific user ID)
+- OAuth tokens / refresh tokens for each linked provider (encrypted at rest)
+- Notebook configurations (see §3)
+- User preferences / settings (see §7)
+- Account flags (e.g., `is_dev_mode` for developer/admin accounts)
+
+**No document content or file data is ever stored centrally.**
+
+### 2.5 Security Best Practices
+
+- All OAuth tokens encrypted at rest using envelope encryption (e.g., AES-256 with a KMS-managed key)
+- Tokens are scoped to the minimum permissions required per provider
+- Short-lived access tokens with refresh token rotation
+- HTTPS everywhere; HSTS enforced
+- CSRF protection on all state-changing endpoints
+- Rate limiting on auth endpoints
+- Session management with secure, HttpOnly, SameSite cookies or short-lived JWTs
+- Audit logging for account-level actions (link/unlink provider, notebook add/remove)
+
+### 2.6 Session Management & "Remember Me"
+
+- **Default session duration:** 24 hours (without "Remember Me")
+- **"Remember Me" option:** Extends session to 30 days via a persistent refresh token
+  - Refresh tokens are rotated on each use (one-time use)
+  - If a refresh token is reused (indicating theft), all sessions for the user are invalidated
+- **Native desktop apps:** "Remember Me" is enabled by default (users expect persistent sessions on native apps)
+- **Token revocation:** The system honors token revocation immediately — if a user signs out on one device, or an admin revokes access, all active sessions using that refresh token family are invalidated
+- **Idle timeout:** Optional idle timeout (configurable, default off) — after N minutes of inactivity, require re-authentication
+
+---
+
+## 3. Notebooks
+
+A **Notebook** is a connection to a storage location on one of the supported source systems, tied to credentials from a linked identity provider. A user can have multiple Notebooks, including multiple Notebooks from the same source provider. The source system connection is shared between Notebooks linked to the same provider account.
+
+### 3.1 Supported Source Systems
+
+| Source | Backing Service | Notebook Root | Notes |
+|--------|----------------|---------------|-------|
+| OneDrive | Microsoft Graph API | A OneDrive folder | Requires Microsoft account linkage |
+| Google Drive | Google Drive API | A Google Drive folder | Requires Google account linkage |
+| GitHub | GitHub App ("Notebook.md", installed by user) | A repository (or subfolder within a repo) owned by the user | Requires GitHub account linkage; user installs the Notebook.md GitHub App and selects specific repos to grant access; personal public and private repos only (org repos deferred) |
+
+> **GitHub App Details:**
+> - **App name:** "Notebook.md"
+> - **Webhooks:** The app listens for `push` events on repos where it is installed. When an external push is detected (i.e., a commit not authored by Notebook.md), the app refreshes the file tree and notifies the user via a toast if an affected file is currently open. This ensures the Notebook stays in sync when repos have multiple contributors.
+> - **Permissions:** Contents (read/write), Metadata (read), Pull Requests (read/write — for PR-based publish flow)
+
+> **Deferred:** iCloud Drive support is deferred due to significant API limitations for third-party web apps. See §12.
+
+### 3.2 Notebook Configuration (stored centrally)
+
+- Notebook display name
+- Source type (OneDrive, Google Drive, GitHub)
+- Source-specific location reference (folder path, repo + optional subfolder)
+- Linked provider account reference
+- Auto-save preference (on/off, per notebook)
+- For GitHub: branch configuration, commit behavior preferences
+
+### 3.3 Notebook Tree View
+
+- Displayed in the **Notebook Pane** (left sidebar)
+- Each Notebook shows a source-type icon:
+  - **GitHub:** Octocat icon
+  - **OneDrive:** OneDrive cloud icon
+  - **Google Drive:** Google Drive triangle icon
+- Under each Notebook, the tree displays the file/folder hierarchy:
+  - Nested sub-folders of any depth are supported
+  - **Visible file types:** `.md`, `.mdx`, `.markdown`, `.txt`, and common media files (`.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.mp4`, `.webp`, `.webm`)
+  - All other file types are hidden from the tree
+- Tree supports expand/collapse, selection, and context menus (rename, delete, new file, new folder, move)
+
+### 3.4 Notebook Operations
+
+- **Add Notebook:** User selects a source type, authenticates if not already linked, then browses/selects a folder or repo
+- **Remove Notebook:** Removes the Notebook configuration; does not delete remote files
+- **Refresh:** Re-fetches the file tree from the source
+- **Open file:** Opens a supported file in the document pane
+- **New file:** Creates a new file at the selected location in the tree
+- **New folder:** Creates a new folder at the selected location
+- **Rename:** Renames a file or folder
+- **Delete:** Deletes a file or folder (with confirmation)
+- **Move:** Move files/folders within the Notebook via drag-and-drop or cut/paste
+
+### 3.5 File Type Behavior
+
+| File Extension | Editor Behavior |
+|---------------|----------------|
+| `.md`, `.mdx`, `.markdown` | Opens in WYSIWYG Markdown editor |
+| `.txt` | Opens in editor, displayed as plaintext (no Markdown rendering) |
+| `.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.webp` | Displayed as an image preview |
+| `.mp4`, `.webm` | Displayed as a video player |
+
+---
+
+## 4. Document Editor (Canvas)
+
+### 4.1 Editor Paradigm
+
+The document pane is a **live WYSIWYG Markdown editor** — users see rendered Markdown as they type, not raw syntax. The editor operates on the Markdown source but presents a rich-text editing experience.
+
+Users can toggle between WYSIWYG and **raw Markdown source view** via a keyboard shortcut (e.g., `Cmd/Ctrl+Shift+M`).
+
+A **split view** mode is also available, showing raw Markdown on the left and the rendered WYSIWYG preview on the right, side by side within a single document tab.
+
+### 4.2 Markdown Specification
+
+The editor uses **GitHub Flavored Markdown (GFM)** as the base specification, extended with:
+- Footnotes (reference and definition)
+- Math (inline `$...$` and block `$$...$$` via KaTeX)
+
+### 4.3 Supported Markdown Features
+
+All "primary" Markdown elements must be supported:
+
+| Category | Elements |
+|----------|----------|
+| **Headings** | H1 through H6 |
+| **Inline formatting** | Bold, italic, strikethrough, inline code, highlight |
+| **Links** | Inline links, reference links, auto-links |
+| **Images** | Inline images with alt text (rendered inline in the editor) |
+| **Lists** | Ordered lists, unordered (bullet) lists, nested lists, task/checkbox lists |
+| **Blockquotes** | Single and nested blockquotes |
+| **Code blocks** | Fenced code blocks with syntax highlighting (language hint) |
+| **Tables** | GFM-style tables with alignment support |
+| **Horizontal rules** | Thematic breaks (`---`, `***`, `___`) |
+| **Footnotes** | Footnote references and definitions |
+| **Math** | Inline and block LaTeX math (KaTeX / MathJax rendering) |
+| **Emoji** | Shortcode emoji (`:smile:`) |
+| **Front matter** | YAML front matter (displayed as a collapsible metadata block) |
+
+### 4.4 Toolbar
+
+When a document is open, the toolbar displays formatting controls:
+
+- Heading level selector (H1–H6 + paragraph)
+- Bold, Italic, Strikethrough, Inline Code
+- Ordered list, Unordered list, Task list
+- Blockquote
+- Insert link, Insert image
+- Insert table
+- Insert code block
+- Insert horizontal rule
+- Undo / Redo
+
+The toolbar is contextual — buttons reflect the formatting state at the cursor position.
+
+### 4.5 Slash Commands
+
+Typing `/` at the start of a line (or after a space) opens a command palette overlay with options to:
+
+- Change block type (heading, paragraph, quote, code block, etc.)
+- Insert a table
+- Insert an image
+- Insert a horizontal rule
+- Insert a checkbox/task list
+- Insert a code block (with language selector)
+- Insert math block
+- Insert callout/admonition
+
+The palette is filterable by typing after `/` (e.g., `/tab` filters to "Table").
+
+### 4.6 Keyboard Shortcuts
+
+The editor supports comprehensive keyboard shortcuts for all common formatting and navigation actions, following platform conventions (Cmd on macOS, Ctrl on Windows/Linux):
+
+| Action | macOS | Windows/Linux |
+|--------|-------|---------------|
+| Bold | `Cmd+B` | `Ctrl+B` |
+| Italic | `Cmd+I` | `Ctrl+I` |
+| Strikethrough | `Cmd+Shift+S` | `Ctrl+Shift+S` |
+| Inline code | `Cmd+E` | `Ctrl+E` |
+| Insert link | `Cmd+K` | `Ctrl+K` |
+| Undo | `Cmd+Z` | `Ctrl+Z` |
+| Redo | `Cmd+Shift+Z` | `Ctrl+Shift+Z` |
+| Save | `Cmd+S` | `Ctrl+S` |
+| Find & Replace | `Cmd+F` | `Ctrl+F` |
+| Toggle raw Markdown | `Cmd+Shift+M` | `Ctrl+Shift+M` |
+
+Additional shortcuts for headings, lists, and block types. Shortcuts are **not user-configurable** in V1.
+
+### 4.7 Find and Replace
+
+- Standard find and replace (`Cmd/Ctrl+F`) within the active document
+- Supports case-sensitive and whole-word matching
+- Highlight all matches in the document
+- Replace one or replace all
+
+### 4.8 Drag and Drop
+
+The editor supports drag-and-drop for:
+- **Block reordering:** Drag paragraphs, headings, and other blocks to rearrange content
+- **Image drop:** Drop image files from the desktop into the editor to insert them (uploaded to the Notebook's `assets` folder — see §4.11)
+- **File linking:** Drag a file from the Notebook tree into the editor to insert a relative Markdown link
+
+### 4.9 Tabbed Documents
+
+- Multiple documents can be open simultaneously in the document pane
+- Each open document appears as a tab at the top of the document pane
+- Tab text shows the file name (e.g., `notes.md`)
+- Tabs can be closed individually (with unsaved-changes warning if applicable)
+- Active tab is visually distinguished
+- Tab overflow behavior: scrollable tabs or a dropdown for excess tabs
+- Unsaved changes indicated by a dot or icon on the tab
+
+### 4.10 Saving
+
+#### 4.10.1 Manual Save
+
+- User explicitly saves via `Cmd/Ctrl+S` or a Save button in the toolbar
+- The file is written back to the source system via the appropriate API
+
+#### 4.10.2 Auto-Save
+
+- Configurable per notebook (on/off)
+- When enabled, the client captures changes and periodically saves to the source system
+- **Debounce strategy by source type:**
+
+| Source | Auto-Save Strategy |
+|--------|--------------------|
+| OneDrive | Debounce: save after 3 seconds of inactivity, max interval 30 seconds |
+| Google Drive | Debounce: save after 3 seconds of inactivity, max interval 30 seconds |
+| GitHub | See §4.10.3 |
+
+#### 4.10.3 GitHub Save Strategy — Working Branch Model
+
+GitHub is version-controlled, so saving requires a more nuanced approach. **V1 implements the Working Branch Model:**
+
+1. **On Notebook open:** The app fetches the relevant files from the configured base branch (e.g., `main`) into a local working state (in-memory or local cache — not a full git checkout).
+2. **On save (manual or auto):** Changes are accumulated locally in the client. Each save writes to the local working state.
+3. **Auto-save commits:** When auto-save is enabled, changes are committed to a **working branch** named `notebook-md/<username>/<session-id>`. Commits are batched — accumulated changes are committed when the user pauses editing for a threshold period (e.g., 30 seconds of inactivity), reducing commit noise.
+4. **Publish (squash merge):** The user explicitly "Publishes" changes, which **squashes all commits** from the working branch into a single commit on the base branch (or opens a PR, configurable). This keeps the base branch history clean.
+5. **Conflict handling:** If the base branch has diverged, the app notifies the user and offers to rebase or merge.
+
+**Future save strategy options (deferred):**
+- Direct commit to main (for personal repos)
+- Draft PR per session
+- Fork-based workflow (for repos the user doesn't own)
+
+> **Design note:** The save strategy is implemented behind an abstraction layer (`GitSaveStrategy` interface) so alternative strategies can be added in future versions without refactoring.
+
+**User-configurable options for GitHub Notebooks:**
+- Target base branch (default: repo default branch)
+- Commit message template (default: `Update {filename} via Notebook.md`)
+- Publish behavior: squash merge to base branch (default) or open PR
+- **Delete branch on publish:** When enabled, the working branch is automatically deleted after a successful squash merge (default: on). Configurable per user in Settings.
+
+### 4.11 Image & Media Handling
+
+When a user inserts an image or media file into a document (via toolbar, slash command, paste, or drag-and-drop):
+
+- **Option 1 — URL reference:** User provides a URL; a standard Markdown image/link is inserted
+- **Option 2 — Upload to Notebook:** The file is uploaded to an `assets/` subfolder relative to the folder containing the `.md` file. A relative Markdown reference is inserted (e.g., `![alt](assets/photo.jpg)`)
+- If the `assets/` folder doesn't exist, it is created automatically
+- Supported upload formats: `.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.webp`, `.mp4`, `.webm`
+- **Maximum upload size:** 10 MB per file
+- **Inline preview:** When a media file is referenced in a Markdown document, the WYSIWYG editor renders it inline as a preview (images displayed at natural size within the content flow; videos rendered as an embedded player)
+
+---
+
+## 5. Application Layout
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  [📓 Notebook.md]          Toolbar / Formatting Controls   [👤] │
+├────────────────┬─────────────────────────────────────────────────┤
+│                │  [Tab1.md] [Tab2.md] [Tab3.md]                 │
+│   Notebook     │─────────────────────────────────────────────────│
+│     Pane       │                                                │
+│                │                                                │
+│  ▼ Notebook1   │            Document Pane                       │
+│    ▼ Folder    │         (WYSIWYG Markdown Editor)              │
+│      file1.md  │                                                │
+│      file2.md  │                                                │
+│    ▶ Subfolder │                                                │
+│  ▼ Notebook2   │                                                │
+│    ...         │                                                │
+│                │                                                │
+├────────────────┴─────────────────────────────────────────────────┤
+│  Status Bar: Word count: 1,234 | Last saved: 2 min ago          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 5.1 Title / Toolbar
+
+- **Left:** Notebook icon (logo placeholder) + "Notebook.md" app name
+- **Center:** Formatting controls (visible when a document is open)
+- **Right:** Account dropdown avatar/icon
+
+### 5.2 Notebook Pane (Left Sidebar)
+
+- **Collapsible** to a thin strip (toggle via button or keyboard shortcut)
+- **Resizable** via drag handle
+- Tree view of all Notebooks and their contents
+- Source-type icons on each Notebook root node
+- Context menus for file/folder operations (create, rename, delete, move)
+
+### 5.3 Document Pane (Right / Main Area)
+
+- Tab bar at top
+- WYSIWYG editor fills remaining space
+- Scrollable document with configurable margins
+
+### 5.4 Status Bar (Bottom)
+
+- Thin bar spanning full width
+- Persistent stats: word count, character count, last saved timestamp
+- Ephemeral messages: save confirmations, error notifications, sync status
+- Messages auto-dismiss after a configurable duration (e.g., 5 seconds)
+
+### 5.5 Toast Notifications
+
+- System messages, errors, and sync conflicts displayed as toast notifications (top-right or bottom-right)
+- Toasts auto-dismiss after a duration (e.g., 5 seconds for info, persistent for errors until dismissed)
+- Toast types: info, success, warning, error
+- Stacking behavior for multiple simultaneous toasts
+
+### 5.6 Responsive Design
+
+- The web version is responsive and usable on tablet and phone browsers
+- On narrow viewports (< 768px), the Notebook pane collapses by default and overlays the document pane when opened
+- Touch-friendly tap targets for mobile browsers
+- Full native mobile apps deferred to a future version
+
+---
+
+## 6. Welcome Screen & Onboarding
+
+### 6.1 Welcome Screen
+
+Displayed when the user is not signed in:
+
+- App logo (notebook icon placeholder) and "Notebook.md" branding
+- Tagline (e.g., "Your Markdown notebooks, everywhere.")
+- **Sign In** button → opens sign-in flow
+- **Sign Up** button → opens sign-up flow
+- Clean, centered layout; minimal distractions
+
+### 6.2 Sign-In Flow
+
+- User presented with identity provider buttons:
+  - "Continue with Microsoft"
+  - "Continue with GitHub"
+  - "Continue with Google"
+  - "Continue with Apple"
+  - "Continue with Email"
+- Selecting a provider initiates the OAuth flow (redirect or popup)
+- Email option: enter email → choose magic link or create password
+- On success: redirect to main app view
+
+### 6.3 Sign-Up Flow
+
+- Identical UI to sign-in (provider buttons + email)
+- If the account doesn't exist, it is created automatically on first sign-in
+- Optional: first-time onboarding wizard after account creation:
+  1. Welcome message
+  2. Prompt to connect a source ("Connect your first notebook source")
+  3. Brief feature tour (optional, skippable)
+
+### 6.4 Post-Sign-In (No Notebooks)
+
+- If the user has no Notebooks configured, show an empty state with a prompt: "Add your first notebook" with buttons for each source type
+
+---
+
+## 7. Account & Settings
+
+### 7.1 Account Dropdown
+
+Located at the top-right of the toolbar. Clicking opens a dropdown menu:
+
+- **User display name + avatar** (non-interactive, header)
+- **Account Settings** → opens Account modal
+- **Settings** → opens Settings modal
+- **Sign Out**
+
+### 7.2 Account Settings Modal
+
+- **Profile:** Display name, avatar (pulled from linked provider or uploaded)
+- **Linked Accounts:** List of linked identity providers with options to:
+  - Add a new provider link
+  - Remove an existing link (with confirmation; cannot remove last link)
+  - Re-authenticate (if token expired)
+- **Security:**
+  - Enable/disable Two-Factor Authentication (2FA) for email/password login
+  - When enabling: choose TOTP authenticator app or emailed codes; scan QR code for TOTP; save recovery codes
+  - When disabling: require current 2FA verification before disabling
+- **Danger Zone:** Delete account (with confirmation)
+
+### 7.3 Settings Modal (Preferences)
+
+Settings are **global** (not per-notebook) and **synced across devices** (stored server-side).
+
+| Setting | Options | Default |
+|---------|---------|---------|
+| **Display Mode** | Light, Dark, System | System |
+| **Editor Font Family** | Selectable from a curated list (e.g., Inter, SF Mono, JetBrains Mono, system default) | System default |
+| **Editor Font Size** | Slider or input (12–24px) | 16px |
+| **Document Margins** | Narrow, Regular, Wide | Regular |
+| **Auto-save default** | On / Off (default for new notebooks) | Off |
+| **Spell check** | On / Off | On |
+| **Line numbers in code blocks** | On / Off | Off |
+| **Tab size** | 2 / 4 spaces | 4 |
+| **Show word count in status bar** | On / Off | On |
+| **GitHub: Delete branch on publish** | On / Off | On |
+
+---
+
+## 8. Technology & Architecture
+
+### 8.1 Recommended Tech Stack
+
+| Layer | Technology | Rationale |
+|-------|-----------|-----------|
+| **Frontend** | React + TypeScript | Industry standard, massive ecosystem, strong typing |
+| **Styling** | Tailwind CSS | Utility-first CSS framework; rapid prototyping, consistent design tokens, excellent dark mode support |
+| **Editor Engine** | Tiptap (built on ProseMirror) | Best-in-class WYSIWYG Markdown editor; extensible, well-maintained, supports slash commands natively |
+| **Desktop (Mac/Win)** | Tauri (deferred from V1) | Shares the React codebase; see §8.6 |
+| **Backend API** | Node.js (Express or Fastify) + TypeScript | Same language as frontend; lightweight, fast |
+| **Database** | PostgreSQL | Reliable, mature; only stores account metadata |
+| **Cache / Sessions** | Redis | Fast session storage, rate limiting |
+| **Auth** | Passport.js or Auth.js (NextAuth) | Multi-provider OAuth support out of the box |
+| **Email** | SendGrid, AWS SES, or Azure Communication Services | Transactional email for magic links, password resets, and 2FA codes; sender: `noreply@notebookmd.io` |
+| **i18n** | react-i18next | Industry standard; all user-facing strings externalized from day one |
+| **Analytics** | PostHog (self-hosted or cloud) | Open-source, privacy-respecting product analytics; event tracking, funnels, feature flags |
+| **Container Runtime** | Docker | Standard containerization |
+| **Orchestration** | Docker Compose (dev), Azure Container Apps (prod) | See §8.4 |
+| **CI/CD** | GitHub Actions | Native to the codebase hosting |
+| **IaC** | Terraform or Pulumi | Cloud-agnostic infrastructure-as-code |
+
+### 8.2 Application Architecture
+
+```
+┌─────────────┐      ┌─────────────────────────┐
+│   Browser /  │      │     Notebook.md API      │
+│   Desktop    │◄────►│  (Node.js + TypeScript)  │
+│   Client     │      │                          │
+│  (React +    │      │  - Auth / Session mgmt   │
+│   Tiptap)    │      │  - Notebook CRUD         │
+│              │      │  - User preferences      │
+└─────┬────────┘      │  - Proxy to source APIs  │
+      │               │    (optional, for CORS)  │
+      │               └────────┬────────────────┘
+      │                        │
+      │               ┌────────▼────────┐
+      │               │   PostgreSQL    │
+      │               │  (metadata only)│
+      │               └─────────────────┘
+      │
+      ▼
+┌─────────────────────────────────┐
+│  Source System APIs (direct)    │
+│  - Microsoft Graph (OneDrive)  │
+│  - Google Drive API            │
+│  - GitHub API                  │
+└─────────────────────────────────┘
+```
+
+**Key architectural decision:** The client communicates **directly** with source system APIs for file operations (read/write) using tokens obtained via the backend. The backend serves as the auth orchestrator and metadata store, not a file proxy. This minimizes backend load and latency for document operations.
+
+For sources where CORS prevents direct browser access, the backend can act as a thin proxy.
+
+### 8.3 Container Strategy
+
+**Recommended: Multi-container with Docker Compose / Kubernetes**
+
+| Container | Contents |
+|-----------|----------|
+| `web` | Nginx serving the React SPA static assets |
+| `api` | Node.js backend API |
+| `db` | PostgreSQL |
+| `cache` | Redis |
+
+**Why multi-container over single:**
+- Independent scaling (API can scale separately from static serving)
+- Independent deployments (update API without redeploying frontend)
+- Follows 12-factor app principles
+- Simpler health checks and monitoring per service
+- Database and cache can be swapped for managed services in production
+
+**For development:** Docker Compose with all four containers, plus hot-reload for frontend and API.
+
+**For production:** Azure Container Apps for orchestration, auto-scaling, rolling deployments, and health management. Canary deployments supported (see §8.5).
+
+### 8.4 Cloud Deployment — Provider Agnostic with Provider Benefits
+
+**Cloud-agnostic approach:**
+- Containerized deployment works on any cloud (or on-prem)
+- Use Terraform or Pulumi for infrastructure-as-code (IaC) to abstract provider specifics
+- Store secrets in a provider-agnostic vault (e.g., HashiCorp Vault) or use the cloud-native equivalent
+
+**Azure-specific benefits:**
+- **Azure Container Apps:** Simpler than full K8s; serverless scaling, built-in Dapr support, native revision-based canary deployments
+- **Azure Key Vault:** Managed secret storage, integrates with Container Apps via managed identity
+- **Azure Front Door / CDN:** Global edge caching for the SPA
+- **Azure Database for PostgreSQL — Flexible Server:** Managed PostgreSQL with automated backups, HA, and geo-redundancy options
+- **Azure Cache for Redis:** Managed Redis with built-in HA
+- **Benefit of Azure:** Since Microsoft auth is a primary provider, using Azure's ecosystem (Entra ID, Graph API) may simplify token management and reduce latency for OneDrive operations
+
+**AWS-specific benefits:**
+- **AWS App Runner or ECS Fargate:** Simpler container deployment without managing K8s
+- **AWS Secrets Manager:** Managed secrets
+- **CloudFront:** CDN for SPA assets
+- **RDS PostgreSQL:** Managed PostgreSQL
+- **ElastiCache:** Managed Redis
+
+**Recommendation:** Start with **Azure Container Apps** for production — it's simpler than full Kubernetes, supports canary deployments via traffic splitting between revisions, has built-in scaling, and the Azure ecosystem alignment with Microsoft auth is a natural fit. Use Docker Compose locally. If the app outgrows Container Apps, migrate to AKS with minimal changes since both use the same container images.
+
+### 8.5 Environments & Dev Mode
+
+**Environments:**
+
+| Environment | Purpose | Infrastructure |
+|-------------|---------|---------------|
+| **Local** | Development and testing | Docker Compose on developer machine |
+| **Production** | Live user traffic | Azure Container Apps with canary deployment |
+
+**Canary deployments (instead of separate staging):**
+- Azure Container Apps supports **revision-based traffic splitting** — deploy a new revision and route a small percentage of traffic (e.g., 5%) to it before promoting to 100%
+- Canary revisions can be accessed directly via a revision-specific URL for manual testing before enabling traffic split
+- Rollback is instant — shift traffic back to the previous revision
+
+**Dev Mode:**
+- Controlled by a `DEV_MODE` environment variable (automatically `true` when running locally)
+- Dev mode enables:
+  - Local email capture (Mailpit/MailHog) with console-logged magic links
+  - Mock OAuth providers for testing without real credentials
+  - Detailed error messages and stack traces in API responses
+  - Debug panel in the client UI (hidden in production)
+- **Account-level dev mode:** Specific user accounts can be flagged as `is_dev_mode = true` in the database. When a dev-mode account is signed in to the production app, dev mode features (debug panel, verbose logging) are enabled for that session only. This allows developers to debug production issues without affecting other users.
+
+### 8.6 Local Development
+
+- `docker compose up` starts all services locally
+- Frontend dev server with hot module replacement (Vite)
+- API dev server with `nodemon` or `tsx --watch`
+- PostgreSQL and Redis run in containers
+- Mailpit runs in a container for email capture
+- `.env` file for local configuration
+- Mock/test OAuth providers for development without real credentials
+
+### 8.7 Native Desktop Apps (macOS & Windows) — Deferred from V1
+
+Desktop apps are deferred from V1 to focus on the web experience. The architecture decisions below ensure the web codebase is ready for desktop packaging when the time comes.
+
+**Option A: Tauri (Recommended)**
+
+| Pros | Cons |
+|------|------|
+| Uses the same React + TypeScript codebase | Relies on system WebView (WebKit on macOS, WebView2 on Windows) — minor rendering differences |
+| Rust backend — tiny binary, low memory, fast startup | Smaller ecosystem than Electron |
+| ~5–10 MB bundle vs. ~150 MB for Electron | Rust knowledge needed for native features |
+| Native OS integration (menus, file dialogs, notifications) | |
+| **Tauri Mobile (stable) supports iOS and Android** — same codebase extends to mobile | |
+
+**Option B: Electron**
+
+| Pros | Cons |
+|------|------|
+| Largest desktop web-app ecosystem | Ships Chromium — large bundles (~150 MB+) |
+| Exact same rendering as web (bundled Chromium) | Higher memory usage |
+| Extensive documentation and community | No native mobile path (need React Native or similar) |
+
+**Option C: Separate native apps (Swift for macOS, C#/WinUI for Windows)**
+
+| Pros | Cons |
+|------|------|
+| Best native feel and performance | Two separate codebases (three including web) |
+| Deep OS integration | Higher development and maintenance cost |
+| | Different UI framework for each platform |
+
+**Recommendation:** **Tauri** — it shares the React codebase, produces small binaries, and its mobile support (Tauri Mobile for iOS/Android) provides a future path to mobile apps from the same codebase. This aligns with the goal of code reuse across web, desktop, and eventually mobile.
+
+### 8.8 Future Mobile Apps (iOS & Android)
+
+Considerations that influence desktop app choice:
+
+| Desktop Choice | Mobile Path |
+|----------------|-------------|
+| Tauri | Tauri Mobile (same React codebase → iOS & Android) |
+| Electron | React Native (shared business logic, different UI layer) or Capacitor |
+| Native (Swift/C#) | Swift → iOS native; Kotlin/C# → Android native (most effort) |
+
+Tauri provides the most unified path: one React codebase → web + macOS + Windows + iOS + Android.
+
+### 8.9 Administration Console
+
+A separate web application for system administration, deployed alongside the main app but accessible only to authorized admin accounts. **Not accessible from native desktop clients — web only.**
+
+#### 8.9.1 Admin Console Features
+
+| Feature | Description |
+|---------|-------------|
+| **User Management** | Search, view, and manage user accounts. View linked providers, Notebook configurations. Flag accounts as dev mode. Suspend or delete accounts. |
+| **System Health Dashboard** | Real-time view of API health, database status, Redis status, container health, error rates |
+| **Metrics Overview** | Active users, sign-ups, Notebook counts by source type, API request volume |
+| **Audit Log Viewer** | Browse audit log entries (sign-ins, account changes, Notebook operations) |
+| **Feature Flags** | Toggle feature flags for canary features, A/B tests, or kill switches |
+| **Announcements** | Create system-wide announcements displayed to users (e.g., maintenance windows) |
+
+#### 8.9.2 Admin Console Architecture
+
+- Separate React SPA (can share component library with main app via a shared package)
+- Same API backend — admin endpoints protected by admin role middleware
+- Deployed as an additional container in the fleet (`admin` container serving static assets)
+- Accessed via a separate subdomain (e.g., `admin.notebookmd.io`)
+- Authentication: same identity providers as the main app, but access restricted to accounts with `is_admin = true` flag
+- **2FA required** for email/password admin logins (OAuth logins are considered inherently MFA-capable)
+
+#### 8.9.3 Admin Account Provisioning
+
+- **Production:** Admin accounts are created via a CLI command bundled with the API container, run via `docker exec`:
+  ```
+  docker exec -it <api-container> node cli/promote-admin.js user@email.com
+  ```
+  This sets `is_admin = true` on the user record. No seed users or backdoor accounts in production. Requires SSH/container access to the API container.
+- **Local development:** A database seed script creates a default admin account (e.g., `admin@localhost`) for convenience. This seed script is excluded from production migrations.
+
+#### 8.9.4 Admin API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/users` | List/search users (paginated) |
+| GET | `/admin/users/:id` | Get user details |
+| PATCH | `/admin/users/:id` | Update user flags (dev mode, admin, suspended) |
+| DELETE | `/admin/users/:id` | Delete user account |
+| GET | `/admin/health` | System health status |
+| GET | `/admin/metrics` | Usage metrics |
+| GET | `/admin/audit-log` | Browse audit log |
+| POST | `/admin/feature-flags` | Create/update feature flags |
+| POST | `/admin/announcements` | Create announcement |
+
+### 8.10 Domain & DNS
+
+- Domain: `notebookmd.io` (registered via GoDaddy)
+- **V1 approach:** DNS remains at GoDaddy; records updated manually as needed
+- **Recommendation for future:** Migrate DNS to Azure DNS for automated certificate management (Azure-managed TLS via Front Door) and IaC-managed DNS records
+- SSL/TLS: Managed certificates via Azure Front Door or Let's Encrypt
+- **Email DNS records required:** SPF, DKIM, and DMARC records on `notebookmd.io` for transactional email delivery from `noreply@notebookmd.io`
+- Subdomains:
+  - `notebookmd.io` — main web app
+  - `api.notebookmd.io` — API backend
+  - `admin.notebookmd.io` — admin console
+
+### 8.11 HA/DR & Backup Strategy
+
+#### 8.11.1 High Availability (Production)
+
+| Component | HA Approach |
+|-----------|-------------|
+| **API containers** | Azure Container Apps auto-scales replicas (min 2, max N based on load); health checks with automatic restart |
+| **Web/Admin containers** | Azure Container Apps with multiple replicas behind a load balancer |
+| **PostgreSQL** | Azure Database for PostgreSQL Flexible Server with zone-redundant HA (automatic failover to standby in a different availability zone) |
+| **Redis** | Azure Cache for Redis with zone redundancy enabled |
+| **CDN** | Azure Front Door provides global edge caching and DDoS protection |
+
+#### 8.11.2 Backup Strategy
+
+| Component | Backup Approach | Retention |
+|-----------|----------------|-----------|
+| **PostgreSQL** | Azure automated daily backups with point-in-time restore (PITR) | 35 days PITR window |
+| **Redis** | No backup needed — cache is ephemeral; session loss = user re-authenticates |
+| **Container images** | Stored in Azure Container Registry; tagged by version and git SHA | Indefinite for tagged releases |
+| **IaC / Config** | All infrastructure defined in code (Terraform/Pulumi); stored in the git repo | Git history |
+
+#### 8.11.3 Disaster Recovery
+
+- **RPO (Recovery Point Objective):** < 1 hour (via PostgreSQL PITR)
+- **RTO (Recovery Time Objective):** < 30 minutes (redeploy containers from images; database failover is automatic)
+- **Geo-redundancy:** Deferred for V1. Single-region deployment in **East US 2**. Geo-redundant database backups enabled for cross-region restore if needed.
+- **Runbook:** Documented recovery procedures for common failure scenarios (database failover, container crash, full region outage)
+
+### 8.12 Monitoring, Observability & Analytics
+
+#### 8.12.1 Operational Monitoring
+
+| Concern | Tool | Cost |
+|---------|------|------|
+| **Health checks** | Azure Container Apps built-in health probes (liveness + readiness) | Included |
+| **Uptime monitoring** | Azure Monitor availability tests (ping tests to API and web endpoints) | ~$1/month |
+| **Application metrics** | Azure Monitor / Application Insights (request rates, latency, error rates, dependencies) | Free tier: 5 GB/month ingestion; ~$2.30/GB beyond |
+| **Error tracking** | Sentry (free tier: 5K errors/month) or Application Insights exceptions | Free at low scale |
+| **Logging** | Structured JSON logs → Azure Monitor Logs (Log Analytics workspace) | ~$2.76/GB ingestion |
+| **Alerting** | Azure Monitor alerts (email/webhook on error rate spikes, health check failures) | Free for basic alerts |
+
+**Recommendation:** Use Azure Monitor + Application Insights as the primary observability stack — it's natively integrated with Container Apps, provides APM traces, metrics, and logging in one place, and the free tier is generous for early-stage usage. Add Sentry for richer error context and source-map support.
+
+#### 8.12.2 Product Analytics
+
+| Concern | Tool | Rationale |
+|---------|------|-----------|
+| **Event tracking** | PostHog (self-hosted or cloud) | Open-source, privacy-respecting; GDPR-friendly; supports event tracking, funnels, retention, and feature flags |
+| **Tracked events** | Sign-ups, sign-ins, notebook created, file opened, file saved, publish (GitHub), settings changed, feature usage | Provides insight into adoption, engagement, and feature value |
+| **Dashboards** | PostHog built-in dashboards | Sign-up funnel, DAU/WAU/MAU, feature usage heatmap, retention cohorts |
+
+**PostHog deployment options:**
+- **Cloud (recommended for V1):** PostHog Cloud free tier (1M events/month), US region — zero infrastructure overhead. Privacy Policy discloses US-based data processing.
+- **Self-hosted (future):** Deploy PostHog in a container alongside the app for full data ownership; useful if self-hosted aligns with privacy goals at scale
+
+**Privacy considerations:**
+- PostHog is configured to anonymize IPs and respect Do Not Track
+- No PII in event properties — use internal user IDs only
+- Cookie consent banner covers analytics cookies (see §13.3)
+
+### 8.13 Cost Estimates (Azure, Single Region)
+
+Estimates assume Azure Container Apps, managed PostgreSQL, managed Redis, and Azure Front Door. Prices are approximate and based on 2025/2026 Azure pricing for East US 2.
+
+#### 8.13.1 Base Infrastructure (Fixed Costs)
+
+| Resource | Tier / Config | Est. Monthly Cost |
+|----------|--------------|-------------------|
+| Azure Container Apps (API, 2 replicas) | Consumption plan, 0.5 vCPU / 1 GB each | $30–50 |
+| Azure Container Apps (Web + Admin) | Consumption plan, 0.25 vCPU / 0.5 GB each | $10–20 |
+| Azure Database for PostgreSQL Flexible | Burstable B1ms (1 vCPU, 2 GB), 32 GB storage | $25–35 |
+| Azure Cache for Redis | Basic C0 (250 MB) | $16 |
+| Azure Front Door | Standard tier | $35 |
+| Azure Container Registry | Basic tier | $5 |
+| Azure Monitor / App Insights | Free tier (5 GB/month) | $0 |
+| Azure Key Vault | Standard (low usage) | $1 |
+| PostHog Cloud | Free tier (1M events/month) | $0 |
+| Transactional email (SendGrid) | Free tier (100 emails/day) | $0 |
+| **Base total** | | **~$120–160/month** |
+
+#### 8.13.2 Scaling by Weekly Active Users (WAU)
+
+| WAU | API Replicas | DB Tier | Redis Tier | CDN | Est. Monthly Cost |
+|-----|-------------|---------|------------|-----|-------------------|
+| **100** | 2 × 0.5 vCPU | Burstable B1ms | Basic C0 | Standard | **~$130/month** |
+| **1,000** | 2 × 0.5 vCPU | Burstable B2s (2 vCPU) | Basic C1 | Standard | **~$180/month** |
+| **100,000** | 4–6 × 1 vCPU | GP D2s_v3 (2 vCPU, 8 GB) | Standard C2 (6 GB) | Premium | **~$500–700/month** |
+| **1,000,000** | 10–20 × 2 vCPU | GP D4s_v3 (4 vCPU, 16 GB) + read replicas | Premium P3 (26 GB) | Premium | **~$2,000–4,000/month** |
+
+> **Notes:**
+> - These estimates do not include source system API costs (those APIs are free for authenticated users within their quotas).
+> - Managed services (PostgreSQL, Redis) cost more than self-hosted containers but eliminate operational overhead. At 100–1,000 WAU, managed services are strongly recommended for reliability. At 100K+ WAU, evaluate whether self-managed K8s (AKS) with self-hosted PostgreSQL/Redis would reduce costs.
+> - Email costs scale with sign-ups; SendGrid free tier (100/day = ~3,000/month) is sufficient until ~50K registered users.
+
+### 8.14 Source Code & CI/CD
+
+The Notebook.md codebase is hosted in a **private GitHub repository**. Branch protection and environment rules are maintained as best practices and to prepare for a potential future switch to a public repo.
+
+#### 8.14.1 Repository & Deployment Security
+
+- **Private repository:** The source code is not publicly accessible. GitHub Actions minutes are consumed from the account's included allotment for private repos.
+- **GitHub Environments with protection rules:** Production deployment jobs reference a `production` GitHub Environment that requires:
+  - Manual approval from a designated reviewer before deployment executes
+  - Environment-scoped secrets (Azure credentials) that are only available to jobs targeting the `production` environment
+- **Branch protection:** The `main` branch requires PR reviews before merge; direct pushes are blocked
+- **No secrets in code:** All credentials, API keys, and tokens stored in GitHub Secrets (environment-scoped) and Azure Key Vault — never in source code
+- **Signed commits:** Recommended for production-related branches
+- **Dependency scanning:** Dependabot enabled for automated vulnerability alerts and PRs
+
+#### 8.14.2 CI/CD Pipeline (GitHub Actions)
+
+| Stage | Trigger | Actions |
+|-------|---------|---------|
+| **Build & Test** | Every push / PR | Lint, type-check, unit tests, build Docker images |
+| **Preview** | PR to `main` | Build containers, run integration tests, deploy to canary revision (0% traffic) for manual verification |
+| **Production Deploy** | Push of a `v*` tag (e.g., `v1.0.0`) + manual approval | Push images to Azure Container Registry, deploy new revision to Container Apps, traffic split (canary → 100%) |
+| **Rollback** | Manual trigger | Shift traffic back to previous revision |
+
+**Release workflow:**
+1. Merge PRs to `main` as features/fixes are ready
+2. When ready to release, create and push a version tag: `git tag v1.2.3 && git push origin v1.2.3`
+3. The `v*` tag triggers the production deploy pipeline
+4. Manual approval gate in the GitHub Environment before deployment proceeds
+5. Canary deployment → verify → promote to 100% traffic
+
+#### 8.14.3 Container Image Security
+
+- Images built in CI/CD, pushed to **Azure Container Registry** (private)
+- Images scanned for vulnerabilities (Azure Defender for Container Registry or Trivy in CI)
+- Images tagged with git SHA and semantic version from the tag; `latest` tag points to current production
+
+---
+
+## 9. API Design (High Level)
+
+### 9.1 Auth Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/auth/:provider` | Initiate OAuth flow (Microsoft, GitHub, Google, Apple) |
+| GET | `/auth/:provider/callback` | OAuth callback |
+| GET | `/auth/github/install` | Redirect to GitHub App installation flow |
+| GET | `/auth/github/install/callback` | GitHub App installation callback |
+| POST | `/auth/email/signin` | Email sign-in (magic link or password) |
+| POST | `/auth/email/signup` | Email sign-up |
+| POST | `/auth/2fa/verify` | Verify 2FA code (TOTP or emailed code) during sign-in |
+| POST | `/auth/2fa/setup` | Begin 2FA setup (returns TOTP QR code URI) |
+| POST | `/auth/2fa/enable` | Confirm 2FA setup with verification code |
+| POST | `/auth/2fa/disable` | Disable 2FA (requires verification) |
+| POST | `/auth/2fa/recovery` | Use a recovery code to sign in |
+| POST | `/auth/signout` | Sign out, clear session |
+| GET | `/auth/session` | Get current session / user info |
+
+### 9.2 Account Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/account` | Get account details |
+| PATCH | `/api/account` | Update profile (display name, etc.) |
+| DELETE | `/api/account` | Delete account |
+| GET | `/api/account/links` | List linked providers |
+| POST | `/api/account/links` | Link a new provider |
+| DELETE | `/api/account/links/:id` | Unlink a provider |
+
+### 9.3 Notebook Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/notebooks` | List user's notebooks |
+| POST | `/api/notebooks` | Add a notebook |
+| PATCH | `/api/notebooks/:id` | Update notebook config |
+| DELETE | `/api/notebooks/:id` | Remove a notebook |
+| GET | `/api/notebooks/:id/tree` | Get file tree (proxied from source if needed) |
+| GET | `/api/notebooks/:id/files/*path` | Read file content (proxy) |
+| PUT | `/api/notebooks/:id/files/*path` | Write file content (proxy) |
+| POST | `/api/notebooks/:id/files/*path` | Create new file (proxy) |
+| DELETE | `/api/notebooks/:id/files/*path` | Delete file (proxy) |
+| PATCH | `/api/notebooks/:id/files/*path` | Rename/move file (proxy) |
+| POST | `/api/notebooks/:id/folders/*path` | Create new folder (proxy) |
+| DELETE | `/api/notebooks/:id/folders/*path` | Delete folder (proxy) |
+| POST | `/api/notebooks/:id/publish` | Publish changes (GitHub: squash merge working branch) |
+
+### 9.4 Webhook Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/webhooks/github` | GitHub App webhook receiver (push events, installation events); verified via webhook secret signature |
+
+### 9.5 Settings Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/settings` | Get user settings |
+| PATCH | `/api/settings` | Update user settings |
+
+### 9.6 Admin Endpoints (Admin Console Only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/users` | List/search users (paginated) |
+| GET | `/admin/users/:id` | Get user details with linked accounts and notebooks |
+| PATCH | `/admin/users/:id` | Update user flags (dev_mode, admin, suspended) |
+| DELETE | `/admin/users/:id` | Delete user account |
+| GET | `/admin/health` | System health status (DB, Redis, containers) |
+| GET | `/admin/metrics` | Usage metrics (users, notebooks, API volume) |
+| GET | `/admin/audit-log` | Browse audit log entries (paginated, filterable) |
+| GET | `/admin/feature-flags` | List feature flags |
+| POST | `/admin/feature-flags` | Create/update a feature flag |
+| GET | `/admin/announcements` | List announcements |
+| POST | `/admin/announcements` | Create an announcement |
+| DELETE | `/admin/announcements/:id` | Delete an announcement |
+
+---
+
+## 10. Data Model (PostgreSQL)
+
+### 10.1 Core Tables
+
+```
+users
+├── id (UUID, PK)
+├── display_name (VARCHAR)
+├── avatar_url (VARCHAR, nullable)
+├── email (VARCHAR, unique, nullable)
+├── password_hash (VARCHAR, nullable) -- bcrypt, only for email+password users
+├── totp_secret_enc (BYTEA, nullable) -- encrypted TOTP secret, set when 2FA enabled
+├── totp_enabled (BOOLEAN, default false)
+├── recovery_codes_enc (BYTEA, nullable) -- encrypted JSON array of hashed recovery codes
+├── is_admin (BOOLEAN, default false)
+├── is_dev_mode (BOOLEAN, default false)
+├── is_suspended (BOOLEAN, default false)
+├── created_at (TIMESTAMPTZ)
+└── updated_at (TIMESTAMPTZ)
+
+identity_links
+├── id (UUID, PK)
+├── user_id (UUID, FK → users)
+├── provider (ENUM: microsoft, github, google, apple, email)
+├── provider_user_id (VARCHAR)
+├── access_token_enc (BYTEA)  -- encrypted
+├── refresh_token_enc (BYTEA) -- encrypted
+├── token_expires_at (TIMESTAMPTZ)
+├── scopes (TEXT)
+├── created_at (TIMESTAMPTZ)
+└── updated_at (TIMESTAMPTZ)
+
+notebooks
+├── id (UUID, PK)
+├── user_id (UUID, FK → users)
+├── name (VARCHAR)
+├── source_type (ENUM: onedrive, google_drive, github)
+├── source_config (JSONB) -- provider-specific: folder path, repo, branch, etc.
+├── identity_link_id (UUID, FK → identity_links)
+├── auto_save (BOOLEAN, default false)
+├── created_at (TIMESTAMPTZ)
+└── updated_at (TIMESTAMPTZ)
+
+user_settings
+├── user_id (UUID, PK, FK → users)
+├── settings (JSONB) -- all preferences as a JSON object
+└── updated_at (TIMESTAMPTZ)
+
+sessions
+├── id (UUID, PK)
+├── user_id (UUID, FK → users)
+├── refresh_token_hash (VARCHAR) -- hashed refresh token
+├── refresh_token_family (UUID) -- for rotation detection
+├── remember_me (BOOLEAN)
+├── expires_at (TIMESTAMPTZ)
+├── created_at (TIMESTAMPTZ)
+└── revoked_at (TIMESTAMPTZ, nullable)
+
+audit_log
+├── id (UUID, PK)
+├── user_id (UUID, FK → users, nullable)
+├── action (VARCHAR) -- e.g., 'sign_in', 'link_provider', 'add_notebook'
+├── details (JSONB) -- action-specific metadata
+├── ip_address (INET)
+├── user_agent (TEXT)
+├── created_at (TIMESTAMPTZ)
+└── (no updated_at — audit logs are immutable)
+
+feature_flags
+├── id (UUID, PK)
+├── key (VARCHAR, unique) -- e.g., 'enable_split_view'
+├── enabled (BOOLEAN, default false)
+├── description (TEXT)
+├── created_at (TIMESTAMPTZ)
+└── updated_at (TIMESTAMPTZ)
+
+announcements
+├── id (UUID, PK)
+├── title (VARCHAR)
+├── body (TEXT)
+├── type (ENUM: info, warning, maintenance)
+├── active (BOOLEAN, default true)
+├── starts_at (TIMESTAMPTZ)
+├── ends_at (TIMESTAMPTZ, nullable)
+├── created_at (TIMESTAMPTZ)
+└── updated_at (TIMESTAMPTZ)
+```
+
+---
+
+## 11. Non-Functional Requirements
+
+### 11.1 Performance
+
+- Editor must maintain 60fps during typing and scrolling
+- File tree loading: < 2 seconds for trees up to 500 items
+- File open: < 1 second for files up to 1 MB
+- Auto-save operations should be non-blocking to the editor
+
+### 11.2 Security
+
+- See §2.4 for auth-specific security
+- Content Security Policy (CSP) headers
+- No document content stored server-side
+- OAuth tokens encrypted at rest
+- Regular dependency audits (Dependabot / npm audit)
+- Input sanitization for all user-provided data (XSS prevention in rendered Markdown)
+
+### 11.3 Accessibility
+
+- WCAG 2.1 AA compliance
+- Keyboard navigation for all core workflows
+- Screen reader support for the editor, tree view, and dialogs
+- Focus management in modals and dialogs
+- Sufficient color contrast in both light and dark modes
+
+### 11.4 Reliability
+
+- Graceful handling of source system API failures (offline indicators, retry with backoff)
+- Local change buffering — if the source is unreachable, changes are retained client-side and synced when connectivity resumes
+- No data loss on browser/app crash — periodic local snapshot of unsaved changes (localStorage or IndexedDB)
+
+### 11.5 Scalability
+
+- Stateless API servers (horizontal scaling)
+- Database connection pooling
+- CDN for static assets
+- Target: support 10,000+ concurrent users with standard container scaling
+
+---
+
+## 12. Future Considerations (Out of Scope for V1)
+
+### 12.1 Deferred Features
+
+- **iCloud Drive support** — deferred due to Apple CloudKit API limitations for third-party web apps; revisit when Apple improves web API access or when native iOS app is built
+- **Native desktop apps** (macOS via Tauri, Windows via Tauri) — architecture is ready; deferred to focus on web-first launch
+- **Native mobile apps** (iOS, Android via Tauri Mobile) — architecture choices in §8.7 and §8.8 lay the groundwork
+- **GitHub organization repos** — deferred due to additional permissions complexity and org admin consent flows
+- **Alternative GitHub save strategies** — direct commit to main, draft PR per session, fork-based workflow (abstraction layer in place via `GitSaveStrategy` interface)
+- **Per-notebook settings** — settings overrides scoped to individual notebooks
+- **Customizable keyboard shortcuts**
+- **Split-editor view** (two different documents side by side)
+- **RTL language support** (Arabic, Hebrew)
+- **OAuth MFA enforcement for admin console** — check `amr` claim to verify that OAuth providers have MFA enabled before granting admin access
+- **Public source code repository** — currently private; may switch to public in the future (CI/CD security controls are already in place to support this transition)
+
+### 12.2 Future Feature Ideas
+
+- Real-time collaboration (multiplayer editing via CRDTs or OT)
+- Offline-first mode for desktop/mobile apps
+- Markdown extensions (Mermaid diagrams, embedded media, etc.)
+- Export to PDF, DOCX, HTML
+- Plugin/extension system
+- Public sharing via link (read-only published notebooks)
+- Full-text search across all notebooks
+- Version history viewer (especially for GitHub-backed notebooks)
+- Template system for new notebooks/documents
+- AI-assisted writing features
+- Notebook sharing between Notebook.md users (deferred due to security concerns around third-party access to source system content)
+
+### 12.3 Monetization Considerations (V2+)
+
+V1 is **free** with no usage limits. Future monetization options to consider:
+
+| Model | Description | Pros | Cons |
+|-------|-------------|------|------|
+| **Freemium** | Free tier (e.g., 3 notebooks, 1 source type) + paid Pro tier (unlimited notebooks, all sources, priority support) | Low barrier to entry; natural upgrade path | Need to define tier boundaries carefully |
+| **Pro subscription** | $5–10/month for premium features (e.g., advanced GitHub workflows, priority sync, larger file support, team features) | Predictable revenue; aligns with SaaS model | Users may resist paying for a tool that stores nothing |
+| **One-time purchase (desktop)** | Free web app; paid native desktop apps ($19–29) | Common pattern (e.g., iA Writer); no recurring cost concern | Revenue is lumpy; need continuous new users |
+| **Sponsorware / Open Core** | Open-source core with premium closed-source features | Community goodwill; contributions | Harder to monetize at scale |
+
+**Architectural considerations for monetization:**
+- Add a `subscription_tier` field to the `users` table (default: `free`)
+- Feature flag system (§8.9) can gate premium features
+- Usage counters (notebook count, API calls) should be tracked from V1 to inform tier definitions later
+
+---
+
+## 13. Legal
+
+### 13.1 Terms of Service
+
+A Terms of Service document is required at launch. Published by **Van Vliet Ventures, LLC**. Key provisions:
+
+- Service provided "as-is" with no warranty
+- User is responsible for their content and source system credentials
+- Notebook.md does not store document content; the service is a pass-through to user's own storage
+- Right to suspend or terminate accounts for abuse
+- Limitation of liability (capped at fees paid, which is $0 for V1)
+- Dispute resolution (arbitration clause or jurisdiction selection)
+- Modification of terms with notice
+- Indemnification clause — user indemnifies Van Vliet Ventures, LLC against claims arising from user's content or use of third-party services
+
+### 13.2 Privacy Policy
+
+A Privacy Policy is required at launch, especially for GDPR compliance (EU users). Published by **Van Vliet Ventures, LLC**. Key provisions:
+
+- What data is collected: account metadata, identity provider tokens (encrypted), usage analytics
+- What data is NOT collected: document content, file contents, source system data
+- How data is used: solely for providing the service
+- Data retention: account data retained while active; deleted within 30 days of account deletion
+- Third-party services: identity providers, cloud hosting (Azure), email (SendGrid), error tracking (Sentry), analytics (PostHog)
+- User rights: access, correction, deletion, data portability (GDPR Articles 15–20)
+- Contact information for privacy inquiries
+
+### 13.3 Cookie Consent
+
+- **Custom cookie consent banner** (built in-house, not a third-party library)
+- Simple, minimal UI: banner at bottom of page with "Accept" and "Manage Preferences" options
+- Categories: Essential (session cookies — no consent needed), Analytics (PostHog — consent required)
+- Consent stored per user; respects "Do Not Track" browser setting
+- PostHog tracking initialized only after analytics consent is granted
+
+> **Note:** Boilerplate legal documents will be generated and should be reviewed by a qualified attorney before launch. The documents will be published at `notebookmd.io/terms` and `notebookmd.io/privacy`.
+
+---
+
+## 14. Internationalization (i18n)
+
+### 14.1 V1 Approach
+
+- English only for V1
+- All user-facing strings externalized using `react-i18next` (or equivalent)
+- String keys organized by feature area (e.g., `auth.signIn`, `editor.bold`, `settings.darkMode`)
+- Date, time, and number formatting uses `Intl` APIs with locale-aware formatting
+- No hardcoded strings in components — all text comes from translation files
+
+### 14.2 Future Language Support
+
+- Translation files stored as JSON in a `/locales` directory
+- Community contributions via a translation platform (e.g., Crowdin, Weblate)
+- RTL layout support deferred (see §12.1)
+
+---
+
+## 15. Glossary
+
+| Term | Definition |
+|------|-----------|
+| **Notebook** | A connection to a storage location (folder or repo) on a source system; the top-level organizational unit in the app |
+| **Source system** | An external storage/version control provider (OneDrive, Google Drive, GitHub) |
+| **Identity provider** | An OAuth provider used for authentication (Microsoft, GitHub, Google, Apple, email) |
+| **Working branch** | A Git branch created by Notebook.md for staging changes (GitHub notebooks) |
+| **Canvas** | The document editing area (WYSIWYG Markdown editor) |
+| **Publish** | The act of merging changes from a working branch to the base branch (GitHub notebooks) |
+| **Dev mode** | A flag on user accounts or environments that enables debug features |
+
+---
+
+*This document will be maintained as the living source of truth for all Notebook.md requirements. It will be updated as decisions are made and the product evolves.*
