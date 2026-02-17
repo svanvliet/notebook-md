@@ -1,0 +1,43 @@
+{
+  "app": {
+    "name": "Notebook.md",
+    "tagline": "Your Markdown notebooks, everywhere."
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "continueWithGitHub": "Continue with GitHub",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithEmail": "Continue with Email"
+  },
+  "notebook": {
+    "addFirst": "Add your first notebook",
+    "addNotebook": "Add Notebook",
+    "local": "Local",
+    "onedrive": "OneDrive",
+    "googleDrive": "Google Drive",
+    "github": "GitHub"
+  },
+  "editor": {
+    "untitled": "Untitled",
+    "unsavedChanges": "Unsaved changes",
+    "wordCount": "{{count}} words",
+    "charCount": "{{count}} chars",
+    "lastSaved": "Last saved: {{time}}"
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account Settings",
+    "displayMode": "Display Mode",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "status": {
+    "saved": "Saved",
+    "saving": "Saving...",
+    "error": "Error"
+  }
+}

@@ -1,6 +1,6 @@
 # Notebook.md — Product Requirements Document
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Last Updated:** 2026-02-17  
 **Status:** Draft  
 **Domain:** notebookmd.io
@@ -32,7 +32,6 @@ Users can sign in or sign up using any of the following:
 | Microsoft | OAuth 2.0 / OpenID Connect | Personal (MSA) and Enterprise (Microsoft Entra ID / M365) — individual user consent only (no tenant admin consent for V1) |
 | GitHub | OAuth 2.0 | GitHub accounts (personal repos only; organization-owned repos deferred) |
 | Google | OAuth 2.0 / OpenID Connect | Google accounts |
-| Apple | Sign in with Apple | Apple ID (for authentication only; iCloud storage deferred) |
 | Email | Magic link **and** email + password (user's choice) | Any email address |
 
 ### 2.2 Email Authentication
@@ -49,7 +48,7 @@ Email-based auth supports **both** options — the user chooses their preferred 
 - When enabled, after entering a correct password the user must complete a second factor:
   - **Option 1:** Emailed 6-digit code (sent to the account's verified email)
   - **Option 2:** TOTP authenticator app (e.g., Google Authenticator, Authy) — user scans a QR code during setup
-- **Admin console access:** 2FA is **required** for email/password users accessing the admin console. OAuth-based logins (Microsoft, GitHub, Google, Apple) are considered sufficient for V1 and do not require an additional factor.
+- **Admin console access:** 2FA is **required** for email/password users accessing the admin console. OAuth-based logins (Microsoft, GitHub, Google) are considered sufficient for V1 and do not require an additional factor.
 
 > **Future consideration:** Enforce that OAuth providers have MFA enabled (by checking the `amr` claim where available) before granting admin console access.
 - Recovery codes: When 2FA is enabled, the user is given a set of one-time recovery codes to store securely
@@ -61,16 +60,19 @@ Email-based auth supports **both** options — the user chooses their preferred 
 
 **Local development email testing:**
 - Dev mode uses a local SMTP trap (e.g., Mailpit or MailHog) to capture all outgoing emails
-- Dev mode also logs magic links, reset URLs, and 2FA codes directly to the API console output
-- A `DEV_MODE` environment flag controls this behavior; automatically enabled when running locally
+- Magic links, reset URLs, and 2FA codes are **never logged to console output**, even in development — use the SMTP trap UI to retrieve them
+- Dev mode is controlled by a **build-time flag** (`NODE_ENV=development`) compiled into the application, not a runtime environment variable. This ensures dev-mode behaviors cannot be accidentally enabled in production.
 
 ### 2.3 Account Linking & Merging
 
 - A single Notebook.md account can be linked to multiple identity providers
 - Users can add, edit, or remove linked providers from their account settings
-- The first sign-in creates the account; subsequent providers are linked to the existing account (matched by verified email where possible)
-- **Automatic account merging:** If a user signs in with Provider A (e.g., Google, user@gmail.com) and later signs in with Provider B (e.g., Email, user@gmail.com) using the same verified email address, the accounts are automatically merged. The user is informed of the merge.
-- Manual linking: Users can also link additional providers from account settings, even if email addresses differ
+- The first sign-in creates the account; subsequent providers are linked to the existing account
+
+**Auto-merge rules (to prevent account takeover):**
+- **OAuth ↔ OAuth:** If a user signs in with Provider A (e.g., Google) and later signs in with Provider B (e.g., Microsoft) using the same verified email address (`email_verified` claim is `true` from both providers), the accounts are automatically merged. The user is informed of the merge.
+- **Email+Password ↔ OAuth:** Auto-merge is **never** performed. If an email+password account exists with the same email as an incoming OAuth sign-in (or vice versa), the user is prompted to sign in with their existing method first and then manually link the new provider from Account Settings. This prevents an attacker from pre-registering with a victim's email to hijack a future OAuth sign-in.
+- **Manual linking:** Users can link additional providers from Account Settings at any time, even if email addresses differ. This requires the user to be authenticated on the current account first.
 
 ### 2.4 Central Account System
 
@@ -89,11 +91,21 @@ The backend account system stores **only**:
 ### 2.5 Security Best Practices
 
 - All OAuth tokens encrypted at rest using envelope encryption (e.g., AES-256 with a KMS-managed key)
-- Tokens are scoped to the minimum permissions required per provider
+- Tokens are scoped to the minimum permissions required per provider:
+
+| Provider | Scopes / Permissions | Rationale |
+|----------|---------------------|-----------|
+| **Microsoft (OneDrive)** | `Files.ReadWrite` (not `Files.ReadWrite.All`) + `User.Read` + `offline_access` | `Files.ReadWrite` limits to user's own files; `offline_access` for refresh tokens. Server-side path validation ensures only the configured folder is accessed. |
+| **Google (Drive)** | `https://www.googleapis.com/auth/drive.file` + `profile` + `email` | `drive.file` limits access to files the app creates or the user explicitly opens — far safer than full `drive` scope |
+| **GitHub** | GitHub App permissions: Contents (read/write), Metadata (read), Pull Requests (read/write) | Scoped by GitHub App installation — user selects which repos the app can access |
+
+- **Server-side enforcement:** Regardless of OAuth scope granted, the backend validates that every file operation targets only resources within the user's configured notebook boundaries
 - Short-lived access tokens with refresh token rotation
 - HTTPS everywhere; HSTS enforced
 - CSRF protection on all state-changing endpoints
 - Rate limiting on auth endpoints
+- **Rate limiting on file proxy endpoints:** Per-user rate limits on all `/api/notebooks/:id/files/*` and `/api/notebooks/:id/folders/*` endpoints to prevent abuse and protect source system API quotas
+- **Source system backoff:** The proxy respects source system rate limit headers (`Retry-After`, `X-RateLimit-*`) and implements circuit breakers per source to prevent cascading failures
 - Session management with secure, HttpOnly, SameSite cookies or short-lived JWTs
 - Audit logging for account-level actions (link/unlink provider, notebook add/remove)
 
@@ -117,9 +129,16 @@ A **Notebook** is a connection to a storage location on one of the supported sou
 
 | Source | Backing Service | Notebook Root | Notes |
 |--------|----------------|---------------|-------|
+| **Local** | Browser IndexedDB / localStorage (web); local filesystem (native apps) | Virtual folder in browser storage | No account linkage required; available immediately; data lives on-device only |
 | OneDrive | Microsoft Graph API | A OneDrive folder | Requires Microsoft account linkage |
 | Google Drive | Google Drive API | A Google Drive folder | Requires Google account linkage |
 | GitHub | GitHub App ("Notebook.md", installed by user) | A repository (or subfolder within a repo) owned by the user | Requires GitHub account linkage; user installs the Notebook.md GitHub App and selects specific repos to grant access; personal public and private repos only (org repos deferred) |
+
+> **Local Notebooks:**
+> - **Web app:** Files are stored in the browser's IndexedDB. Data is local to the browser/device and is not synced across devices or backed up centrally. Users should be warned that clearing browser data will delete Local notebook content.
+> - **Native desktop apps (future):** Files are stored on the local filesystem. Default location is a `Notebook.md` folder in the user's Documents directory, configurable in Settings.
+> - **Use cases:** Quick notes without configuring a source, offline drafting, testing/development, onboarding (new users can start writing immediately before connecting a cloud source).
+> - **No backend interaction:** Local notebooks bypass the backend proxy entirely — all read/write operations happen client-side.
 
 > **GitHub App Details:**
 > - **App name:** "Notebook.md"
@@ -131,7 +150,7 @@ A **Notebook** is a connection to a storage location on one of the supported sou
 ### 3.2 Notebook Configuration (stored centrally)
 
 - Notebook display name
-- Source type (OneDrive, Google Drive, GitHub)
+- Source type (Local, OneDrive, Google Drive, GitHub)
 - Source-specific location reference (folder path, repo + optional subfolder)
 - Linked provider account reference
 - Auto-save preference (on/off, per notebook)
@@ -141,6 +160,7 @@ A **Notebook** is a connection to a storage location on one of the supported sou
 
 - Displayed in the **Notebook Pane** (left sidebar)
 - Each Notebook shows a source-type icon:
+  - **Local:** Device/folder icon
   - **GitHub:** Octocat icon
   - **OneDrive:** OneDrive cloud icon
   - **Google Drive:** Google Drive triangle icon
@@ -298,6 +318,7 @@ The editor supports drag-and-drop for:
 
 | Source | Auto-Save Strategy |
 |--------|--------------------|
+| Local | Immediate: save to IndexedDB on every change (no debounce needed — local storage is fast) |
 | OneDrive | Debounce: save after 3 seconds of inactivity, max interval 30 seconds |
 | Google Drive | Debounce: save after 3 seconds of inactivity, max interval 30 seconds |
 | GitHub | See §4.10.3 |
@@ -308,7 +329,7 @@ GitHub is version-controlled, so saving requires a more nuanced approach. **V1 i
 
 1. **On Notebook open:** The app fetches the relevant files from the configured base branch (e.g., `main`) into a local working state (in-memory or local cache — not a full git checkout).
 2. **On save (manual or auto):** Changes are accumulated locally in the client. Each save writes to the local working state.
-3. **Auto-save commits:** When auto-save is enabled, changes are committed to a **working branch** named `notebook-md/<username>/<session-id>`. Commits are batched — accumulated changes are committed when the user pauses editing for a threshold period (e.g., 30 seconds of inactivity), reducing commit noise.
+3. **Auto-save commits:** When auto-save is enabled, changes are committed to a **working branch** named `notebook-md/<random-uuid>` (cryptographically random, not containing username or session info to avoid leaking user identity on public repos). Commits are batched — accumulated changes are committed when the user pauses editing for a threshold period (e.g., 30 seconds of inactivity), reducing commit noise.
 4. **Publish (squash merge):** The user explicitly "Publishes" changes, which **squashes all commits** from the working branch into a single commit on the base branch (or opens a PR, configurable). This keeps the base branch history clean.
 5. **Conflict handling:** If the base branch has diverged, the app notifies the user and offers to rebase or merge.
 
@@ -422,7 +443,6 @@ Displayed when the user is not signed in:
   - "Continue with Microsoft"
   - "Continue with GitHub"
   - "Continue with Google"
-  - "Continue with Apple"
   - "Continue with Email"
 - Selecting a provider initiates the OAuth flow (redirect or popup)
 - Email option: enter email → choose magic link or create password
@@ -511,34 +531,40 @@ Settings are **global** (not per-notebook) and **synced across devices** (stored
 ### 8.2 Application Architecture
 
 ```
-┌─────────────┐      ┌─────────────────────────┐
-│   Browser /  │      │     Notebook.md API      │
-│   Desktop    │◄────►│  (Node.js + TypeScript)  │
-│   Client     │      │                          │
-│  (React +    │      │  - Auth / Session mgmt   │
-│   Tiptap)    │      │  - Notebook CRUD         │
-│              │      │  - User preferences      │
-└─────┬────────┘      │  - Proxy to source APIs  │
-      │               │    (optional, for CORS)  │
-      │               └────────┬────────────────┘
-      │                        │
-      │               ┌────────▼────────┐
-      │               │   PostgreSQL    │
-      │               │  (metadata only)│
-      │               └─────────────────┘
-      │
-      ▼
-┌─────────────────────────────────┐
-│  Source System APIs (direct)    │
-│  - Microsoft Graph (OneDrive)  │
-│  - Google Drive API            │
-│  - GitHub API                  │
-└─────────────────────────────────┘
+┌─────────────┐      ┌─────────────────────────────────┐
+│   Browser /  │      │       Notebook.md API            │
+│   Desktop    │◄────►│    (Node.js + TypeScript)        │
+│   Client     │      │                                  │
+│  (React +    │      │  - Auth / Session mgmt           │
+│   Tiptap)    │      │  - Notebook CRUD                 │
+│              │      │  - User preferences              │
+│              │      │  - Source system proxy            │
+│              │      │    (all file ops routed here)     │
+└──────────────┘      └──────────┬───────────────────────┘
+                                 │
+                      ┌──────────▼───────────┐
+                      │     PostgreSQL       │
+                      │   (metadata only)    │
+                      └──────────────────────┘
+                                 │
+                      ┌──────────▼───────────────────┐
+                      │  Source System APIs           │
+                      │  - Microsoft Graph (OneDrive) │
+                      │  - Google Drive API           │
+                      │  - GitHub API                 │
+                      └──────────────────────────────┘
 ```
 
-**Key architectural decision:** The client communicates **directly** with source system APIs for file operations (read/write) using tokens obtained via the backend. The backend serves as the auth orchestrator and metadata store, not a file proxy. This minimizes backend load and latency for document operations.
+**Key architectural decision — Backend Proxy Model:** All source system API calls are routed through the Notebook.md backend. OAuth tokens are **never** sent to or held in the browser/client. The user authenticates with their source provider via standard OAuth; the resulting tokens are stored encrypted on the backend. The client authenticates to the Notebook.md API using a session cookie (HttpOnly, Secure, SameSite). The API uses the user's own OAuth token to call source system APIs on their behalf.
 
-For sources where CORS prevents direct browser access, the backend can act as a thin proxy.
+This architecture:
+- **Prevents token theft via XSS** — even if an XSS vulnerability exists, the attacker cannot access the user's OneDrive/Google Drive/GitHub tokens because they never reach the browser
+- **Still uses the user's own token** — no app-specific token layer. The user authorizes Notebook.md via OAuth, and their token is what accesses their files
+- **Simplifies the client** — the client only needs to call Notebook.md API endpoints, not handle multiple source system APIs directly
+
+**Exception — Local notebooks:** Local notebooks (§3.1) operate entirely in the browser using IndexedDB/localStorage. No backend proxy is needed since no external APIs are involved.
+
+> **Future optimization (§12):** For high-traffic read operations at scale, the backend can generate short-lived pre-signed/pre-authenticated URLs (supported by OneDrive and Google Drive) that allow the browser to download file content directly from the source without exposing the full OAuth token. This reduces backend bandwidth for reads while maintaining the security model.
 
 ### 8.3 Container Strategy
 
@@ -601,13 +627,16 @@ For sources where CORS prevents direct browser access, the backend can act as a 
 - Rollback is instant — shift traffic back to the previous revision
 
 **Dev Mode:**
-- Controlled by a `DEV_MODE` environment variable (automatically `true` when running locally)
+- Controlled by a **build-time flag** (`NODE_ENV=development`), not a runtime environment variable. Dev-mode code paths are compiled out of production builds, making it impossible to accidentally enable them in production.
 - Dev mode enables:
-  - Local email capture (Mailpit/MailHog) with console-logged magic links
+  - Local email capture (Mailpit/MailHog) — secrets are **never** logged to console; use the SMTP trap UI
   - Mock OAuth providers for testing without real credentials
-  - Detailed error messages and stack traces in API responses
-  - Debug panel in the client UI (hidden in production)
-- **Account-level dev mode:** Specific user accounts can be flagged as `is_dev_mode = true` in the database. When a dev-mode account is signed in to the production app, dev mode features (debug panel, verbose logging) are enabled for that session only. This allows developers to debug production issues without affecting other users.
+  - Verbose server-side logging (to local log files/console, never to client responses)
+  - Debug panel in the client UI (completely absent from production builds)
+- **Account-level dev mode (production):** Specific user accounts can be flagged as `is_dev_mode = true` in the database. This enables:
+  - A lightweight diagnostic overlay showing request latency, cache hit/miss, and correlation IDs (non-sensitive info only)
+  - Enhanced server-side logging for that user's requests (logged to the backend logging system, **never** returned in API responses)
+  - **Never:** detailed error messages, stack traces, or token metadata are exposed to the client, even for dev-mode accounts. Errors return a correlation ID; developers look up details in Azure Monitor / Log Analytics.
 
 ### 8.6 Local Development
 
@@ -678,6 +707,11 @@ A separate web application for system administration, deployed alongside the mai
 | **Feature Flags** | Toggle feature flags for canary features, A/B tests, or kill switches |
 | **Announcements** | Create system-wide announcements displayed to users (e.g., maintenance windows) |
 
+**Admin action security:**
+- All admin actions are logged to the audit log with a distinct `admin_action` flag for easy filtering
+- Sensitive admin actions (user suspension, user deletion, feature flag changes) trigger real-time alerts (email to a configured security distribution list)
+- Admin promotion (`is_admin = true`) can **only** be performed via the CLI (`promote-admin.js`) — the API endpoint explicitly rejects requests to set this flag
+
 #### 8.9.2 Admin Console Architecture
 
 - Separate React SPA (can share component library with main app via a shared package)
@@ -685,7 +719,13 @@ A separate web application for system administration, deployed alongside the mai
 - Deployed as an additional container in the fleet (`admin` container serving static assets)
 - Accessed via a separate subdomain (e.g., `admin.notebookmd.io`)
 - Authentication: same identity providers as the main app, but access restricted to accounts with `is_admin = true` flag
-- **2FA required** for email/password admin logins (OAuth logins are considered inherently MFA-capable)
+- **2FA required for all admin logins:**
+  - Email/password admins: must have 2FA enabled on their Notebook.md account (TOTP or emailed code)
+  - OAuth admins: the API checks for MFA verification where the provider supports it:
+    - **Microsoft:** Check the `amr` claim in the OIDC token for `mfa`
+    - **Google:** Check the `amr` claim for multi-factor methods
+    - **GitHub:** Check the `two_factor_authentication` field via the GitHub User API
+  - If MFA is not detected from the OAuth provider, the admin is required to also have Notebook.md 2FA enabled and must complete a 2FA challenge before accessing the admin console
 
 #### 8.9.3 Admin Account Provisioning
 
@@ -702,7 +742,7 @@ A separate web application for system administration, deployed alongside the mai
 |--------|------|-------------|
 | GET | `/admin/users` | List/search users (paginated) |
 | GET | `/admin/users/:id` | Get user details |
-| PATCH | `/admin/users/:id` | Update user flags (dev mode, admin, suspended) |
+| PATCH | `/admin/users/:id` | Update user flags (dev_mode, suspended). **Cannot** set `is_admin` — admin promotion is restricted to CLI only (see §8.9.3) |
 | DELETE | `/admin/users/:id` | Delete user account |
 | GET | `/admin/health` | System health status |
 | GET | `/admin/metrics` | Usage metrics |
@@ -861,7 +901,7 @@ The Notebook.md codebase is hosted in a **private GitHub repository**. Branch pr
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/auth/:provider` | Initiate OAuth flow (Microsoft, GitHub, Google, Apple) |
+| GET | `/auth/:provider` | Initiate OAuth flow (Microsoft, GitHub, Google) |
 | GET | `/auth/:provider/callback` | OAuth callback |
 | GET | `/auth/github/install` | Redirect to GitHub App installation flow |
 | GET | `/auth/github/install/callback` | GitHub App installation callback |
@@ -904,11 +944,23 @@ The Notebook.md codebase is hosted in a **private GitHub repository**. Branch pr
 | DELETE | `/api/notebooks/:id/folders/*path` | Delete folder (proxy) |
 | POST | `/api/notebooks/:id/publish` | Publish changes (GitHub: squash merge working branch) |
 
+**File proxy security requirements:**
+- All `*path` parameters must be **canonicalized** (resolve `..`, `.`, double slashes, URL-encoded sequences) and validated to ensure the resolved path stays within the notebook's configured root directory
+- Reject any path containing `..` segments after URL decoding
+- For GitHub notebooks, validate that the target repository matches the notebook's configured repository
+- For OneDrive/Google Drive, validate that the resolved path is a descendant of the configured folder ID
+
 ### 9.4 Webhook Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/webhooks/github` | GitHub App webhook receiver (push events, installation events); verified via webhook secret signature |
+| POST | `/webhooks/github` | GitHub App webhook receiver (push events, installation events); verified via webhook secret HMAC-SHA256 signature |
+
+**Webhook security requirements:**
+- Verify `X-Hub-Signature-256` header (HMAC-SHA256 of the payload with the webhook secret)
+- **Replay protection:** Reject deliveries older than 5 minutes (check timestamp in payload)
+- **Deduplication:** Track `X-GitHub-Delivery` header (UUID) in Redis with a 10-minute TTL; reject duplicate delivery IDs
+- Log all webhook deliveries (accepted and rejected) to the audit log
 
 ### 9.5 Settings Endpoints
 
@@ -923,7 +975,7 @@ The Notebook.md codebase is hosted in a **private GitHub repository**. Branch pr
 |--------|------|-------------|
 | GET | `/admin/users` | List/search users (paginated) |
 | GET | `/admin/users/:id` | Get user details with linked accounts and notebooks |
-| PATCH | `/admin/users/:id` | Update user flags (dev_mode, admin, suspended) |
+| PATCH | `/admin/users/:id` | Update user flags (dev_mode, suspended). **Cannot** set `is_admin` — admin promotion restricted to CLI only |
 | DELETE | `/admin/users/:id` | Delete user account |
 | GET | `/admin/health` | System health status (DB, Redis, containers) |
 | GET | `/admin/metrics` | Usage metrics (users, notebooks, API volume) |
@@ -947,9 +999,9 @@ users
 ├── avatar_url (VARCHAR, nullable)
 ├── email (VARCHAR, unique, nullable)
 ├── password_hash (VARCHAR, nullable) -- bcrypt, only for email+password users
-├── totp_secret_enc (BYTEA, nullable) -- encrypted TOTP secret, set when 2FA enabled
+├── totp_secret_enc (BYTEA, nullable) -- encrypted TOTP secret, uses same KMS-based envelope encryption as OAuth tokens
 ├── totp_enabled (BOOLEAN, default false)
-├── recovery_codes_enc (BYTEA, nullable) -- encrypted JSON array of hashed recovery codes
+├── recovery_codes_hash (JSONB, nullable) -- JSON array of bcrypt-hashed recovery codes (one-way hash, not encrypted)
 ├── is_admin (BOOLEAN, default false)
 ├── is_dev_mode (BOOLEAN, default false)
 ├── is_suspended (BOOLEAN, default false)
@@ -959,7 +1011,7 @@ users
 identity_links
 ├── id (UUID, PK)
 ├── user_id (UUID, FK → users)
-├── provider (ENUM: microsoft, github, google, apple, email)
+├── provider (ENUM: microsoft, github, google, email)
 ├── provider_user_id (VARCHAR)
 ├── access_token_enc (BYTEA)  -- encrypted
 ├── refresh_token_enc (BYTEA) -- encrypted
@@ -972,7 +1024,7 @@ notebooks
 ├── id (UUID, PK)
 ├── user_id (UUID, FK → users)
 ├── name (VARCHAR)
-├── source_type (ENUM: onedrive, google_drive, github)
+├── source_type (ENUM: local, onedrive, google_drive, github)
 ├── source_config (JSONB) -- provider-specific: folder path, repo, branch, etc.
 ├── identity_link_id (UUID, FK → identity_links)
 ├── auto_save (BOOLEAN, default false)
@@ -1037,12 +1089,29 @@ announcements
 
 ### 11.2 Security
 
-- See §2.4 for auth-specific security
-- Content Security Policy (CSP) headers
+- See §2.5 for auth-specific security
+- **Content Security Policy (CSP):**
+  - Strict base policy with **nonce-based** script loading (no `unsafe-inline`, no `unsafe-eval`)
+  - `script-src 'self' 'nonce-{random}'` — only scripts with a server-generated nonce are executed
+  - `style-src 'self' 'nonce-{random}'` — inline styles via nonce only
+  - `img-src 'self' data: blob:` — allow inline images (data URIs for pasted images, blob for local preview) plus specific CDN origins as needed; **not** `img-src *`
+  - `connect-src 'self'` — API calls only to `api.notebookmd.io`
+  - `frame-src 'none'` — no iframes
+  - `object-src 'none'` — no plugins/embeds
+  - Math rendering: KaTeX is preferred over MathJax for CSP compatibility (KaTeX does not require `unsafe-eval`)
+  - External images referenced in Markdown documents: loaded via `img-src` with the source system's CDN domain (e.g., `*.sharepoint.com`, `*.googleusercontent.com`, `*.githubusercontent.com`) — not a wildcard
 - No document content stored server-side
 - OAuth tokens encrypted at rest
 - Regular dependency audits (Dependabot / npm audit)
-- Input sanitization for all user-provided data (XSS prevention in rendered Markdown)
+- **Markdown rendering sanitization:**
+  - All rendered Markdown output is sanitized using **DOMPurify** (or equivalent proven HTML sanitizer)
+  - Raw HTML in Markdown is sanitized aggressively: strip all event handlers (`onerror`, `onload`, etc.), `javascript:` URIs, `data:` URIs for non-image content, `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<input>`, SVG scripts
+  - Tiptap/ProseMirror's schema-based rendering provides a first layer of protection (only known node types are rendered), but DOMPurify is applied as defense-in-depth
+  - `javascript:` and `data:text/html` URIs are blocked in all link `href` attributes
+- **CORS policy:**
+  - API at `api.notebookmd.io` sets `Access-Control-Allow-Origin` to only the exact origins: `notebookmd.io` and `admin.notebookmd.io`
+  - Never use `*` or reflect the `Origin` header
+  - `Access-Control-Allow-Credentials: true` only with explicit origin matching
 
 ### 11.3 Accessibility
 
@@ -1071,7 +1140,7 @@ announcements
 
 ### 12.1 Deferred Features
 
-- **iCloud Drive support** — deferred due to Apple CloudKit API limitations for third-party web apps; revisit when Apple improves web API access or when native iOS app is built
+- **iCloud Drive and Apple Sign-In** — both deferred together; Apple Sign-In will be added as an identity provider when iCloud Drive support is implemented, providing a cohesive Apple ecosystem experience. Revisit when Apple improves CloudKit web API access or when native iOS app is built.
 - **Native desktop apps** (macOS via Tauri, Windows via Tauri) — architecture is ready; deferred to focus on web-first launch
 - **Native mobile apps** (iOS, Android via Tauri Mobile) — architecture choices in §8.7 and §8.8 lay the groundwork
 - **GitHub organization repos** — deferred due to additional permissions complexity and org admin consent flows
@@ -1080,7 +1149,7 @@ announcements
 - **Customizable keyboard shortcuts**
 - **Split-editor view** (two different documents side by side)
 - **RTL language support** (Arabic, Hebrew)
-- **OAuth MFA enforcement for admin console** — check `amr` claim to verify that OAuth providers have MFA enabled before granting admin access
+- **Pre-signed URL optimization** — for high-traffic read operations at scale, the backend can generate short-lived pre-authenticated URLs (supported natively by OneDrive and Google Drive) allowing the browser to download file content directly from the source without exposing the full OAuth token. This reduces backend proxy bandwidth while maintaining the security model. Recommended when scaling beyond 100K WAU.
 - **Public source code repository** — currently private; may switch to public in the future (CI/CD security controls are already in place to support this transition)
 
 ### 12.2 Future Feature Ideas
@@ -1145,10 +1214,12 @@ A Privacy Policy is required at launch, especially for GDPR compliance (EU users
 ### 13.3 Cookie Consent
 
 - **Custom cookie consent banner** (built in-house, not a third-party library)
-- Simple, minimal UI: banner at bottom of page with "Accept" and "Manage Preferences" options
+- Simple, minimal UI: banner at bottom of page with **"Accept All"**, **"Reject All"**, and **"Manage Preferences"** options — rejecting must be as easy as accepting (GDPR/CNIL requirement)
 - Categories: Essential (session cookies — no consent needed), Analytics (PostHog — consent required)
-- Consent stored per user; respects "Do Not Track" browser setting
+- **Consent storage:** Stored in a first-party cookie (not tied to user authentication) so it works for unauthenticated visitors before sign-in
+- Respects "Do Not Track" browser setting
 - PostHog tracking initialized only after analytics consent is granted
+- OAuth provider cookies (set during redirect flows) disclosed in cookie policy
 
 > **Note:** Boilerplate legal documents will be generated and should be reviewed by a qualified attorney before launch. The documents will be published at `notebookmd.io/terms` and `notebookmd.io/privacy`.
 
@@ -1176,9 +1247,10 @@ A Privacy Policy is required at launch, especially for GDPR compliance (EU users
 
 | Term | Definition |
 |------|-----------|
-| **Notebook** | A connection to a storage location (folder or repo) on a source system; the top-level organizational unit in the app |
-| **Source system** | An external storage/version control provider (OneDrive, Google Drive, GitHub) |
-| **Identity provider** | An OAuth provider used for authentication (Microsoft, GitHub, Google, Apple, email) |
+| **Notebook** | A connection to a storage location (folder, repo, or local browser storage) on a source system; the top-level organizational unit in the app |
+| **Local notebook** | A notebook stored in browser IndexedDB (web) or local filesystem (native apps); no cloud connection required |
+| **Source system** | A storage provider (Local, OneDrive, Google Drive, GitHub) |
+| **Identity provider** | An OAuth provider used for authentication (Microsoft, GitHub, Google, email) |
 | **Working branch** | A Git branch created by Notebook.md for staging changes (GitHub notebooks) |
 | **Canvas** | The document editing area (WYSIWYG Markdown editor) |
 | **Publish** | The act of merging changes from a working branch to the base branch (GitHub notebooks) |

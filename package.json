@@ -1,0 +1,19 @@
+{
+  "name": "notebook-md",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker compose up",
+    "dev:web": "npm -w apps/web run dev",
+    "dev:api": "npm -w apps/api run dev",
+    "build": "npm -w packages/shared run build && npm -w apps/web run build && npm -w apps/api run build",
+    "lint": "npm -w packages/shared run lint && npm -w apps/web run lint && npm -w apps/api run lint",
+    "typecheck": "npm -w packages/shared run typecheck && npm -w apps/web run typecheck && npm -w apps/api run typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
