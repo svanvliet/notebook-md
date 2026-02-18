@@ -29,6 +29,26 @@ function RefreshIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>;
 }
 
+function BlockedBadge() {
+  return (
+    <span className="ml-auto shrink-0 flex items-center gap-1 text-red-600 dark:text-red-400">
+      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.343 4.343a8 8 0 0011.314 0L4.343 15.657a8 8 0 010-11.314z" clipRule="evenodd" />
+      </svg>
+    </span>
+  );
+}
+
+function CopyBadge() {
+  return (
+    <span className="ml-auto shrink-0 flex items-center gap-1 text-green-600 dark:text-green-400">
+      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+      </svg>
+    </span>
+  );
+}
+
 function FileIcon({ name, className = 'w-4 h-4' }: { name: string; className?: string }) {
   const ext = name.split('.').pop()?.toLowerCase();
   const isMd = ext === 'md' || ext === 'mdx' || ext === 'markdown';
@@ -100,6 +120,16 @@ export function NotebookTree({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragNotebookId, setDragNotebookId] = useState<string | null>(null);
   const [dragSourceNotebookId, setDragSourceNotebookId] = useState<string | null>(null);
+
+  // Determine cross-notebook drop style: green (copy allowed), red (blocked), or null (same notebook)
+  const crossDropStyle = useCallback((targetNotebookId: string): 'copy' | 'blocked' | null => {
+    if (!dragSourceNotebookId || dragSourceNotebookId === targetNotebookId) return null;
+    const srcNb = notebooks.find((n) => n.id === dragSourceNotebookId);
+    const tgtNb = notebooks.find((n) => n.id === targetNotebookId);
+    const srcLocal = (srcNb?.sourceType ?? 'local') === 'local';
+    const tgtLocal = (tgtNb?.sourceType ?? 'local') === 'local';
+    return srcLocal && tgtLocal ? 'copy' : 'blocked';
+  }, [dragSourceNotebookId, notebooks]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -185,9 +215,11 @@ export function NotebookTree({
         <div
           className={`flex items-center gap-1 py-0.5 px-1 rounded cursor-pointer text-sm select-none transition-colors ${
             dropTarget === fileKey
-              ? (dragSourceNotebookId && dragSourceNotebookId !== file.notebookId
-                  ? 'bg-green-200 dark:bg-green-800/40 ring-1 ring-green-400'
-                  : 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400')
+              ? (crossDropStyle(file.notebookId) === 'blocked'
+                  ? 'bg-red-200 dark:bg-red-800/40 ring-1 ring-red-400'
+                  : crossDropStyle(file.notebookId) === 'copy'
+                    ? 'bg-green-200 dark:bg-green-800/40 ring-1 ring-green-400'
+                    : 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400')
               : isActive
                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
@@ -214,8 +246,10 @@ export function NotebookTree({
             e.preventDefault();
             e.stopPropagation();
             setDropTarget(fileKey);
-            // Show copy cursor when dragging across notebooks
-            if (file.notebookId !== dragSourceNotebookId) {
+            const style = crossDropStyle(file.notebookId);
+            if (style === 'blocked') {
+              e.dataTransfer.dropEffect = 'none';
+            } else if (style === 'copy') {
               e.dataTransfer.dropEffect = 'copy';
             }
           }}
@@ -285,6 +319,8 @@ export function NotebookTree({
           ) : (
             <span className="truncate">{file.name}</span>
           )}
+          {dropTarget === fileKey && crossDropStyle(file.notebookId) === 'blocked' && <BlockedBadge />}
+          {dropTarget === fileKey && crossDropStyle(file.notebookId) === 'copy' && <CopyBadge />}
         </div>
         {isFolder && isExpanded && children.map((child) => renderFileItem(child, depth + 1))}
       </div>
@@ -326,9 +362,11 @@ export function NotebookTree({
             <div
               className={`flex items-center gap-1.5 py-1 px-2 cursor-pointer rounded select-none transition-colors ${
                 dropTarget === `notebook:${nb.id}`
-                  ? (dragSourceNotebookId && dragSourceNotebookId !== nb.id
-                      ? 'bg-green-200 dark:bg-green-800/40 ring-1 ring-green-400'
-                      : 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400')
+                  ? (crossDropStyle(nb.id) === 'blocked'
+                      ? 'bg-red-200 dark:bg-red-800/40 ring-1 ring-red-400'
+                      : crossDropStyle(nb.id) === 'copy'
+                        ? 'bg-green-200 dark:bg-green-800/40 ring-1 ring-green-400'
+                        : 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400')
                   : dragNotebookId && dragNotebookId !== nb.id
                     ? 'border-t-2 border-blue-400'
                     : 'hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -350,7 +388,10 @@ export function NotebookTree({
                 e.stopPropagation();
                 if (isFileMove) {
                   setDropTarget(`notebook:${nb.id}`);
-                  if (dragSourceNotebookId && dragSourceNotebookId !== nb.id) {
+                  const style = crossDropStyle(nb.id);
+                  if (style === 'blocked') {
+                    e.dataTransfer.dropEffect = 'none';
+                  } else if (style === 'copy') {
                     e.dataTransfer.dropEffect = 'copy';
                   }
                 }
@@ -420,6 +461,8 @@ export function NotebookTree({
               ) : (
                 <span className="font-medium text-gray-800 dark:text-gray-200 truncate">{nb.name}</span>
               )}
+              {dropTarget === `notebook:${nb.id}` && crossDropStyle(nb.id) === 'blocked' && <BlockedBadge />}
+              {dropTarget === `notebook:${nb.id}` && crossDropStyle(nb.id) === 'copy' && <CopyBadge />}
             </div>
             {isExpanded && (
               <div>
