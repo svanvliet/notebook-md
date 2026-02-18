@@ -14,16 +14,26 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // Rate limiting (memory-backed; swap to Redis store in production)
 // ---------------------------------------------------------------------------
-const authLimiter = rateLimit({
+
+// Strict limit for mutation endpoints (sign-up, sign-in, password reset)
+const authMutationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 });
 
-// Apply rate limiting to all auth routes
-router.use(authLimiter);
+// Generous limit for read/session endpoints (me, refresh, settings)
+const authReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+// Apply rate limiters per route below (not blanket)
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,7 +71,7 @@ function validatePassword(password: string): string | null {
 // ---------------------------------------------------------------------------
 // POST /auth/signup — Email + password sign-up
 // ---------------------------------------------------------------------------
-router.post('/signup', async (req: Request, res: Response) => {
+router.post('/signup', authMutationLimiter, async (req: Request, res: Response) => {
   const { email, password, displayName } = req.body;
 
   if (!email || !validateEmail(email)) {
@@ -133,7 +143,7 @@ router.post('/signup', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/signin — Email + password sign-in
 // ---------------------------------------------------------------------------
-router.post('/signin', async (req: Request, res: Response) => {
+router.post('/signin', authMutationLimiter, async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -210,7 +220,7 @@ router.post('/signin', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/magic-link/request — Request a magic link
 // ---------------------------------------------------------------------------
-router.post('/magic-link/request', async (req: Request, res: Response) => {
+router.post('/magic-link/request', authMutationLimiter, async (req: Request, res: Response) => {
   const { email } = req.body;
 
   if (!email || !validateEmail(email)) {
@@ -240,7 +250,7 @@ router.post('/magic-link/request', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/magic-link/verify — Verify a magic link token
 // ---------------------------------------------------------------------------
-router.post('/magic-link/verify', async (req: Request, res: Response) => {
+router.post('/magic-link/verify', authMutationLimiter, async (req: Request, res: Response) => {
   const { token } = req.body;
 
   if (!token) {
@@ -338,7 +348,7 @@ router.post('/magic-link/verify', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/verify-email — Verify email address
 // ---------------------------------------------------------------------------
-router.post('/verify-email', async (req: Request, res: Response) => {
+router.post('/verify-email', authMutationLimiter, async (req: Request, res: Response) => {
   const { token } = req.body;
 
   if (!token) {
@@ -379,7 +389,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/password-reset/request — Request password reset
 // ---------------------------------------------------------------------------
-router.post('/password-reset/request', async (req: Request, res: Response) => {
+router.post('/password-reset/request', authMutationLimiter, async (req: Request, res: Response) => {
   const { email } = req.body;
 
   if (!email || !validateEmail(email)) {
@@ -407,7 +417,7 @@ router.post('/password-reset/request', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/password-reset/confirm — Reset password with token
 // ---------------------------------------------------------------------------
-router.post('/password-reset/confirm', async (req: Request, res: Response) => {
+router.post('/password-reset/confirm', authMutationLimiter, async (req: Request, res: Response) => {
   const { token, newPassword } = req.body;
 
   if (!token || !newPassword) {
@@ -459,7 +469,7 @@ router.post('/password-reset/confirm', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/refresh — Rotate refresh token
 // ---------------------------------------------------------------------------
-router.post('/refresh', async (req: Request, res: Response) => {
+router.post('/refresh', authReadLimiter, async (req: Request, res: Response) => {
   const oldToken = req.cookies?.refresh_token;
   if (!oldToken) {
     res.status(401).json({ error: 'No refresh token' });
@@ -504,7 +514,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /auth/signout — Sign out (revoke session)
 // ---------------------------------------------------------------------------
-router.post('/signout', requireAuth, async (req: Request, res: Response) => {
+router.post('/signout', authReadLimiter, requireAuth, async (req: Request, res: Response) => {
   await revokeSession(req.sessionId!);
   res.clearCookie('refresh_token');
 
@@ -521,7 +531,7 @@ router.post('/signout', requireAuth, async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // GET /auth/me — Get current user
 // ---------------------------------------------------------------------------
-router.get('/me', requireAuth, async (req: Request, res: Response) => {
+router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Response) => {
   const result = await query<{
     id: string;
     display_name: string;
@@ -555,7 +565,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // PUT /auth/me — Update current user profile
 // ---------------------------------------------------------------------------
-router.put('/me', requireAuth, async (req: Request, res: Response) => {
+router.put('/me', authReadLimiter, requireAuth, async (req: Request, res: Response) => {
   const { displayName, avatarUrl } = req.body;
 
   const updates: string[] = [];
@@ -598,7 +608,7 @@ router.put('/me', requireAuth, async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // PUT /auth/password — Change password (while signed in)
 // ---------------------------------------------------------------------------
-router.put('/password', requireAuth, async (req: Request, res: Response) => {
+router.put('/password', authMutationLimiter, requireAuth, async (req: Request, res: Response) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
@@ -649,7 +659,7 @@ router.put('/password', requireAuth, async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // DELETE /auth/account — Delete account
 // ---------------------------------------------------------------------------
-router.delete('/account', requireAuth, async (req: Request, res: Response) => {
+router.delete('/account', authMutationLimiter, requireAuth, async (req: Request, res: Response) => {
   const { password } = req.body;
 
   // If user has a password, require it for deletion
