@@ -192,10 +192,19 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
     setSelectedRepo(null);
     try {
       setLoading(true);
+      setError(null);
       const { repos } = await listRepos(install.installationId);
       setRepos(repos);
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      // If installation was removed, refresh the list
+      if (msg.includes('removed') || msg.includes('re-install')) {
+        setInstallations((prev) => prev.filter((i) => i.installationId !== install.installationId));
+        setSelectedInstall(null);
+        setError(null);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

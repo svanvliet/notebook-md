@@ -154,7 +154,17 @@ router.get('/repos', async (req: Request, res: Response) => {
     const result = await listInstallationRepos(installationId, page, perPage);
     res.json(result);
   } catch (err) {
-    logger.error('Failed to list repos', { installationId, error: (err as Error).message });
+    const message = (err as Error).message;
+    logger.error('Failed to list repos', { installationId, error: message });
+
+    // If GitHub returns 401, the installation was likely removed — clean up
+    if (message.includes('401')) {
+      await query('DELETE FROM github_installations WHERE installation_id = $1', [installationId]);
+      logger.info('Removed stale GitHub installation', { installationId });
+      res.status(404).json({ error: 'GitHub App installation was removed. Please re-install.', code: 'INSTALLATION_REMOVED' });
+      return;
+    }
+
     res.status(502).json({ error: 'Failed to list repositories from GitHub' });
   }
 });
