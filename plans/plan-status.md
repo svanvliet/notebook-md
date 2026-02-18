@@ -872,12 +872,64 @@ Commit: `ca2720a`
 **Note:** User must re-authenticate with Microsoft to consent to the new `Files.ReadWrite` scope.
 
 **Verification needed:**
-- [ ] Re-authenticate with Microsoft (new scope consent)
-- [ ] Add OneDrive notebook: browse folders → select → create
+- [x] Re-authenticate with Microsoft (new scope consent)
+- [x] Add OneDrive notebook: browse folders → select → create
 - [ ] Open .md file from OneDrive
 - [ ] Edit and save changes
-- [ ] Create new file in OneDrive notebook
+- [x] Create new file in OneDrive notebook
 - [ ] Verify changes on OneDrive web (onedrive.live.com)
+
+---
+
+### Phase 3.11: E2E Bug Fixes & UX Improvements — COMPLETED ✅
+
+**Session context:** After Phase 3.10's OneDrive integration, full E2E testing revealed a chain of bugs across the OAuth link flow, source proxy, and file tree. All were fixed and tested.
+
+**Bug fixes (in order discovered/fixed):**
+
+1. **ESM `require` in encryption.ts** — `getKey()` used `require('crypto')` which fails in ESM modules. `linkProviderToUser` threw `ReferenceError: require is not defined`, causing OAuth callback to silently redirect to error page. Fixed by importing `createHash` from `'crypto'` at top level.
+   - Commit: `35c1d81`
+
+2. **OAuth callback not reopening modal** — After Microsoft OAuth redirect, the app returned to default view instead of the Add Notebook modal. Added `initialSource` prop: URL `?source=onedrive` param is captured and passed to `AddNotebookModal`, which initializes at the `'configure'` step with the correct `sourceType`.
+   - Commit: `b862afa`
+
+3. **OneDrive source proxy 401** — Source proxy looked up OAuth tokens using `'onedrive'` as provider, but tokens are stored under `'microsoft'` in `identity_links`. Added `oauthProvider` mapping: `onedrive → microsoft` in `resolveProvider()`.
+   - Commit: `99fe16b`
+
+4. **OneDrive file tree not loading** — Two issues in `api/onedrive.ts`:
+   - `listOneDriveFiles` didn't unwrap `{ entries: [...] }` response from source proxy
+   - Client sent `dir` query param but backend reads `path`
+   - Commit: `a2a3939`
+
+5. **Notebook Refresh context menu** — Added right-click "Refresh" option on notebooks to manually reload file tree from remote source (picks up files created outside the app). Added `RefreshIcon`, `onRefreshNotebook` prop threaded through `NotebookTree → NotebookPane → App`.
+   - Commit: `97fcb20`
+
+6. **GitHub App Setup URL missing** — After installing the GitHub App, GitHub didn't redirect back to our app. Setup URL was set to "Leave blank" in docs. Updated `auth-provider-plan.md` to set Setup URL to `http://localhost:5173/api/github/install/callback` with "Redirect on update" checked.
+   - Commit: `bee62b9`
+
+7. **GitHub install callback redirect** — Callback redirected to `/settings` instead of `/?source=github`, so the Add Notebook modal didn't reopen. Changed to redirect to `/?source=github` to trigger the same `initialSource` logic as OneDrive.
+   - Commit: `d4bff07`
+
+8. **Stale GitHub installation cleanup** — When a user uninstalls the GitHub App from GitHub settings, the webhook signature verification fails in dev (no tunnel), leaving a stale DB record. The repos endpoint now detects 401 from GitHub, auto-deletes the stale record, and returns `INSTALLATION_REMOVED` error. Frontend catches this, removes the stale entry, and shows the "Install App" prompt.
+   - Commit: `36743d7`
+
+**New tests (7 tests, 139 total):**
+- `encryption.test.ts`: Key derivation with short keys + long keys (2 tests)
+- `github-routes.test.ts`: Install callback missing ID, unauthenticated, stale install cleanup (3 tests)
+- `onedrive-routes.test.ts`: OAuth provider mapping assertion fix, unknown provider 404 (2 tests)
+- Commit: `573805b`
+
+**Files modified:**
+- `apps/api/src/lib/encryption.ts` — ESM import fix
+- `apps/api/src/routes/oauth.ts` — Error logging in catch block
+- `apps/api/src/routes/sources.ts` — `oauthProvider` mapping for token lookup
+- `apps/api/src/routes/github.ts` — Install callback redirect, stale install cleanup
+- `apps/web/src/api/onedrive.ts` — Unwrap entries response, fix query param name
+- `apps/web/src/App.tsx` — `initialSource` state, pass to modal, `onRefreshNotebook`
+- `apps/web/src/components/notebook/AddNotebookModal.tsx` — `initialSource` prop, stale install recovery
+- `apps/web/src/components/notebook/NotebookTree.tsx` — RefreshIcon, Refresh context menu item
+- `apps/web/src/components/layout/NotebookPane.tsx` — Thread `onRefreshNotebook` prop
+- `plans/auth-provider-plan.md` — GitHub App Setup URL instructions
 
 ---
 
