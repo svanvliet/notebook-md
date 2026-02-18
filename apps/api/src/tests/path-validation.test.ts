@@ -88,6 +88,34 @@ describe('Path Validation', () => {
       expect(wasNextCalled()).toBe(true);
       expect((req as any).cleanPath).toBe('from/query.md');
     });
+
+    it('should handle Express 5 wildcard array params', () => {
+      const { req, res, next, wasNextCalled } = mockReqRes({ filePath: ['docs', 'readme.md'] });
+      validatePath(req, res, next);
+      expect(wasNextCalled()).toBe(true);
+      expect((req as any).cleanPath).toBe('docs/readme.md');
+    });
+
+    it('should handle single-element array params', () => {
+      const { req, res, next, wasNextCalled } = mockReqRes({ filePath: ['readme.md'] });
+      validatePath(req, res, next);
+      expect(wasNextCalled()).toBe(true);
+      expect((req as any).cleanPath).toBe('readme.md');
+    });
+
+    it('should handle deeply nested array params', () => {
+      const { req, res, next, wasNextCalled } = mockReqRes({ filePath: ['a', 'b', 'c', 'deep.md'] });
+      validatePath(req, res, next);
+      expect(wasNextCalled()).toBe(true);
+      expect((req as any).cleanPath).toBe('a/b/c/deep.md');
+    });
+
+    it('should reject traversal in array params', () => {
+      const { req, res, next, wasNextCalled } = mockReqRes({ filePath: ['docs', '..', '..', 'etc', 'passwd'] });
+      validatePath(req, res, next);
+      expect(wasNextCalled()).toBe(false);
+      expect((res as any).statusCode).toBe(400);
+    });
   });
 
   describe('filterTreeEntries', () => {

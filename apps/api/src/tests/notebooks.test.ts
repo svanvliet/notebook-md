@@ -121,4 +121,51 @@ describe('Notebooks CRUD', () => {
       .send({ name: 'No Source Type' });
     expect(res.status).toBe(400);
   });
+
+  it('should create a GitHub notebook with sourceConfig', async () => {
+    const res = await request
+      .post('/api/notebooks')
+      .set('Cookie', `refresh_token=${tokenA}`)
+      .send({
+        name: 'My GitHub Notebook',
+        sourceType: 'github',
+        sourceConfig: { owner: 'testuser', repo: 'notes', rootPath: 'testuser/notes' },
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.notebook.sourceType).toBe('github');
+    expect(res.body.notebook.sourceConfig.owner).toBe('testuser');
+    expect(res.body.notebook.sourceConfig.rootPath).toBe('testuser/notes');
+  });
+
+  it('should return sourceConfig in notebook list', async () => {
+    await request
+      .post('/api/notebooks')
+      .set('Cookie', `refresh_token=${tokenA}`)
+      .send({
+        name: 'GH NB',
+        sourceType: 'github',
+        sourceConfig: { owner: 'user1', repo: 'repo1' },
+      });
+
+    const listRes = await request.get('/api/notebooks').set('Cookie', `refresh_token=${tokenA}`);
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.notebooks[0].sourceConfig.owner).toBe('user1');
+  });
+
+  it('should default sourceConfig to empty object', async () => {
+    const res = await request
+      .post('/api/notebooks')
+      .set('Cookie', `refresh_token=${tokenA}`)
+      .send({ name: 'Local NB', sourceType: 'local' });
+    expect(res.status).toBe(201);
+    expect(res.body.notebook.sourceConfig).toEqual({});
+  });
+
+  it('should reject creating notebook without name', async () => {
+    const res = await request
+      .post('/api/notebooks')
+      .set('Cookie', `refresh_token=${tokenA}`)
+      .send({ sourceType: 'local' });
+    expect(res.status).toBe(400);
+  });
 });

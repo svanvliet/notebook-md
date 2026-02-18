@@ -13,6 +13,7 @@ export async function cleanDb() {
   await query('DELETE FROM magic_link_tokens');
   await query('DELETE FROM password_reset_tokens');
   await query('DELETE FROM user_settings');
+  await query('DELETE FROM github_installations');
   await query('DELETE FROM notebooks');
   await query('DELETE FROM sessions');
   await query('DELETE FROM identity_links');
