@@ -812,6 +812,31 @@ Commit: `1ae920b`
 
 ---
 
+### Phase 3.9: Microsoft & Google OAuth Registration — COMPLETED ✅
+
+**Microsoft Entra ID app registered:**
+- App registered in Azure Portal with multi-tenant support (personal + enterprise accounts)
+- Delegated permissions: `openid`, `profile`, `email`, `User.Read`, `Files.ReadWrite`, `offline_access`
+- `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` added to `.env`
+- `MICROSOFT_TENANT_ID=common` for multi-tenant support
+
+**Google OAuth app registered:**
+- Project created in Google Cloud Console, Google Drive API enabled
+- OAuth configured via the new Google Auth Platform UI (Branding → Audience → Data Access → Clients)
+- Scopes: `openid`, `email`, `profile`, `https://www.googleapis.com/auth/drive.file`
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` added to `.env`
+- App in testing mode (test users only until verification)
+
+**Status:** Credentials stored in `.env`. Backend OAuth providers for both were already fully implemented in Phase 2. Ready for end-to-end testing of sign-in flows.
+
+**Verification needed:**
+- [ ] Test Microsoft sign-in: redirects → consent → callback → signed in
+- [ ] Test Google sign-in: redirects → consent → callback → signed in
+- [ ] Verify `identity_links` table populated for each provider
+- [ ] Test account linking (sign in with email, then link Microsoft/Google)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
