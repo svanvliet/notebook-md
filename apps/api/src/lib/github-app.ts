@@ -11,14 +11,20 @@ import { resolve } from 'path';
 import { logger } from './logger.js';
 import { redis } from './redis.js';
 
-const APP_ID = process.env.GITHUB_APP_ID;
 const PRIVATE_KEY_PATH = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
 
 let _privateKey: string | null = null;
 
+function getAppId(): string {
+  const id = process.env.GITHUB_APP_ID;
+  if (!id) throw new Error('GITHUB_APP_ID not set');
+  return id;
+}
+
 function getPrivateKey(): string {
   if (_privateKey) return _privateKey;
-  if (!PRIVATE_KEY_PATH) throw new Error('GITHUB_APP_PRIVATE_KEY_PATH not set');
+  const keyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH ?? PRIVATE_KEY_PATH;
+  if (!keyPath) throw new Error('GITHUB_APP_PRIVATE_KEY_PATH not set');
 
   const absPath = resolve(process.cwd(), PRIVATE_KEY_PATH);
   _privateKey = readFileSync(absPath, 'utf8');
@@ -30,14 +36,14 @@ function getPrivateKey(): string {
  * Valid for 10 minutes (GitHub maximum).
  */
 export function createAppJWT(): string {
-  if (!APP_ID) throw new Error('GITHUB_APP_ID not set');
+  const appId = getAppId();
 
   const now = Math.floor(Date.now() / 1000);
   return jwt.sign(
     {
       iat: now - 60, // 60s clock skew
       exp: now + 600, // 10 min
-      iss: APP_ID,
+      iss: appId,
     },
     getPrivateKey(),
     { algorithm: 'RS256' },

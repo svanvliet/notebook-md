@@ -16,7 +16,7 @@ import { logger } from '../lib/logger.js';
 
 const router = Router();
 const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
-const GITHUB_APP_SLUG = process.env.GITHUB_APP_SLUG ?? 'notebook-md-dev';
+const GITHUB_APP_SLUG = process.env.GITHUB_APP_SLUG ?? 'notebook-md';
 
 // All routes require auth
 router.use(requireAuth);
