@@ -42,8 +42,16 @@ async function start() {
     }
   }
 
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     logger.info(`Notebook.md API listening on port ${port}`);
+  });
+
+  server.on('error', (err) => {
+    logger.error('HTTP server error', { error: err.message, stack: (err as Error).stack });
+  });
+
+  server.on('close', () => {
+    logger.error('HTTP server closed unexpectedly');
   });
 }
 
