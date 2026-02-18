@@ -10,6 +10,7 @@ import { logger } from './lib/logger.js';
 import { seed } from './db/seed.js';
 import authRoutes from './routes/auth.js';
 import oauthRoutes from './routes/oauth.js';
+import settingsRoutes from './routes/settings.js';
 import { initializeOAuthProviders } from './services/oauth/index.js';
 
 const app = express();
@@ -38,6 +39,7 @@ app.get('/api/health', async (_req, res) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/auth/oauth', oauthRoutes);
+app.use('/auth/settings', settingsRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

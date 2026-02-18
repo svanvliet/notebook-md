@@ -2,13 +2,18 @@ import { useTranslation } from 'react-i18next';
 import type { DisplayMode } from '@notebook-md/shared';
 import { NotebookIcon, UserIcon, SunIcon, MoonIcon, MonitorIcon } from '../icons/Icons';
 import { useState, useRef, useEffect } from 'react';
+import type { User } from '../../hooks/useAuth';
 
 interface TitleBarProps {
   displayMode: DisplayMode;
   onDisplayModeChange: (mode: DisplayMode) => void;
+  user?: User | null;
+  onSignOut?: () => void;
+  onOpenAccount?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export function TitleBar({ displayMode, onDisplayModeChange }: TitleBarProps) {
+export function TitleBar({ displayMode, onDisplayModeChange, user, onSignOut, onOpenAccount, onOpenSettings }: TitleBarProps) {
   const { t } = useTranslation();
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -74,20 +79,29 @@ export function TitleBar({ displayMode, onDisplayModeChange }: TitleBarProps) {
           </button>
           {showAccountMenu && (
             <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50">
-              <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
-                {t('auth.signIn')}
-              </div>
-              <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
-                {t('settings.account')}
-              </button>
-              <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
-                {t('settings.title')}
-              </button>
-              <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
-                  {t('auth.signOut')}
-                </button>
-              </div>
+              {user ? (
+                <>
+                  <div className="px-3 py-2 text-xs border-b border-gray-100 dark:border-gray-800">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{user.displayName}</div>
+                    <div className="text-gray-500 dark:text-gray-400 truncate">{user.email}</div>
+                  </div>
+                  <button onClick={() => { setShowAccountMenu(false); onOpenAccount?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
+                    {t('settings.account')}
+                  </button>
+                  <button onClick={() => { setShowAccountMenu(false); onOpenSettings?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
+                    {t('settings.title')}
+                  </button>
+                  <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
+                    <button onClick={() => { setShowAccountMenu(false); onSignOut?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-red-600 dark:text-red-400">
+                      {t('auth.signOut')}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                  Not signed in
+                </div>
+              )}
             </div>
           )}
         </div>

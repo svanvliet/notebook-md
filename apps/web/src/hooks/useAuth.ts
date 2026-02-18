@@ -1,0 +1,220 @@
+import { useState, useEffect, useCallback } from 'react';
+
+const API_BASE = '';
+
+export interface User {
+  id: string;
+  displayName: string;
+  email: string;
+  emailVerified: boolean;
+  avatarUrl: string | null;
+  createdAt?: string;
+}
+
+interface AuthState {
+  user: User | null;
+  loading: boolean;
+  error: string | null;
+}
+
+export function useAuth() {
+  const [state, setState] = useState<AuthState>({ user: null, loading: true, error: null });
+
+  // Check existing session on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setState({ user: data.user, loading: false, error: null });
+        } else {
+          setState({ user: null, loading: false, error: null });
+        }
+      } catch {
+        setState({ user: null, loading: false, error: null });
+      }
+    })();
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string, displayName?: string, rememberMe?: boolean) => {
+    setState(s => ({ ...s, error: null }));
+    try {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, displayName, rememberMe }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setState(s => ({ ...s, error: data.error }));
+        return false;
+      }
+      setState({ user: data.user, loading: false, error: null });
+      return true;
+    } catch (err) {
+      setState(s => ({ ...s, error: 'Network error. Please try again.' }));
+      return false;
+    }
+  }, []);
+
+  const signIn = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
+    setState(s => ({ ...s, error: null }));
+    try {
+      const res = await fetch(`${API_BASE}/auth/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, rememberMe }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setState(s => ({ ...s, error: data.error }));
+        return false;
+      }
+      setState({ user: data.user, loading: false, error: null });
+      return true;
+    } catch (err) {
+      setState(s => ({ ...s, error: 'Network error. Please try again.' }));
+      return false;
+    }
+  }, []);
+
+  const requestMagicLink = useCallback(async (email: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/magic-link/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const verifyMagicLink = useCallback(async (token: string, rememberMe?: boolean) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/magic-link/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ token, rememberMe }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setState({ user: data.user, loading: false, error: null });
+        return true;
+      }
+      setState(s => ({ ...s, error: data.error }));
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/password-reset/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE}/auth/signout`, { method: 'POST', credentials: 'include' });
+    } catch { /* ignore */ }
+    setState({ user: null, loading: false, error: null });
+  }, []);
+
+  const updateProfile = useCallback(async (updates: { displayName?: string; avatarUrl?: string }) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        setState(s => s.user ? { ...s, user: { ...s.user, ...updates } } : s);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return data.error as string;
+      return null;
+    } catch {
+      return 'Network error';
+    }
+  }, []);
+
+  const deleteAccount = useCallback(async (password?: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/account`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        setState({ user: null, loading: false, error: null });
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setState(s => ({ ...s, error: null }));
+  }, []);
+
+  // Dev-only skip auth
+  const devSkipAuth = useCallback(() => {
+    setState({
+      user: { id: 'dev-user', displayName: 'Dev User', email: 'dev@localhost', emailVerified: true, avatarUrl: null },
+      loading: false,
+      error: null,
+    });
+  }, []);
+
+  return {
+    user: state.user,
+    loading: state.loading,
+    error: state.error,
+    isSignedIn: !!state.user,
+    signUp,
+    signIn,
+    signOut,
+    requestMagicLink,
+    verifyMagicLink,
+    requestPasswordReset,
+    updateProfile,
+    changePassword,
+    deleteAccount,
+    clearError,
+    devSkipAuth,
+  };
+}
