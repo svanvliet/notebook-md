@@ -4,6 +4,8 @@ import { pool, query } from '../db/pool.js';
 
 export const request = supertest(app);
 
+const MAILPIT_API = process.env.MAILPIT_API ?? 'http://localhost:8025/api/v1';
+
 /** Clean all user-created data between tests. Preserves schema. */
 export async function cleanDb() {
   await query('DELETE FROM audit_log');
@@ -15,6 +17,26 @@ export async function cleanDb() {
   await query('DELETE FROM sessions');
   await query('DELETE FROM identity_links');
   await query('DELETE FROM users');
+}
+
+/** Delete all messages from Mailpit. */
+export async function clearMailpit() {
+  await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE' });
+}
+
+/** Get messages from Mailpit, optionally filtered by recipient. */
+export async function getMailpitMessages(to?: string): Promise<Array<{ ID: string; Subject: string; To: Array<{ Address: string }>; Snippet: string }>> {
+  const res = await fetch(`${MAILPIT_API}/messages`);
+  const data = await res.json() as { messages: Array<{ ID: string; Subject: string; To: Array<{ Address: string }>; Snippet: string }> };
+  if (!to) return data.messages ?? [];
+  return (data.messages ?? []).filter(m => m.To.some(r => r.Address === to));
+}
+
+/** Get the full text body of a Mailpit message by ID. */
+export async function getMailpitMessageBody(id: string): Promise<string> {
+  const res = await fetch(`${MAILPIT_API}/message/${id}`);
+  const data = await res.json() as { Text: string };
+  return data.Text;
 }
 
 /** Close the DB pool (call in afterAll). */

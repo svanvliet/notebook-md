@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { request, cleanDb, closeDb, signUp, signIn, extractRefreshToken } from './helpers.js';
+import { request, cleanDb, closeDb, signUp, signIn, extractRefreshToken, clearMailpit, getMailpitMessages, getMailpitMessageBody } from './helpers.js';
 
 afterAll(async () => { await closeDb(); });
 
@@ -108,6 +108,57 @@ describe('Auth Flows', () => {
   it('should reject invalid token for email verification', async () => {
     const res = await request.post('/auth/verify-email').send({ token: 'badtoken' });
     expect(res.status).toBe(400);
+  });
+
+  // --- Email delivery & link format ---
+
+  it('should send verification email with /app/ link on sign-up', async () => {
+    await clearMailpit();
+    await signUp('linktest@test.com', 'password123');
+
+    const msgs = await getMailpitMessages('linktest@test.com');
+    expect(msgs.length).toBeGreaterThanOrEqual(1);
+    const verifyMsg = msgs.find(m => m.Subject.includes('Verify'));
+    expect(verifyMsg).toBeTruthy();
+    const body = await getMailpitMessageBody(verifyMsg!.ID);
+    expect(body).toContain('/app/verify-email?token=');
+  });
+
+  it('should send magic link email with /app/ link for existing user', async () => {
+    await signUp('magicuser@test.com', 'password123');
+    await clearMailpit();
+
+    await request.post('/auth/magic-link/request').send({ email: 'magicuser@test.com' });
+
+    const msgs = await getMailpitMessages('magicuser@test.com');
+    expect(msgs.length).toBeGreaterThanOrEqual(1);
+    const magicMsg = msgs.find(m => m.Subject.includes('Sign in'));
+    expect(magicMsg).toBeTruthy();
+    const body = await getMailpitMessageBody(magicMsg!.ID);
+    expect(body).toContain('/app/magic-link?token=');
+  });
+
+  it('should NOT send magic link email for non-existent user', async () => {
+    await clearMailpit();
+
+    await request.post('/auth/magic-link/request').send({ email: 'ghost@test.com' });
+
+    const msgs = await getMailpitMessages('ghost@test.com');
+    expect(msgs).toHaveLength(0);
+  });
+
+  it('should send password reset email with /app/ link for existing user', async () => {
+    await signUp('resetuser@test.com', 'password123');
+    await clearMailpit();
+
+    await request.post('/auth/password-reset/request').send({ email: 'resetuser@test.com' });
+
+    const msgs = await getMailpitMessages('resetuser@test.com');
+    expect(msgs.length).toBeGreaterThanOrEqual(1);
+    const resetMsg = msgs.find(m => m.Subject.includes('Reset'));
+    expect(resetMsg).toBeTruthy();
+    const body = await getMailpitMessageBody(resetMsg!.ID);
+    expect(body).toContain('/app/reset-password?token=');
   });
 
   // --- Sign-out ---
