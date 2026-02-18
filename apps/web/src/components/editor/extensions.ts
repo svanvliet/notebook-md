@@ -4,6 +4,7 @@ import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
+import { ImageView } from './ImageView';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
@@ -94,6 +95,17 @@ export function getEditorExtensions(placeholder?: string) {
     Image.configure({
       inline: true,
       allowBase64: true,
+    }).extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          width: { default: null, renderHTML: (a) => (a.width ? { width: a.width } : {}) },
+          height: { default: null, renderHTML: (a) => (a.height ? { height: a.height } : {}) },
+        };
+      },
+      addNodeView() {
+        return ReactNodeViewRenderer(ImageView);
+      },
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -106,7 +118,12 @@ export function getEditorExtensions(placeholder?: string) {
     TableRow,
     TableHeader,
     TableCell,
-    Typography,
+    Typography.configure({
+      openDoubleQuote: false,
+      closeDoubleQuote: false,
+      openSingleQuote: false,
+      closeSingleQuote: false,
+    }),
     TextAlign.configure({
       types: ['heading', 'paragraph'],
     }),
