@@ -100,6 +100,21 @@ turndown.addRule('highlight', {
   replacement: (content) => `==${content}==`,
 });
 
+// Callout blocks: convert to GitHub-style blockquote admonitions
+turndown.addRule('callout', {
+  filter: (node) =>
+    node.nodeName === 'DIV' && (node as HTMLElement).hasAttribute('data-callout'),
+  replacement: (_content, node) => {
+    const el = node as HTMLElement;
+    const type = el.getAttribute('data-callout-type') || 'info';
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
+    const contentEl = el.querySelector('.callout-content');
+    const inner = contentEl ? turndown.turndown(contentEl.innerHTML).trim() : _content.trim();
+    const lines = inner.split('\n').map((l: string) => `> ${l}`).join('\n');
+    return `\n> [!${label.toUpperCase()}]\n${lines}\n`;
+  },
+});
+
 export function htmlToMarkdown(html: string): string {
   return turndown.turndown(html);
 }
@@ -109,6 +124,42 @@ marked.setOptions({
   gfm: true,
   breaks: true,
 });
+
+// Custom marked extension for GitHub-style admonitions: > [!NOTE], > [!TIP], etc.
+const calloutExtension = {
+  extensions: [{
+    name: 'callout',
+    level: 'block' as const,
+    start(src: string) {
+      return src.match(/^>\s*\[!(NOTE|TIP|INFO|WARNING)\]/im)?.index;
+    },
+    tokenizer(src: string) {
+      const match = src.match(/^(?:>\s*\[!(NOTE|TIP|INFO|WARNING)\]\s*\n)((?:>.*(?:\n|$))*)/im);
+      if (match) {
+        const type = match[1].toLowerCase();
+        const bodyLines = match[2]
+          .split('\n')
+          .map((l: string) => l.replace(/^>\s?/, ''))
+          .join('\n')
+          .trim();
+        return {
+          type: 'callout',
+          raw: match[0],
+          calloutType: type,
+          body: bodyLines,
+        };
+      }
+      return undefined;
+    },
+    renderer(token: { calloutType: string; body: string }) {
+      const icons: Record<string, string> = { info: 'ℹ️', warning: '⚠️', tip: '💡', note: '📝' };
+      const icon = icons[token.calloutType] || icons.info;
+      const html = marked.parse(token.body, { async: false }) as string;
+      return `<div data-callout data-callout-type="${token.calloutType}" class="callout callout-${token.calloutType}"><span class="callout-icon" contenteditable="false">${icon}</span><div class="callout-content">${html}</div></div>`;
+    },
+  }],
+};
+marked.use(calloutExtension);
 
 /**
  * Convert Markdown to HTML for loading into Tiptap using marked (full GFM support).

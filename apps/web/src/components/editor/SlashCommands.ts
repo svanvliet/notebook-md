@@ -12,6 +12,12 @@ export interface SlashCommand {
 
 export const slashCommands: SlashCommand[] = [
   {
+    title: 'Paragraph',
+    description: 'Plain text block',
+    icon: '¶',
+    action: (editor) => editor.chain().focus().setParagraph().run(),
+  },
+  {
     title: 'Heading 1',
     description: 'Large heading',
     icon: 'H1',
@@ -124,6 +130,49 @@ export const slashCommands: SlashCommand[] = [
           .run();
       }
     },
+  },
+  {
+    title: 'Image',
+    description: 'Insert an image from URL',
+    icon: '🖼',
+    action: (editor) => {
+      const url = prompt('Image URL:');
+      if (!url) return;
+      const alt = prompt('Alt text (optional):') || '';
+      editor.chain().focus().setImage({ src: url, alt }).run();
+    },
+  },
+  {
+    title: 'Math Block',
+    description: 'LaTeX math expression',
+    icon: '∑',
+    action: (editor) => {
+      editor.chain().focus().insertContent('$E = mc^2$').run();
+    },
+  },
+  {
+    title: 'Callout - Info',
+    description: 'Informational callout box',
+    icon: 'ℹ️',
+    action: (editor) => editor.chain().focus().setCallout({ type: 'info' }).run(),
+  },
+  {
+    title: 'Callout - Warning',
+    description: 'Warning callout box',
+    icon: '⚠️',
+    action: (editor) => editor.chain().focus().setCallout({ type: 'warning' }).run(),
+  },
+  {
+    title: 'Callout - Tip',
+    description: 'Helpful tip callout box',
+    icon: '💡',
+    action: (editor) => editor.chain().focus().setCallout({ type: 'tip' }).run(),
+  },
+  {
+    title: 'Callout - Note',
+    description: 'Note callout box',
+    icon: '📝',
+    action: (editor) => editor.chain().focus().setCallout({ type: 'note' }).run(),
   },
 ];
 

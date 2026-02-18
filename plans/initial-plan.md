@@ -284,10 +284,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 4.1 Slash Commands
 
-- [ ] Implement slash command palette (§4.5): type `/` to open overlay
-- [ ] Commands: change block type (heading, paragraph, quote, code), insert table, insert image, insert horizontal rule, insert task list, insert code block (with language selector), insert math block, insert callout
-- [ ] Filterable by typing after `/` (e.g., `/tab` → "Table")
-- [ ] Keyboard navigation (arrow keys + Enter to select)
+- [x] Implement slash command palette (§4.5): type `/` to open overlay
+- [x] Commands: change block type (heading, paragraph, quote, code), insert table, insert image, insert horizontal rule, insert task list, insert code block (with language selector), insert math block, insert callout
+- [x] Filterable by typing after `/` (e.g., `/tab` → "Table")
+- [x] Keyboard navigation (arrow keys + Enter to select)
 
 ### 4.2 Split View
 

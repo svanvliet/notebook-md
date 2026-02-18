@@ -19,6 +19,9 @@ import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import { Mathematics } from '@tiptap/extension-mathematics';
+import 'katex/dist/katex.min.css';
+import { Callout } from './CalloutExtension';
 import { createLowlight } from 'lowlight';
 
 // Import common languages for code block highlighting
@@ -111,5 +114,9 @@ export function getEditorExtensions(placeholder?: string) {
     Subscript,
     TextStyle,
     Color,
+    Mathematics.configure({
+      katexOptions: { throwOnError: false },
+    }),
+    Callout,
   ];
 }
