@@ -523,6 +523,7 @@ interface GoogleDriveConfigProps {
 function GoogleDriveConfig({ onConfigured, onBack, userId }: GoogleDriveConfigProps) {
   const [loading, setLoading] = useState(true);
   const [linked, setLinked] = useState(false);
+  const [needsReauth, setNeedsReauth] = useState(false);
   const [folders, setFolders] = useState<GoogleDriveFolder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string; name: string }>>([]);
@@ -537,6 +538,7 @@ function GoogleDriveConfig({ onConfigured, onBack, userId }: GoogleDriveConfigPr
       setLoading(true);
       const status = await checkGoogleDriveAccess();
       setLinked(status.linked);
+      setNeedsReauth(!status.linked && status.reason === 'insufficient_scope');
       if (status.linked) {
         await loadFolders('root');
       }
@@ -602,7 +604,9 @@ function GoogleDriveConfig({ onConfigured, onBack, userId }: GoogleDriveConfigPr
     return (
       <div className="space-y-3">
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          To access Google Drive, you need to link your Google account with Drive permissions.
+          {needsReauth
+            ? 'Your Google account is linked but doesn\'t have Drive permissions. Please re-authorize to grant file access.'
+            : 'To access Google Drive, you need to link your Google account with Drive permissions.'}
         </p>
         <div className="flex gap-2">
           <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Back</button>
@@ -614,7 +618,7 @@ function GoogleDriveConfig({ onConfigured, onBack, userId }: GoogleDriveConfigPr
               window.location.href = `/auth/oauth/google?${params.toString()}`;
             }} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
             <SourceIcon sourceType="google-drive" className="w-4 h-4" />
-            Link Google Account
+            {needsReauth ? 'Re-authorize Google Drive' : 'Link Google Account'}
           </button>
         </div>
       </div>
