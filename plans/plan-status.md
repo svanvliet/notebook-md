@@ -785,19 +785,30 @@ Registered a GitHub App for reading/writing .md files in user repos.
 
 ---
 
-### Phase 3.8: Print / Export PDF (Planned)
+### Phase 3.8: Print / Export PDF — COMPLETED ✅
 
 **Requirement added:** Users can print or export the current document as a clean PDF.
 
 **Approach:** CSS `@media print` + `window.print()` — zero dependencies, browser-native.
 
 **Implementation tasks:**
-- [ ] Add `@media print` stylesheet that hides all UI chrome (toolbar, sidebar, tabs, status bar)
-- [ ] Style document content for print: full-width, clean typography, page-break rules
-- [ ] Map user margin preferences (regular/wide/narrow) to print margins
-- [ ] Add "Print" button to toolbar
-- [ ] Wire `Ctrl/Cmd + P` keyboard shortcut to trigger `window.print()`
+- [x] Add `@media print` stylesheet that hides all UI chrome (toolbar, sidebar, tabs, status bar)
+- [x] Style document content for print: full-width, clean typography, page-break rules
+- [x] Map user margin preferences (regular/wide/narrow) to print margins
+- [x] Add "Print" button to toolbar
+- [x] Wire `Ctrl/Cmd + P` keyboard shortcut to trigger `window.print()`
 - [ ] Test print output across browsers (Chrome, Safari, Firefox)
+
+**Files changed:**
+- `apps/web/src/index.css` — 128 lines of `@media print` rules (chrome hiding, typography, page breaks, margin mapping)
+- `apps/web/src/components/editor/EditorToolbar.tsx` — Print icon + button after Undo/Redo
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — Cmd/Ctrl+P shortcut handler
+- `apps/web/src/components/layout/DocumentPane.tsx` — Added `document-pane` and `document-tabs` CSS classes
+- `apps/web/src/components/layout/NotebookPane.tsx` — Added `data-print="hide"` and `notebook-pane` class
+- `apps/web/src/components/layout/StatusBar.tsx` — Added `data-print="hide"` and `statusbar` class
+- `apps/web/src/App.tsx` — Added `data-print-margins` attribute bound to settings
+
+Commit: `1ae920b`
 
 ---
 
