@@ -535,7 +535,75 @@ Registered a GitHub App for reading/writing .md files in user repos.
 | `path-validation.test.ts` | 11 | Traversal attacks (`../`, `../../`), null bytes, slash normalization, query param fallback, filterTreeEntries, isEditableExtension |
 | `circuit-breaker.test.ts` | 8 | State transitions closed→open→half-open→closed, probe success/failure, failure window expiry, reset on success |
 
-### 3.4 GitHub Integration — IN PROGRESS
+### 3.4 GitHub Integration — COMPLETED ✅
+
+**Commit:** `a20d7a1` — Phase 3.4 GitHub integration
+
+**What was built:**
+
+1. **DB Migration** (`002_github-installations.sql`):
+   - `github_installations` table: user_id, installation_id (unique), account_login, account_type, repos_selection, suspended_at
+   - Indexes on user_id and installation_id
+
+2. **GitHub App JWT Helper** (`lib/github-app.ts`):
+   - `createAppJWT()` — RS256 JWT signed with App private key, 10-min TTL
+   - `getInstallationToken(installationId)` — exchanges JWT for installation access token, cached in Redis (55 min)
+   - `listInstallationRepos(installationId)` — lists repos accessible to an installation
+
+3. **GitHub Source Adapter** (`services/sources/github.ts`):
+   - Full `SourceAdapter` implementation using GitHub Contents API
+   - `rootPath` format: `owner/repo` or `owner/repo/subfolder`
+   - `listFiles` — GET /repos/{owner}/{repo}/contents/{path}, filters to file/dir
+   - `readFile` — decodes base64 content from Contents API
+   - `writeFile` — PUT with SHA for updates, base64-encodes content
+   - `createFile` — PUT without SHA (fails if exists)
+   - `deleteFile` — DELETE with SHA (auto-fetches if not provided)
+   - `renameFile` — read → create new → delete old (no native rename API)
+   - Branch operations exported: `createWorkingBranch`, `listBranches`, `publishBranch`, `deleteBranch`
+
+4. **GitHub Routes** (`routes/github.ts`):
+   - `GET /api/github/install` — returns install URL for GitHub App
+   - `GET /api/github/install/callback` — stores installation in DB, redirects to settings
+   - `GET /api/github/installations` — lists user's installations
+   - `GET /api/github/repos?installation_id=X` — lists repos for an installation
+   - `POST /api/github/branches` — create working branch (`notebook-md/<uuid>`)
+   - `GET /api/github/branches?owner=X&repo=Y` — list branches
+   - `POST /api/github/publish` — squash merge working branch → base, optional branch deletion
+
+5. **Webhook Endpoint** (`routes/webhooks.ts`):
+   - `POST /webhooks/github` — receives GitHub App events
+   - HMAC-SHA256 signature verification (timing-safe compare)
+   - Delivery ID deduplication via Redis (10-min TTL, NX set)
+   - Handles: `installation` (created/deleted/suspend/unsuspend), `push` (marks repo:branch stale in Redis), `ping`
+   - Raw body parsing via `express.text()` mounted before `express.json()` in app.ts
+
+6. **Working Branch Strategy:**
+   - User creates `notebook-md/<short-uuid>` branch from base branch
+   - All file saves commit to the working branch
+   - Publish = merge working branch → base branch via GitHub Merges API
+   - Optional: delete working branch after publish
+
+**Files created:**
+| File | Purpose |
+|------|---------|
+| `migrations/002_github-installations.sql` | GitHub installations table |
+| `lib/github-app.ts` | App JWT creation + installation token caching |
+| `services/sources/github.ts` | SourceAdapter + branch operations |
+| `routes/github.ts` | Install flow, repos, branches, publish |
+| `routes/webhooks.ts` | Webhook verification + event handling |
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `app.ts` | Registered `/api/github`, `/webhooks/github` routes; side-effect import for GitHub adapter; raw body parsing for webhooks |
+| `.env.example` | Added `GITHUB_APP_SLUG` |
+| `package.json` | Added `jsonwebtoken` + `@types/jsonwebtoken` |
+
+**Verified:**
+- ✅ All 87 tests pass (no regressions)
+- ✅ TypeScript compiles cleanly (production code)
+- ✅ Migration applied to dev and test databases
+- ✅ Webhook proxy (smee.io) already configured in dev.sh
 
 ---
 

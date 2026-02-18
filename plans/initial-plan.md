@@ -244,20 +244,20 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 3.4 GitHub Integration
 
-- [ ] Register GitHub App ("Notebook.md") on GitHub
-- [ ] Implement GitHub App installation flow (§9.1): redirect to install → callback → store installation ID
-- [ ] Implement GitHub API proxy endpoints:
+- [x] Register GitHub App ("Notebook.md") on GitHub
+- [x] Implement GitHub App installation flow (§9.1): redirect to install → callback → store installation ID
+- [x] Implement GitHub API proxy endpoints:
   - List repository contents (tree view — filtered to supported file types only)
   - Read file content (via Contents API)
   - Create/update files (via Contents API to working branch)
   - Create working branch (`notebook-md/<random-uuid>`) from base branch
   - List branches, get branch status
 - [ ] GitHub Octocat icon in notebook tree
-- [ ] Manual save: commit to working branch
-- [ ] Auto-save: batch commits (30s inactivity threshold), squash on publish
-- [ ] Publish flow: squash merge working branch → base branch (or open PR)
-- [ ] "Delete branch on publish" setting integration
-- [ ] Webhook endpoint (`/webhooks/github`):
+- [x] Manual save: commit to working branch
+- [x] Auto-save: batch commits (30s inactivity threshold), squash on publish
+- [x] Publish flow: squash merge working branch → base branch (or open PR)
+- [x] "Delete branch on publish" setting integration
+- [x] Webhook endpoint (`/webhooks/github`):
   - HMAC-SHA256 signature verification
   - Timestamp validation (reject > 5 min old)
   - Delivery ID deduplication (Redis, 10-min TTL)
