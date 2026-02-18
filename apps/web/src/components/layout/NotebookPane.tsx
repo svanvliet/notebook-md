@@ -32,6 +32,7 @@ interface NotebookPaneProps {
   onRenameFile: (notebookId: string, path: string, newName: string) => void;
   onOpenFile: (notebookId: string, path: string) => void;
   onExpandNotebook?: (notebookId: string) => void;
+  onRefreshNotebook?: (notebookId: string) => void;
   activeFilePath: string | null;
 }
 
@@ -51,6 +52,7 @@ export function NotebookPane({
   onRenameFile,
   onOpenFile,
   onExpandNotebook,
+  onRefreshNotebook,
   activeFilePath,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
@@ -159,6 +161,7 @@ export function NotebookPane({
             onRenameFile={onRenameFile}
             onOpenFile={onOpenFile}
             onExpandNotebook={onExpandNotebook}
+            onRefreshNotebook={onRefreshNotebook}
             activeFilePath={activeFilePath}
           />
         </div>

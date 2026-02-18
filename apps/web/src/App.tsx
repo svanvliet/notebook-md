@@ -217,6 +217,9 @@ export default function App() {
               }
             }
           }}
+          onRefreshNotebook={(notebookId: string) => {
+            nb.refreshFiles(notebookId);
+          }}
           activeFilePath={nb.activeTabId}
         />
         <DocumentPane
