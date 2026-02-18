@@ -240,7 +240,7 @@ do_start() {
   # ── 3. Start API server ─────────────────────────────────────────────────
   echo ""
   echo -e "${BOLD}[3/5] Starting API server...${NC}"
-  npx --workspace=apps/api tsx src/index.ts > "$LOG_DIR/api.log" 2>&1 &
+  npx --workspace=apps/api tsx watch src/index.ts > "$LOG_DIR/api.log" 2>&1 &
   echo $! > "$API_PID_FILE"
   echo "  API server starting (PID $(cat "$API_PID_FILE"))..."
 
