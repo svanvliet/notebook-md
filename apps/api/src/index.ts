@@ -11,6 +11,7 @@ import { seed } from './db/seed.js';
 import authRoutes from './routes/auth.js';
 import oauthRoutes from './routes/oauth.js';
 import settingsRoutes from './routes/settings.js';
+import notebookRoutes from './routes/notebooks.js';
 import { initializeOAuthProviders } from './services/oauth/index.js';
 
 const app = express();
@@ -40,6 +41,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/auth', authRoutes);
 app.use('/auth/oauth', oauthRoutes);
 app.use('/auth/settings', settingsRoutes);
+app.use('/api/notebooks', notebookRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
