@@ -738,6 +738,51 @@ Registered a GitHub App for reading/writing .md files in user repos.
 - SHA conflict (409) on rapid saves — auto-save can race with manual save; retries succeed
 - API process occasionally dies silently under load — restart loop wrapper keeps it alive
 
+### Phase 3.7: Working Branch, Publish, and Save Fixes
+
+**Working branch + squash-merge publish feature:**
+
+9. **Auto working branch per session** (`hooks/useNotebookManager.ts`, `services/sources/github.ts`, `routes/sources.ts`, `api/github.ts`):
+   - All GitHub edits now go to a `notebook-md/<short-uuid>` branch, auto-created on first save
+   - Added `branch` parameter support throughout: SourceAdapter interface, GitHub adapter, source proxy routes, frontend API client
+   - `ensureWorkingBranch()` creates working branch lazily; `branchCreating` ref deduplicates concurrent saves
+   - `publishableNotebooks` reactive state tracks which notebooks have pending changes
+   - Commit: `4545da2`
+
+10. **Prominent Publish button** (`components/layout/DocumentPane.tsx`, `App.tsx`):
+    - Green "Publish" button with upload arrow icon in document tab bar, right-aligned
+    - Only appears when the active notebook has a working branch with unpublished changes
+    - Squash-merges working branch to default branch, deletes working branch after
+    - Commit: `a5b83c8`
+
+**Additional bugs found and fixed:**
+
+11. **Temporal dead zone crash — blank screen** (`hooks/useNotebookManager.ts`):
+    - `ensureWorkingBranch` was defined after `handleCreateFile` but referenced in its `useCallback` dependency array
+    - Caused `ReferenceError: Cannot access 'ensureWorkingBranch' before initialization` — entire app rendered blank
+    - Fix: moved `ensureWorkingBranch` and its refs/state declarations above `handleCreateFile`
+    - Commit: `94d2187`
+
+12. **Hardcoded 'main' branch caused 404 on repos with other defaults** (`routes/github.ts`, `api/github.ts`, `hooks/useNotebookManager.ts`):
+    - Frontend hardcoded `'main'` as base branch; repos using `master` or other defaults failed with 404
+    - Fix: backend now auto-detects the repo's `default_branch` from the GitHub API when `baseBranch` is not provided
+    - Returns `defaultBranch` to frontend; stored in `defaultBranches` ref for use during publish
+    - Commit: `e719d2c`
+
+13. **Files saved as HTML instead of Markdown** (`hooks/useNotebookManager.ts`):
+    - WYSIWYG editor stores content as HTML internally; `saveTab` wrote raw HTML to GitHub
+    - Fix: added `htmlToMarkdown()` conversion in `saveTab` before writing to any backend
+    - Commit: `43878d5`
+
+**Updated validated end-to-end flows:**
+- ✅ Working branch auto-created on first edit/save (branch name: `notebook-md/<uuid>`)
+- ✅ All saves go to working branch, not directly to main/master
+- ✅ Publish button appears when working branch has changes
+- ✅ Publish squash-merges to default branch and cleans up working branch
+- ✅ Works with repos using `main`, `master`, or any default branch
+- ✅ Files saved as proper Markdown syntax (not HTML)
+- ✅ New file creation on working branch
+
 ---
 
 ## Open Questions
