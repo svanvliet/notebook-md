@@ -981,6 +981,64 @@ Commits: `4b91cbd`, `7f3b196`, `b63971e`
 
 ---
 
+### Phase 4.1: Slash Commands & Editor Polish — COMPLETED ✅
+
+**Slash Commands (22 total):**
+The slash command palette was largely pre-built (16 commands). Added 6 new commands and supporting infrastructure:
+
+- **Paragraph** — Convert block back to plain text (`setParagraph()`)
+- **Image** — Insert image from URL with alt text prompt
+- **Math Block** — Inline KaTeX math expression (`$E = mc^2$`)
+- **Callout - Info/Warning/Tip/Note** — 4 styled admonition block types
+
+**New Extensions:**
+- `apps/web/src/components/editor/CalloutExtension.ts` — Custom Tiptap node for callout blocks
+  - 4 types: info (blue), warning (amber), tip (green), note (purple)
+  - Each rendered with icon + styled container, light/dark mode
+  - `parseHTML` with `contentElement: '.callout-content'` for proper content hole mapping
+- `@tiptap/extension-mathematics` + `katex` — Inline/block LaTeX rendering
+
+**Markdown Roundtrip (callouts):**
+- HTML→MD: Callouts serialize as `> [!TYPE]\n> body` (GitHub-style admonitions)
+- MD→HTML: Custom `marked` extension parses both formats:
+  - Multi-line: `> [!NOTE]\n> body text`
+  - Single-line: `> [!NOTE] body text`
+- Trailing blank line added between consecutive callouts to prevent merging
+
+**Editor UI Bug Fixes:**
+
+1. **Task list vertical alignment** — Checkboxes were misaligned with text. Changed from `align-items: flex-start` + `margin-top: 0.25rem` to `align-items: baseline` for natural text alignment.
+
+2. **Smart quote auto-conversion** — Typography extension was converting `"` to `"` / `"` automatically. Disabled `openDoubleQuote`, `closeDoubleQuote`, `openSingleQuote`, `closeSingleQuote` in Typography config.
+
+3. **Image resize + floating toolbar** — Created `ImageView.tsx` custom NodeView:
+   - Blue selection outline when image is selected
+   - Drag handle on bottom-right corner for proportional resizing
+   - Floating toolbar above image showing: dimensions (W×H), editable alt text, editable URL
+   - Added `width`/`height` attributes to Image extension
+
+4. **Source view roundtrip corruption** — Multiple cascading bugs caused content degradation on each source↔design toggle:
+   - **Callout tokenizer regex** used `im` flags, causing double-matching. Removed `m` flag from tokenizer.
+   - **DOMPurify stripping callout attrs** — Added `data-callout`, `data-callout-type`, `contenteditable` to sanitizer allowlist.
+   - **Task list HTML mismatch** — `marked` outputs `<input type="checkbox">` but Tiptap needs `data-type="taskItem"`. Added post-processing in `markdownToHtml()` to transform GFM checkbox HTML.
+   - **Task list with blank lines** — `marked` wraps items in `<p>` tags when separated by blank lines. Updated regex to handle both `<li><input>` and `<li><p><input>`.
+   - **Single-line callout** — `> [!NOTE] text` on one line wasn't matched by tokenizer. Added single-line fallback regex.
+
+**Files created:**
+- `apps/web/src/components/editor/CalloutExtension.ts`
+- `apps/web/src/components/editor/ImageView.tsx`
+
+**Files modified:**
+- `apps/web/src/components/editor/extensions.ts` — Mathematics, Callout, ImageView, Typography config
+- `apps/web/src/components/editor/SlashCommands.ts` — 6 new commands (22 total)
+- `apps/web/src/components/editor/editor.css` — Callout styles, KaTeX styles, image resize handles, task list alignment
+- `apps/web/src/components/editor/markdownConverter.ts` — Callout HTML↔MD rules, task list post-processor, single-line callout support
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — DOMPurify allowlist expanded
+
+Commits: `f114cb1`, `76033be`, `7d4dc28`, `c09d41b`
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
