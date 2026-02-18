@@ -206,6 +206,13 @@
   8. **Link modal** — rewrote as proper modal with Display Text and URL fields, Cancel/Apply buttons
   9. **Tooltips** — toolbar buttons already had `title` attributes (browser native tooltips); verified working
   10. **Prompt alignment** — using browser native `prompt()` for now; will replace with custom modal in Phase 4
+- **Modal dialog fix:** Replaced all browser-native `prompt()` calls with custom `InputModal` component. Modal has proper text alignment, label, placeholder, Cancel/Create buttons, Enter/Escape keyboard support, backdrop overlay, dark mode support.
+- **Table rendering fix:** Tables were showing as raw HTML text in the editor. Root cause: DOMPurify was stripping `colspan`, `rowspan`, `style` attributes and `colgroup`/`col` elements that Tiptap's table extension requires. Fixed by configuring DOMPurify with `ADD_TAGS` and `ADD_ATTR`. Note: existing files saved while the bug was present may have corrupted table data stored as text — user should re-create those tables.
+- **Right-click context menus:** Added `EditorContextMenu` component with:
+  - **Link context menu:** Edit Link (opens modal with URL + display text), Open Link (new tab), Copy Link URL, Remove Link
+  - **Table context menu:** Insert/Delete Row, Insert/Delete Column, Toggle Header Row, Merge/Split Cells, Delete Table
+  - Context menu positions cursor at right-click location so Tiptap knows which cell/link is active
+  - Menu auto-repositions if it would go off-screen
 
 ---
 
