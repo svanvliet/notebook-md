@@ -402,6 +402,28 @@ Installed Vitest + Supertest and wrote 48 integration tests across 5 test suites
 
 **Run with:** `npm test` (root) or `npm -w apps/api run test`
 
+### Post-Tier 1 Fixes (2026-02-18)
+
+1. **Email link prefix fix:** Email verification, magic link, and password reset links were using `/auth/*` paths, which Vite's proxy intercepted and forwarded to the API as GET requests (API only has POST handlers → "Cannot GET"). Changed all email links to `/app/verify-email`, `/app/magic-link`, `/app/reset-password`. These paths bypass the Vite proxy and serve the SPA, which handles the URL params and POSTs to the API.
+   - Files changed: `apps/api/src/lib/email.ts` (link URLs), `apps/web/src/App.tsx` (path matching)
+
+2. **Email delivery tests:** Added 4 tests verifying email delivery via Mailpit API:
+   - Verification email sent on sign-up with `/app/verify-email` link
+   - Magic link email sent for existing users with `/app/magic-link` link
+   - Magic link NOT sent for non-existent users (security by design)
+   - Password reset email sent with `/app/reset-password` link
+   - Added Mailpit helpers to test utilities: `clearMailpit()`, `getMailpitMessages()`, `getMailpitMessageBody()`
+   - Total tests: **52 passing** (up from 48)
+
+### UX Validation Results (2026-02-18)
+
+User tested Phase 2 deliverables before proceeding to Phase 3:
+- ✅ Magic link UX flow works (button correctly on sign-in page only, not sign-up)
+- ✅ Sign-up with email+password sends verification email to Mailpit
+- ✅ Multiple accounts can be created, each with isolated local storage (IndexedDB scoping working)
+- ✅ Email verification link now works (was broken by Vite proxy, fixed above)
+- ℹ️ Magic link doesn't send email for non-existent accounts — confirmed working as designed (security: don't reveal if email exists)
+
 ---
 
 ## Open Questions
