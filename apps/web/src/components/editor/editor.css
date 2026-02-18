@@ -33,6 +33,8 @@
 .tiptap ul[data-type='taskList'] li > label input[type='checkbox'] {
   cursor: pointer;
   accent-color: #3b82f6;
+  width: 16px;
+  height: 16px;
 }
 
 .tiptap ul[data-type='taskList'] li > div {

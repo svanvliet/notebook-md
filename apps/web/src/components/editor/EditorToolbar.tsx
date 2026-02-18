@@ -6,6 +6,58 @@ interface EditorToolbarProps {
   editor: Editor | null;
 }
 
+// --- SVG Icons (4x4 viewBox, matching table toolbar style) ---
+const ic = 'w-4 h-4';
+
+function BoldIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zm0 8h9a4 4 0 0 1 0 8H6z"/></svg>;
+}
+function ItalicIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>;
+}
+function UnderlineIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 3v7a6 6 0 0 0 12 0V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>;
+}
+function StrikethroughIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4c-.5-1.5-2.5-3-5-3-3 0-5 2-5 4.5 0 2 1.5 3.5 5 4.5"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M13 14c1.5.5 3 1.5 3 3.5 0 2.5-2 4.5-5 4.5s-4.5-1.5-5-3"/></svg>;
+}
+function CodeIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>;
+}
+function HighlightIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/><path d="M3 20h4" strokeWidth="3"/></svg>;
+}
+function BulletListIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1" fill="currentColor"/><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="5" cy="18" r="1" fill="currentColor"/></svg>;
+}
+function OrderedListIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><text x="3" y="8" fontSize="7" fill="currentColor" fontFamily="sans-serif" fontWeight="600">1</text><text x="3" y="14" fontSize="7" fill="currentColor" fontFamily="sans-serif" fontWeight="600">2</text><text x="3" y="20" fontSize="7" fill="currentColor" fontFamily="sans-serif" fontWeight="600">3</text></svg>;
+}
+function TaskListIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="6" height="6" rx="1"/><polyline points="5 8 6.5 9.5 9 6.5" strokeWidth="1.5"/><line x1="13" y1="8" x2="21" y2="8"/><rect x="3" y="14" width="6" height="6" rx="1"/><line x1="13" y1="17" x2="21" y2="17"/></svg>;
+}
+function BlockquoteIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="currentColor"><path d="M10 8c0-2.2-1.8-4-4-4S2 5.8 2 8c0 1.8 1.2 3.4 2.9 3.9C4.5 14.6 2.5 16 2.5 16s4.5-.5 6.5-4.5c.6-1.1 1-2.3 1-3.5zm12 0c0-2.2-1.8-4-4-4s-4 1.8-4 4c0 1.8 1.2 3.4 2.9 3.9C16.5 14.6 14.5 16 14.5 16s4.5-.5 6.5-4.5c.6-1.1 1-2.3 1-3.5z"/></svg>;
+}
+function CodeBlockIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="8 8 4 12 8 16"/><polyline points="16 8 20 12 16 16"/></svg>;
+}
+function HrIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="2" y1="12" x2="22" y2="12"/></svg>;
+}
+function TableIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>;
+}
+function LinkIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>;
+}
+function UndoIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>;
+}
+function RedoIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>;
+}
+
 // Heading level selector
 function HeadingSelector({ editor }: { editor: Editor }) {
   const { t } = useTranslation();
@@ -176,7 +228,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('bold')}
         title={`${t('editor.toolbar.bold')} (⌘B)`}
       >
-        <strong>B</strong>
+        <BoldIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -184,7 +236,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('italic')}
         title={`${t('editor.toolbar.italic')} (⌘I)`}
       >
-        <em>I</em>
+        <ItalicIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -192,7 +244,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('underline')}
         title={`${t('editor.toolbar.underline')} (⌘U)`}
       >
-        <span className="underline">U</span>
+        <UnderlineIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -200,7 +252,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('strike')}
         title={t('editor.toolbar.strikethrough')}
       >
-        <s>S</s>
+        <StrikethroughIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -208,7 +260,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('code')}
         title={`${t('editor.toolbar.inlineCode')} (⌘E)`}
       >
-        <span className="font-mono">&lt;/&gt;</span>
+        <CodeIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -216,7 +268,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('highlight')}
         title={t('editor.toolbar.highlight')}
       >
-        <span className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">H</span>
+        <HighlightIcon />
       </ToolbarButton>
 
       <Divider />
@@ -227,7 +279,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('bulletList')}
         title={t('editor.toolbar.bulletList')}
       >
-        •≡
+        <BulletListIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -235,7 +287,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('orderedList')}
         title={t('editor.toolbar.orderedList')}
       >
-        1.
+        <OrderedListIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -243,7 +295,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('taskList')}
         title={t('editor.toolbar.taskList')}
       >
-        ☑
+        <TaskListIcon />
       </ToolbarButton>
 
       <Divider />
@@ -254,7 +306,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('blockquote')}
         title={t('editor.toolbar.blockquote')}
       >
-        ❝
+        <BlockquoteIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -262,14 +314,14 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         isActive={editor.isActive('codeBlock')}
         title={t('editor.toolbar.codeBlock')}
       >
-        {'{ }'}
+        <CodeBlockIcon />
       </ToolbarButton>
 
       <ToolbarButton
         onClick={() => editor.chain().focus().setHorizontalRule().run()}
         title={t('editor.toolbar.horizontalRule')}
       >
-        ―
+        <HrIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -282,7 +334,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         }
         title={t('editor.toolbar.table')}
       >
-        ⊞
+        <TableIcon />
       </ToolbarButton>
 
       <Divider />
@@ -300,7 +352,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           isActive={editor.isActive('link')}
           title={`${t('editor.toolbar.link')} (⌘K)`}
         >
-          🔗
+          <LinkIcon />
         </ToolbarButton>
         {showLinkInput && (
           <LinkModal
@@ -324,7 +376,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         disabled={!editor.can().undo()}
         title={`${t('editor.toolbar.undo')} (⌘Z)`}
       >
-        ↩
+        <UndoIcon />
       </ToolbarButton>
 
       <ToolbarButton
@@ -332,7 +384,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         disabled={!editor.can().redo()}
         title={`${t('editor.toolbar.redo')} (⌘⇧Z)`}
       >
-        ↪
+        <RedoIcon />
       </ToolbarButton>
     </div>
   );
