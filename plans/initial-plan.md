@@ -70,21 +70,22 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 1.3 WYSIWYG Markdown Editor
 
-- [ ] Integrate Tiptap editor with ProseMirror
-- [ ] Configure GFM extensions: headings (H1–H6), bold, italic, strikethrough, inline code, highlight
-- [ ] Links (inline, auto-links), images (rendered inline), blockquotes
-- [ ] Ordered lists, unordered lists, nested lists, task/checkbox lists
-- [ ] Fenced code blocks with syntax highlighting (language selector)
-- [ ] GFM tables with alignment
-- [ ] Horizontal rules
+- [x] Integrate Tiptap editor with ProseMirror
+- [x] Configure GFM extensions: headings (H1–H6), bold, italic, strikethrough, inline code, highlight
+- [x] Links (inline, auto-links), images (rendered inline), blockquotes
+- [x] Ordered lists, unordered lists, nested lists, task/checkbox lists
+- [x] Fenced code blocks with syntax highlighting (language selector)
+- [x] GFM tables with alignment
+- [x] Horizontal rules
 - [ ] Footnotes extension
 - [ ] KaTeX math extension (inline `$...$` and block `$$...$$`)
 - [ ] Emoji shortcodes
 - [ ] YAML front matter (collapsible metadata block)
-- [ ] Toolbar (§4.4): heading selector, formatting buttons, insert controls, undo/redo — contextual state
-- [ ] Markdown sanitization: integrate DOMPurify; strip dangerous HTML, `javascript:` URIs, event handlers
-- [ ] Raw Markdown toggle (`Cmd/Ctrl+Shift+M`) — switch between WYSIWYG and source view
-- [ ] Keyboard shortcuts (§4.6): bold, italic, strikethrough, inline code, link, save, undo, redo
+- [x] Toolbar (§4.4): heading selector, formatting buttons, insert controls, undo/redo — contextual state
+- [x] Markdown sanitization: integrate DOMPurify; strip dangerous HTML, `javascript:` URIs, event handlers
+- [x] Raw Markdown toggle (`Cmd/Ctrl+Shift+M`) — switch between WYSIWYG and source view
+- [x] Keyboard shortcuts (§4.6): bold, italic, strikethrough, inline code, link, save, undo, redo
+- [x] Slash commands (/) — type "/" to open command palette with heading, list, table, code block, etc.
 
 ### 1.4 Local Notebook Storage
 

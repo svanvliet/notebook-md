@@ -99,6 +99,37 @@
 
 ## Iteration Notes
 
+#### 1.3 WYSIWYG Markdown Editor
+- **Status:** Complete (core features; footnotes, KaTeX, emoji, front matter deferred to Phase 4)
+- **Started:** 2026-02-17
+- **Completed:** 2026-02-17
+
+**What was done:**
+- Installed Tiptap 2 + ProseMirror with 20+ extensions: StarterKit, Placeholder, Underline, Highlight, Link (autolink, noopener), Image (inline, base64), TaskList/TaskItem, CodeBlockLowlight, Table/TableRow/TableHeader/TableCell, Typography, TextAlign, Superscript, Subscript, TextStyle, Color
+- Installed `lowlight` with 16 language grammars: JS, TS, Python, CSS, JSON, Markdown, Bash, HTML/XML, YAML, SQL, Java, C#, Go, Rust, Ruby, PHP
+- Installed `@tailwindcss/typography` for `prose` styling in the editor
+- Installed `dompurify` for HTML sanitization — all content passed through DOMPurify before rendering
+- **`components/editor/extensions.ts`**: Centralized Tiptap extension config with lowlight syntax highlighting setup
+- **`components/editor/EditorToolbar.tsx`**: Full toolbar with heading selector (H1–H6 + paragraph), formatting (bold/italic/underline/strikethrough/code/highlight), lists (bullet/ordered/task), block elements (blockquote/code block/hr/table), link input modal, undo/redo — all with active state tracking and keyboard shortcut hints
+- **`components/editor/SlashCommands.ts`**: ProseMirror plugin that detects "/" at cursor, tracks query text, and exposes state via a PluginKey. 15 commands: H1–H3, bullet/ordered/task list, blockquote, code block, table, hr, bold, italic, strikethrough, inline code, highlight
+- **`components/editor/SlashCommandMenu.tsx`**: React component that reads slash command state, renders a floating command palette with fuzzy filtering, keyboard navigation (↑↓ Enter Escape), and executes commands by deleting the slash text then applying the action
+- **`components/editor/MarkdownEditor.tsx`**: Main editor component composing toolbar + Tiptap EditorContent + slash command menu. Supports raw HTML toggle (⌘⇧M), word/char count reporting, content sync from props via DOMPurify
+- **`components/editor/editor.css`**: Custom styles for placeholder text, task list checkboxes, code blocks with syntax token colors (light+dark), tables with selection/resize handles, blockquotes, horizontal rules, links, inline code, highlights, images, slash command active text
+- Updated `DocumentPane` to render `MarkdownEditor` in active tab, with `content` and `onContentChange` props
+- Updated `App.tsx` with demo content ("Welcome.md" tab) showcasing headings, bold/italic/strikethrough/code, task lists, code blocks, and blockquotes. Word count and char count now flow to StatusBar.
+
+**Deferred to Phase 4 (Editor Polish):**
+- Footnotes extension
+- KaTeX math extension
+- Emoji shortcodes
+- YAML front matter (collapsible metadata block)
+
+**Verified:**
+- TypeScript compiles cleanly
+- Vite build succeeds (827KB JS — expected for Tiptap+ProseMirror+highlight.js; will code-split in Phase 7)
+
+## Iteration Notes
+
 *(Record any feedback from the user, design pivots, or technical discoveries here)*
 
 ---

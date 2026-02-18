@@ -25,7 +25,27 @@
     "unsavedChanges": "Unsaved changes",
     "wordCount": "{{count}} words",
     "charCount": "{{count}} chars",
-    "lastSaved": "Last saved: {{time}}"
+    "lastSaved": "Last saved: {{time}}",
+    "toolbar": {
+      "heading": "Heading",
+      "paragraph": "Paragraph",
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "strikethrough": "Strikethrough",
+      "inlineCode": "Inline code",
+      "highlight": "Highlight",
+      "bulletList": "Bullet list",
+      "orderedList": "Numbered list",
+      "taskList": "Task list",
+      "blockquote": "Blockquote",
+      "codeBlock": "Code block",
+      "horizontalRule": "Horizontal rule",
+      "table": "Table",
+      "link": "Link",
+      "undo": "Undo",
+      "redo": "Redo"
+    }
   },
   "settings": {
     "title": "Settings",

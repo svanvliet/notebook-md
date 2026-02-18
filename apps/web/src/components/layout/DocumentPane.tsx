@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { XIcon } from '../icons/Icons';
+import { MarkdownEditor } from '../editor/MarkdownEditor';
 
 export interface Tab {
   id: string;
   name: string;
   hasUnsavedChanges: boolean;
+  content: string;
 }
 
 interface DocumentPaneProps {
@@ -12,10 +14,20 @@ interface DocumentPaneProps {
   activeTabId: string | null;
   onTabSelect: (id: string) => void;
   onTabClose: (id: string) => void;
+  onContentChange: (id: string, html: string) => void;
+  onWordCountChange?: (words: number, chars: number) => void;
 }
 
-export function DocumentPane({ tabs, activeTabId, onTabSelect, onTabClose }: DocumentPaneProps) {
+export function DocumentPane({
+  tabs,
+  activeTabId,
+  onTabSelect,
+  onTabClose,
+  onContentChange,
+  onWordCountChange,
+}: DocumentPaneProps) {
   const { t } = useTranslation();
+  const activeTab = tabs.find((t) => t.id === activeTabId);
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
@@ -52,8 +64,15 @@ export function DocumentPane({ tabs, activeTabId, onTabSelect, onTabClose }: Doc
       )}
 
       {/* Editor area */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950" id="editor-container">
-        {tabs.length === 0 && (
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
+        {activeTab ? (
+          <MarkdownEditor
+            key={activeTab.id}
+            content={activeTab.content}
+            onChange={(html) => onContentChange(activeTab.id, html)}
+            onWordCountChange={onWordCountChange}
+          />
+        ) : (
           <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-600">
             <p className="text-sm">Open a file from the notebook pane to start editing</p>
           </div>
