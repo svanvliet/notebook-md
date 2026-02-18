@@ -40,22 +40,6 @@ export default function App() {
     ? new Date(nb.activeTab.lastSaved).toLocaleTimeString()
     : null;
 
-  // Welcome screen when not signed in
-  if (!isSignedIn) {
-    return (
-      <div>
-        <WelcomeScreen />
-        {/* Dev shortcut to skip auth */}
-        <button
-          onClick={() => setIsSignedIn(true)}
-          className="fixed bottom-4 right-4 px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
-        >
-          Skip to app (dev)
-        </button>
-      </div>
-    );
-  }
-
   // Drag-and-drop handler for markdown files
   const SUPPORTED_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
   const [dragOver, setDragOver] = useState(false);
@@ -87,6 +71,22 @@ export default function App() {
     },
     [nb],
   );
+
+  // Welcome screen when not signed in
+  if (!isSignedIn) {
+    return (
+      <div>
+        <WelcomeScreen />
+        {/* Dev shortcut to skip auth */}
+        <button
+          onClick={() => setIsSignedIn(true)}
+          className="fixed bottom-4 right-4 px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+        >
+          Skip to app (dev)
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
