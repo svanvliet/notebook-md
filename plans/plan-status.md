@@ -261,7 +261,7 @@
 - Session management: HttpOnly/Secure/SameSite cookies
 - Refresh token rotation with family tracking (reuse detection → revoke all)
 - Remember Me (30 days) vs default (24 hours)
-- Rate limiting (20 req / 15 min per IP, memory-backed)
+- Rate limiting (memory-backed; later split into mutation 30/15min and read 200/15min — see Post-Phase 2 Fixes)
 - Audit logging for all auth events
 - Nodemailer with Mailpit for local dev
 
@@ -317,6 +317,39 @@
 - OAuth state stored in Redis, session cookies as refresh tokens
 - Settings sync: localStorage for instant access + API sync when signed in
 - `useAuth` includes `devSkipAuth()` to bypass auth during dev
+
+### Post-Phase 2 Fixes & Improvements
+
+1. **Rate limiter split (2026-02-18):** Blanket 20 req/15min rate limiter on all `/auth/*` routes caused 429 errors during normal use because `/auth/me` fires on every page load. Split into two tiers:
+   - `authMutationLimiter` (30 req/15min): sign-up, sign-in, magic link, password reset
+   - `authReadLimiter` (200 req/15min): /me, /refresh, /signout, profile update, password change
+   - Applied per-route instead of blanket `router.use()`
+
+2. **IndexedDB user scoping (2026-02-18):** After signing in, users saw notebooks/files created before they had an account (or by other users in the same browser). Root cause: `localNotebookStore.ts` used a single shared IndexedDB database (`notebook-md`) with no user scoping. Fix:
+   - Added `setStorageScope(userId)` function that changes the DB name to `notebook-md-<userId>` (or `notebook-md-anonymous` for dev-skip)
+   - `useNotebookManager` now accepts an optional `userId` parameter and re-scopes + reloads on change
+   - Open tabs are cleared when switching users
+   - Old un-scoped `notebook-md` DB is orphaned (harmless; can be cleaned up manually)
+
+3. **dev.sh startup script (2026-02-18):** Created `dev.sh` in repo root — single script to manage the full dev environment:
+   - `./dev.sh` — starts Docker (PostgreSQL, Redis, Mailpit), runs DB migrations, starts API + Web servers
+   - `./dev.sh stop` — stops all services
+   - `./dev.sh status` — shows running status of all components
+   - `./dev.sh logs` — tails API and Web log files
+   - Logs written to `.dev-logs/` (gitignored)
+   - Fixed PostgreSQL health check (was trying HTTP on port 5432, switched to Docker health check polling)
+   - Fixed API path issue (`npx --workspace=` doubled the path; now runs `tsx src/index.ts` directly)
+
+4. **README.md rewrite (2026-02-18):** Replaced placeholder README with comprehensive docs: current features, tech stack table, project structure tree, prerequisites, full dev.sh usage, service URLs, dev account info, current status section.
+
+### Files Modified (Post-Phase 2)
+- `apps/api/src/routes/auth.ts` — Split rate limiters
+- `apps/web/src/stores/localNotebookStore.ts` — Added `setStorageScope()`, DB name keyed by userId
+- `apps/web/src/hooks/useNotebookManager.ts` — Accepts `userId` param, calls `setStorageScope`, clears tabs on user change
+- `apps/web/src/App.tsx` — Reordered hooks (auth before notebook manager), passes `auth.user?.id` to notebook manager
+- `dev.sh` — New dev startup script
+- `README.md` — Full rewrite
+- `.gitignore` — Added `.dev-logs/`
 
 ---
 
