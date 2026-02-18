@@ -36,11 +36,11 @@ export default function App() {
     const magicToken = params.get('token');
     const path = window.location.pathname;
 
-    if (path === '/auth/magic-link' && magicToken) {
+    if (path === '/app/magic-link' && magicToken) {
       auth.verifyMagicLink(magicToken).then(() => {
         window.history.replaceState({}, '', '/');
       });
-    } else if (path === '/auth/verify-email' && magicToken) {
+    } else if (path === '/app/verify-email' && magicToken) {
       fetch(`/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

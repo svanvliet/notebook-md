@@ -14,7 +14,7 @@ const FROM = process.env.EMAIL_FROM ?? 'Notebook.md <noreply@notebookmd.io>';
 const BASE_URL = process.env.APP_URL ?? 'http://localhost:5173';
 
 export async function sendMagicLink(email: string, token: string): Promise<void> {
-  const url = `${BASE_URL}/auth/magic-link?token=${encodeURIComponent(token)}`;
+  const url = `${BASE_URL}/app/magic-link?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
     from: FROM,
     to: email,
@@ -33,7 +33,7 @@ export async function sendMagicLink(email: string, token: string): Promise<void>
 }
 
 export async function sendVerificationEmail(email: string, token: string): Promise<void> {
-  const url = `${BASE_URL}/auth/verify-email?token=${encodeURIComponent(token)}`;
+  const url = `${BASE_URL}/app/verify-email?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
     from: FROM,
     to: email,
@@ -52,7 +52,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
 }
 
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
-  const url = `${BASE_URL}/auth/reset-password?token=${encodeURIComponent(token)}`;
+  const url = `${BASE_URL}/app/reset-password?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
     from: FROM,
     to: email,
