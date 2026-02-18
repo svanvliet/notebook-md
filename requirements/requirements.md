@@ -1,7 +1,7 @@
 # Notebook.md — Product Requirements Document
 
-**Version:** 1.4  
-**Last Updated:** 2026-02-17  
+**Version:** 1.5  
+**Last Updated:** 2026-02-18  
 **Status:** Draft  
 **Domain:** notebookmd.io
 
@@ -892,6 +892,57 @@ The Notebook.md codebase is hosted in a **private GitHub repository**. Branch pr
 - Images built in CI/CD, pushed to **Azure Container Registry** (private)
 - Images scanned for vulnerabilities (Azure Defender for Container Registry or Trivy in CI)
 - Images tagged with git SHA and semantic version from the tag; `latest` tag points to current production
+
+### 8.15 Testing Strategy
+
+The project uses a tiered testing approach, with each tier introduced at the phase where it provides the most value. All tests run locally and in CI.
+
+#### 8.15.1 Frameworks & Tools
+
+| Layer | Framework | Purpose |
+|-------|-----------|---------|
+| **API integration tests** | Vitest + Supertest | Test API endpoints against real PostgreSQL/Redis (Docker Compose) |
+| **Web unit tests** | Vitest + React Testing Library | Test hooks, stores, and pure-logic modules |
+| **E2E browser tests** | Playwright | Full user-flow testing across Chromium, Firefox, and WebKit |
+
+**Why these choices:**
+- **Vitest** — native ESM support (avoids CJS conflicts with `"type": "module"` in package.json), shares Vite's transform pipeline, faster than Jest
+- **Supertest** — lightweight HTTP assertion library; tests Express routes without starting a real server
+- **React Testing Library** — tests components the way users interact with them (by role/label, not implementation details)
+- **Playwright** — faster than Selenium/Cypress, multi-browser (Chromium/Firefox/WebKit), native auto-waiting, first-class TypeScript support, excellent GitHub Actions integration
+- **fake-indexeddb** — in-memory IndexedDB implementation for testing `localNotebookStore` without a browser
+
+#### 8.15.2 Test Tiers & Phasing
+
+| Tier | Scope | Introduced | Runs In CI |
+|------|-------|------------|------------|
+| **Tier 1: API integration tests** | Auth flows, session management, notebooks CRUD, settings, OAuth callbacks, rate limiting | Phase 2 (retroactive) | Every push/PR |
+| **Tier 2: Web unit tests** | Hooks (`useAuth`, `useSettings`, `useNotebookManager`), stores (`localNotebookStore`), pure logic (`markdownConverter`) | Phase 3–4 | Every push/PR |
+| **Tier 3: E2E browser tests** | Sign-up/sign-in flow, notebook CRUD, file editing + save, tab management, context menus, table editing, import/drag-drop, dark mode, source system flows | Phase 6–7 (pre-production) | PR to `main` |
+
+#### 8.15.3 Test Infrastructure
+
+- **API tests** run against real PostgreSQL and Redis via Docker Compose. Each test suite uses a transaction that rolls back, or a dedicated test database, to ensure isolation.
+- **Web unit tests** run in a jsdom environment with mocked API calls (`msw` or manual fetch mocks) and `fake-indexeddb` for storage tests.
+- **E2E tests** run against the full app stack (Docker Compose + API + Web) with Playwright's built-in `webServer` config.
+- **Test data**: factory functions generate test users, notebooks, and files. No shared mutable test state between test cases.
+
+#### 8.15.4 Coverage & Quality Gates
+
+- **No hard coverage target** — focus on testing critical paths and regressions rather than chasing a number
+- **CI gates** (enforced in GitHub Actions):
+  - TypeScript type-check (`tsc --noEmit`) — must pass
+  - Lint — must pass
+  - Unit + integration tests — must pass
+  - E2E tests — must pass on PR to `main`
+- **Test naming convention**: `describe('module/feature')` → `it('should <expected behavior>')` or `test('<scenario>')`
+
+#### 8.15.5 What We Don't Test (and Why)
+
+- **Snapshot tests** — UI is changing rapidly; snapshots create maintenance burden without catching real bugs
+- **Storybook** — useful for component libraries, overkill for app-level components
+- **Visual regression tests** — deferred until UI is stable (could add Percy or Playwright screenshots in a later phase)
+- **Load/stress tests** — deferred to Phase 7 pre-launch checklist (simulate 100 concurrent users)
 
 ---
 

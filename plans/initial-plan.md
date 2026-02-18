@@ -1,8 +1,8 @@
 # Notebook.md — Implementation Plan
 
-**Version:** 1.0  
-**Last Updated:** 2026-02-17  
-**Requirements Reference:** `requirements/requirements.md` v1.4
+**Version:** 1.1  
+**Last Updated:** 2026-02-18  
+**Requirements Reference:** `requirements/requirements.md` v1.5
 
 ---
 
@@ -170,6 +170,38 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - **UX:** ✅ You can sign up with email, sign in, change settings (dark mode, font), sign out, sign back in, and see settings preserved. Local notebooks still work.
 - **Feedback points:** Sign-in/sign-up flow, settings options, account modal UX
 
+### 2.7 Tier 1: API Integration Tests (§8.15)
+
+- [ ] Install Vitest + Supertest in `apps/api`
+- [ ] Configure Vitest for ESM (`vitest.config.ts`) with test database setup/teardown
+- [ ] Add `test` script to `apps/api/package.json` and root `package.json`
+- [ ] Test suite: Auth flows
+  - [ ] Sign-up with email + password (success + duplicate email + short password)
+  - [ ] Sign-in with email + password (success + wrong password + unknown email)
+  - [ ] Magic link request + verification
+  - [ ] Password reset request + confirmation
+  - [ ] Email verification
+  - [ ] Token refresh + rotation (valid refresh, reused token → family revocation)
+  - [ ] Sign-out (session invalidated)
+- [ ] Test suite: Session management
+  - [ ] Session creation with "Remember Me" (30-day) vs default (24-hour)
+  - [ ] Refresh token rotation: new token issued, old token invalidated
+  - [ ] Token reuse detection: revoke entire token family
+- [ ] Test suite: Notebooks CRUD
+  - [ ] Create, list, update, delete notebooks (scoped to authenticated user)
+  - [ ] Unauthenticated access returns 401
+  - [ ] User A cannot see User B's notebooks
+- [ ] Test suite: Settings CRUD
+  - [ ] GET/PUT settings (scoped to authenticated user)
+  - [ ] Settings persist across sessions
+- [ ] Test suite: OAuth callbacks
+  - [ ] Mock provider callback creates user + session
+  - [ ] Duplicate email merging (OAuth↔OAuth auto-merge)
+  - [ ] Account linking and unlinking
+- [ ] Test suite: Rate limiting
+  - [ ] Mutation endpoints enforce limits
+  - [ ] Read endpoints have higher limits
+
 ---
 
 ## Phase 3: Source System Integrations
@@ -298,7 +330,36 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] Ephemeral messages in the status bar (save confirmations, sync status)
 - [ ] Auto-dismiss after 5 seconds
 
-### 4.8 Phase 4 Validation
+### 4.8 Tier 2: Web Unit Tests (§8.15)
+
+- [ ] Install Vitest + React Testing Library + jsdom + fake-indexeddb + msw in `apps/web`
+- [ ] Configure Vitest for web (`vitest.config.ts`) with jsdom environment
+- [ ] Add `test` script to `apps/web/package.json`
+- [ ] Test suite: `localNotebookStore`
+  - [ ] CRUD operations on notebooks and files (using fake-indexeddb)
+  - [ ] Storage scoping by userId (`setStorageScope`)
+  - [ ] Folder rename/move cascades to children
+  - [ ] Delete notebook cascades to all files
+- [ ] Test suite: `markdownConverter`
+  - [ ] HTML → Markdown conversion (tables, task lists, highlights, code blocks)
+  - [ ] Markdown → HTML conversion (GFM tables, nested lists, code blocks)
+  - [ ] Round-trip fidelity: Markdown → HTML → Markdown preserves structure
+- [ ] Test suite: `useAuth` hook
+  - [ ] Sign-up, sign-in, sign-out state transitions
+  - [ ] Token refresh on 401
+  - [ ] Error handling (network failure, invalid credentials)
+  - [ ] devSkipAuth creates fake user
+- [ ] Test suite: `useNotebookManager` hook
+  - [ ] Notebook CRUD updates state correctly
+  - [ ] Tab management (open, close, switch, unsaved indicator)
+  - [ ] Auto-save debounce behavior
+  - [ ] File import flow
+- [ ] Test suite: `useSettings` hook
+  - [ ] Default settings applied on first load
+  - [ ] Settings persist to localStorage
+  - [ ] Server sync when signed in (mock API)
+
+### 4.9 Phase 4 Validation
 
 - **Technical:** All editor features work reliably across all notebook source types; media uploads work; drag-and-drop is smooth
 - **UX:** Full editing experience — you can write a complex Markdown document using slash commands, format with the toolbar, insert images, drag to reorder, find/replace, and toggle between views. The editor should feel polished and responsive.
@@ -401,15 +462,50 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 ### 6.3 CI/CD Pipeline
 
 - [ ] GitHub Actions workflows:
-  - **Build & Test** (every push/PR): lint, type-check, unit tests, build Docker images
+  - **Build & Test** (every push/PR): lint, type-check, API integration tests (Tier 1), web unit tests (Tier 2), build Docker images
+  - **E2E Tests** (PR to `main`): Playwright E2E tests (Tier 3) against full Docker Compose stack
   - **Production Deploy** (`v*` tag + manual approval): push images to ACR, deploy new Container Apps revision
   - **Rollback** (manual trigger): shift traffic to previous revision
 - [ ] GitHub Environment `production` with protection rules (manual approval)
 - [ ] Environment-scoped secrets for Azure credentials
-- [ ] Branch protection on `main`: require PR reviews, no direct pushes
+- [ ] Branch protection on `main`: require PR reviews, no direct pushes, all CI checks must pass
 - [ ] Dependabot configuration
 
-### 6.4 DNS & SSL
+### 6.4 Tier 3: E2E Browser Tests (§8.15)
+
+- [ ] Install Playwright in the repo root (shared across apps)
+- [ ] Configure `playwright.config.ts` with `webServer` pointing to Docker Compose + API + Web
+- [ ] Configure multi-browser testing: Chromium, Firefox, WebKit
+- [ ] Test suite: Authentication flows
+  - [ ] Sign-up with email + password → lands in app with empty notebook state
+  - [ ] Sign-in with existing account → sees previously created notebooks
+  - [ ] Sign-out → returns to welcome screen
+  - [ ] Magic link flow (using Mailpit API to extract link)
+  - [ ] OAuth flow with mock provider
+- [ ] Test suite: Notebook & file management
+  - [ ] Create notebook → appears in tree
+  - [ ] Create file → opens in tab, file appears in tree
+  - [ ] Create folder → appears in tree, can create files inside
+  - [ ] Rename notebook/folder/file → tree and tab labels update
+  - [ ] Delete notebook/file → removed from tree, tab closed
+  - [ ] Import file from desktop → save location picker → file appears
+- [ ] Test suite: Editor
+  - [ ] Type text → renders in WYSIWYG view
+  - [ ] Toolbar actions: heading, bold, italic, list, code block, table
+  - [ ] Slash commands: type `/` → command palette appears → select command
+  - [ ] Toggle source view → shows Markdown → toggle back
+  - [ ] Table editing: insert row/column, delete row/column, floating toolbar
+  - [ ] Link insertion and editing via toolbar and context menu
+- [ ] Test suite: Settings & preferences
+  - [ ] Change display mode (light/dark/system) → UI updates
+  - [ ] Change font size → editor text updates
+  - [ ] Settings persist across sign-out and sign-in
+- [ ] Test suite: Data isolation
+  - [ ] User A's notebooks not visible to User B
+  - [ ] Dev-skip user sees separate data from authenticated users
+- [ ] Add `test:e2e` script to root `package.json`
+
+### 6.5 DNS & SSL
 
 - [ ] Configure GoDaddy DNS records:
   - `notebookmd.io` → Azure Front Door
@@ -418,7 +514,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] SPF, DKIM, DMARC records for `noreply@notebookmd.io` (transactional email)
 - [ ] Azure-managed TLS certificates via Front Door
 
-### 6.5 Monitoring & Alerting
+### 6.6 Monitoring & Alerting
 
 - [ ] Application Insights: request tracing, dependency tracking, exception logging
 - [ ] Azure Monitor availability tests (ping API and web endpoints)
@@ -426,20 +522,20 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] Structured logs → Log Analytics workspace
 - [ ] Sentry integration for client-side error tracking (free tier)
 
-### 6.6 Transactional Email
+### 6.7 Transactional Email
 
 - [ ] Set up SendGrid account (free tier: 100 emails/day)
 - [ ] Configure sender domain verification for `noreply@notebookmd.io`
 - [ ] Switch API email transport from Mailpit to SendGrid in production config
 
-### 6.7 Database
+### 6.8 Database
 
 - [ ] Run production migrations
 - [ ] Enable automated daily backups with 35-day PITR
 - [ ] Enable geo-redundant backup storage
 - [ ] Promote first admin account via CLI
 
-### 6.8 First Deployment
+### 6.9 First Deployment
 
 - [ ] Tag `v0.1.0`, trigger CI/CD pipeline
 - [ ] Approve production deployment
@@ -447,9 +543,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] Smoke test: sign up, create notebook, edit document, save
 - [ ] Verify admin console at `admin.notebookmd.io`
 
-### 6.9 Phase 6 Validation
+### 6.10 Phase 6 Validation
 
-- **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end; monitoring captures real traffic; auto-scaling responds to load
+- **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end (Tier 1 + Tier 2 on push, Tier 3 E2E on PR to main); monitoring captures real traffic; auto-scaling responds to load
 - **UX:** The production app is indistinguishable from the local dev experience
 - **Feedback points:** Page load speed, cold-start latency, OAuth redirect timing
 

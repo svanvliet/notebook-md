@@ -353,6 +353,25 @@
 
 ---
 
+### Testing Strategy Added (2026-02-18)
+
+Added §8.15 to requirements (v1.5) and updated initial-plan (v1.1) with a 3-tier testing strategy:
+
+| Tier | Scope | Framework | Phase |
+|------|-------|-----------|-------|
+| **1** | API integration tests | Vitest + Supertest | 2.7 (now) |
+| **2** | Web unit tests (hooks, stores, converters) | Vitest + React Testing Library + fake-indexeddb | 4.8 |
+| **3** | E2E browser tests | Playwright (Chromium/Firefox/WebKit) | 6.4 |
+
+Plan changes:
+- Added §2.7 with detailed Tier 1 test suites (auth, sessions, notebooks, settings, OAuth, rate limiting)
+- Added §4.8 with Tier 2 test suites (localNotebookStore, markdownConverter, useAuth, useNotebookManager, useSettings)
+- Added §6.4 with Tier 3 E2E suites (auth flows, notebook CRUD, editor, settings, data isolation)
+- Updated §6.3 CI/CD to run Tier 1+2 on every push/PR and Tier 3 on PR to main
+- Renumbered Phase 6 sections (6.4→6.5 DNS, 6.5→6.6 Monitoring, etc.)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
