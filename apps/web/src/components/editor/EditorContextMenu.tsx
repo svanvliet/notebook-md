@@ -34,9 +34,6 @@ function UnlinkIcon() {
 function ToggleIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3"/></svg>;
 }
-function MergeSplitIcon() {
-  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>;
-}
 
 interface EditorContextMenuProps {
   editor: Editor;
@@ -267,14 +264,6 @@ export function EditorContextMenu({ editor, x, y, onClose }: EditorContextMenuPr
           icon: <ToggleIcon />,
           onClick: () => {
             editor.chain().focus().toggleHeaderRow().run();
-            onClose();
-          },
-        },
-        {
-          label: 'Merge/Split Cells',
-          icon: <MergeSplitIcon />,
-          onClick: () => {
-            editor.chain().focus().mergeOrSplit().run();
             onClose();
           },
         },

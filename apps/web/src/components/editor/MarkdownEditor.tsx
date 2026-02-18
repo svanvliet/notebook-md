@@ -6,6 +6,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { SlashCommandExtension } from './SlashCommands';
 import { EditorContextMenu } from './EditorContextMenu';
+import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import './editor.css';
 
@@ -163,6 +164,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
           >
             <EditorContent editor={editor} />
             <SlashCommandMenu editor={editor} />
+            <TableFloatingToolbar editor={editor} />
             {contextMenu && editor && (
               <EditorContextMenu
                 editor={editor}
