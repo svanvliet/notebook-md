@@ -213,6 +213,30 @@
   - **Table context menu:** Insert/Delete Row, Insert/Delete Column, Toggle Header Row, Merge/Split Cells, Delete Table
   - Context menu positions cursor at right-click location so Tiptap knows which cell/link is active
   - Menu auto-repositions if it would go off-screen
+- **Context menu icons:** Added SVG icons to all context menu items:
+  - Editor context menu: arrow icons for row/column insert, trash for deletes, edit/external-link/copy/unlink for links, toggle/grid icons for table operations
+  - Notebook tree context menu: file+, folder+, rename (pencil), trash icons
+- **+ button dropdown:** Changed from creating a notebook directly to showing a dropdown with New Notebook, New File, and Import File options
+- **Floating table toolbar:** Added `TableFloatingToolbar` component that appears above the table when cursor is inside a cell. Contains: insert/delete row, insert/delete column, toggle header, merge/split cells, delete table. Removed Merge/Split from right-click menu since right-click cancels multi-cell selection.
+- **Table source view fix:** Tables were rendering as raw HTML in the source/raw view. Root cause: Tiptap's `resizable: true` adds `style` attributes, `<colgroup>` elements, and wraps cell content in `<p>` tags — all of which caused turndown-plugin-gfm to fail table recognition. Fixed by adding `cleanAndConvertTable()` that strips Tiptap artifacts before conversion.
+- **Markdown source icon:** Replaced `</>` text with the Markdown logo SVG for the source toggle button.
+- **File import:** Added Import File feature accessible from + dropdown menu and right-click context menus. Uses native file picker (accepts .md, .mdx, .markdown, .txt). When importing from + menu (no target location), shows SaveLocationPicker modal; from context menu, saves directly to that location.
+- **Drag-and-drop import:** Drag a .md file onto the app canvas to import. Shows blue dashed overlay while dragging, then opens SaveLocationPicker to choose save location.
+- **SaveLocationPicker modal:** New component showing notebooks and folders only (no files) in a tree view. User selects a location and clicks "Save Here". Shows selected path in footer.
+- **Blank screen fix:** React hooks (useState, useCallback) for drag-and-drop were called after a conditional early return, violating rules of hooks. Moved all hooks before the conditional.
+- **Imported files rendering fix:** Imported .md files showed raw markdown text because content was stored as markdown but the editor expects HTML. Replaced hand-rolled regex markdown→HTML parser with `marked` library for full GFM support (tables, nested lists, code blocks). Added `isMarkdownContent()` heuristic to detect markdown vs HTML on file open. Also fixed tables stored as pipe syntax not rendering.
+- **Auto-open after import:** Imported files now automatically open in a new tab after saving.
+
+### Key Technical Decisions (Post-Phase 1)
+- Installed `marked` library for markdown→HTML conversion (replaces custom regex parser)
+- DOMPurify configured with `ADD_TAGS: ['colgroup', 'col']` and `ADD_ATTR: ['colspan', 'rowspan', 'style', 'data-type', 'data-checked']`
+- Content detection: `isMarkdownContent()` checks for markdown patterns vs HTML to determine if conversion is needed on file open
+
+### New Files Created (Post-Phase 1)
+- `apps/web/src/components/editor/EditorContextMenu.tsx` — Right-click context menus for links and tables
+- `apps/web/src/components/editor/TableFloatingToolbar.tsx` — Floating toolbar above tables
+- `apps/web/src/components/common/InputModal.tsx` — Custom modal replacing browser prompt()
+- `apps/web/src/components/common/SaveLocationPicker.tsx` — Folder-only tree view for import save location
 
 ---
 
