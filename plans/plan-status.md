@@ -797,7 +797,7 @@ Registered a GitHub App for reading/writing .md files in user repos.
 - [x] Map user margin preferences (regular/wide/narrow) to print margins
 - [x] Add "Print" button to toolbar
 - [x] Wire `Ctrl/Cmd + P` keyboard shortcut to trigger `window.print()`
-- [ ] Test print output across browsers (Chrome, Safari, Firefox)
+- [x] Test print output across browsers (Chrome, Safari, Firefox)
 
 **Files changed:**
 - `apps/web/src/index.css` — 128 lines of `@media print` rules (chrome hiding, typography, page breaks, margin mapping)
@@ -874,10 +874,10 @@ Commit: `ca2720a`
 **Verification needed:**
 - [x] Re-authenticate with Microsoft (new scope consent)
 - [x] Add OneDrive notebook: browse folders → select → create
-- [ ] Open .md file from OneDrive
-- [ ] Edit and save changes
+- [x] Open .md file from OneDrive
+- [x] Edit and save changes
 - [x] Create new file in OneDrive notebook
-- [ ] Verify changes on OneDrive web (onedrive.live.com)
+- [x] Verify changes on OneDrive web (onedrive.live.com)
 
 ---
 
@@ -974,10 +974,10 @@ Commits: `4b91cbd`, `7f3b196`, `b63971e`
 **Verification completed:**
 - [x] Google OAuth consent with drive scope
 - [x] Add Google Drive notebook: browse folders → select → create
-- [ ] Open .md file from Google Drive
-- [ ] Edit and save changes
-- [ ] Create new file in Google Drive notebook
-- [ ] Verify changes on Google Drive web (drive.google.com)
+- [x] Open .md file from Google Drive
+- [x] Edit and save changes
+- [x] Create new file in Google Drive notebook
+- [x] Verify changes on Google Drive web (drive.google.com)
 
 ---
 
