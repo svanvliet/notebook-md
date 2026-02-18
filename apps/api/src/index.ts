@@ -27,11 +27,11 @@ async function start() {
   try {
     await redis.connect();
     logger.info('Connected to Redis');
-
-    initializeOAuthProviders();
   } catch (err) {
     logger.warn('Redis connection failed, continuing without cache', { error: (err as Error).message });
   }
+
+  initializeOAuthProviders();
 
   // Run seed in dev
   if (process.env.NODE_ENV !== 'production') {
