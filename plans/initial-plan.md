@@ -89,17 +89,17 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 1.4 Local Notebook Storage
 
-- [ ] Implement Local notebook source using IndexedDB (via `idb` or Dexie.js library)
-- [ ] File/folder CRUD operations (create, rename, delete, move) — all client-side
-- [ ] Notebook tree view in the sidebar with expand/collapse, selection, context menus
-- [ ] Device icon for Local notebooks in the tree
-- [ ] Open `.md` / `.mdx` / `.markdown` files in the editor; `.txt` files as plaintext
+- [x] Implement Local notebook source using IndexedDB (via `idb` or Dexie.js library)
+- [x] File/folder CRUD operations (create, rename, delete, move) — all client-side
+- [x] Notebook tree view in the sidebar with expand/collapse, selection, context menus
+- [x] Device icon for Local notebooks in the tree
+- [x] Open `.md` / `.mdx` / `.markdown` files in the editor; `.txt` files as plaintext
 - [ ] Image/video preview for media files in the tree
-- [ ] Tabbed documents: open multiple files, switch between tabs, close tabs, unsaved-changes indicator
-- [ ] Manual save to IndexedDB (`Cmd/Ctrl+S`)
-- [ ] Auto-save for Local notebooks (immediate write on every change)
-- [ ] Status bar: live word count, character count, last saved timestamp
-- [ ] Warning on Local notebook creation: "Data is stored in your browser. Clearing browser data will delete Local notebook content."
+- [x] Tabbed documents: open multiple files, switch between tabs, close tabs, unsaved-changes indicator
+- [x] Manual save to IndexedDB (`Cmd/Ctrl+S`)
+- [x] Auto-save for Local notebooks (immediate write on every change)
+- [x] Status bar: live word count, character count, last saved timestamp
+- [x] Warning on Local notebook creation: "Data is stored in your browser. Clearing browser data will delete Local notebook content."
 
 ### 1.5 Phase 1 Validation
 

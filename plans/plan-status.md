@@ -130,7 +130,48 @@
 
 ## Iteration Notes
 
-*(Record any feedback from the user, design pivots, or technical discoveries here)*
+- **1.3 follow-up:** User noticed raw Markdown toggle was showing HTML instead of Markdown. Added `turndown` + `turndown-plugin-gfm` for proper HTML→Markdown conversion with custom task list and highlight rules. Fixed and committed separately.
+
+#### 1.4 Local Notebook Storage
+- **Status:** Complete (media preview deferred to Phase 4)
+- **Started:** 2026-02-18
+- **Completed:** 2026-02-18
+
+**What was done:**
+- Installed `idb` (IndexedDB wrapper) for browser-local storage
+- **`stores/localNotebookStore.ts`**: Full IndexedDB data layer with two object stores:
+  - `notebooks` store: CRUD for notebook metadata (id, name, timestamps)
+  - `files` store: CRUD for file entries (path, notebookId, name, type, parentPath, content, timestamps). Compound key `[notebookId, path]`. Indexes on `byNotebook` and `byParent` for efficient tree queries.
+  - Operations: createNotebook, listNotebooks, renameNotebook, deleteNotebook (cascade deletes files), createFile, getFile, listFiles, listChildren, saveFileContent, renameFile (handles folder rename with child path updates), deleteFile (cascade for folders), moveFile
+- **`components/notebook/NotebookTree.tsx`**: Full tree view component with:
+  - Device icon for local notebooks, file icons (blue for .md files)
+  - Expand/collapse for notebooks and folders with chevron rotation
+  - Right-click context menus: New File, New Folder, Rename, Delete (with folder-specific menu items)
+  - Inline rename via input field (Enter to confirm, Escape to cancel, blur to confirm)
+  - Active file highlighting (blue background)
+  - Files sorted folders-first then alphabetically
+  - Editable file detection (.md, .mdx, .markdown, .txt)
+  - Empty notebook state ("Empty notebook" italic text)
+  - No-notebooks empty state with browser storage warning and "Add Notebook" button
+- **`hooks/useNotebookManager.ts`**: Central state management hook coordinating:
+  - Notebook/file CRUD operations wired to IndexedDB store
+  - Tab management: open file → create tab, close tab with unsaved-changes confirmation, rename updates open tabs
+  - Auto-save: 1-second debounce on content changes, writes to IndexedDB automatically
+  - Manual save: `⌘S` / `Ctrl+S` keyboard shortcut triggers immediate save
+  - Status bar integration: flash messages ("Saved", "Created notebook X", etc.) with 2-second auto-dismiss
+  - Last saved timestamp flows to StatusBar
+  - Delete notebook/file cascades to close affected tabs
+- Updated **`NotebookPane`** to accept and pass through all notebook/file operation props to NotebookTree
+- Updated **`App.tsx`** to use `useNotebookManager` hook instead of hardcoded demo tab. Maps OpenTab[] to Tab[] for DocumentPane compatibility.
+- Updated **i18n translations** with new keys: localWarning, newFile, newFolder, rename, delete
+- Browser storage warning alert shown on first notebook creation
+
+**Deferred:**
+- Image/video preview for media files in tree (Phase 4)
+
+**Verified:**
+- TypeScript compiles cleanly
+- Vite build succeeds (858KB JS)
 
 ---
 

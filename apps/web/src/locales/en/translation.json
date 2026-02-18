@@ -16,9 +16,14 @@
     "addFirst": "Add your first notebook",
     "addNotebook": "Add Notebook",
     "local": "Local",
+    "localWarning": "Data is stored in your browser. Clearing browser data will delete it.",
     "onedrive": "OneDrive",
     "googleDrive": "Google Drive",
-    "github": "GitHub"
+    "github": "GitHub",
+    "newFile": "New File",
+    "newFolder": "New Folder",
+    "rename": "Rename",
+    "delete": "Delete"
   },
   "editor": {
     "untitled": "Untitled",

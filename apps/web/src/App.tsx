@@ -7,67 +7,36 @@ import { StatusBar } from './components/layout/StatusBar';
 import { WelcomeScreen } from './components/welcome/WelcomeScreen';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
-
-const DEMO_CONTENT = `<h1>Welcome to Notebook.md</h1>
-<p>This is a <strong>live WYSIWYG Markdown editor</strong>. Try editing this content!</p>
-<h2>Features</h2>
-<ul>
-  <li>Rich text editing with Markdown support</li>
-  <li><strong>Bold</strong>, <em>italic</em>, <s>strikethrough</s>, <code>inline code</code></li>
-  <li>Syntax-highlighted code blocks</li>
-</ul>
-<h3>Task List</h3>
-<ul data-type="taskList">
-  <li data-type="taskItem" data-checked="true">Try the WYSIWYG editor</li>
-  <li data-type="taskItem" data-checked="false">Use slash (/) commands to insert elements</li>
-  <li data-type="taskItem" data-checked="false">Toggle raw HTML view with ⌘⇧M</li>
-</ul>
-<h3>Code Example</h3>
-<pre><code class="language-typescript">function greet(name: string): string {
-  return \`Hello, \${name}!\`;
-}</code></pre>
-<blockquote><p>Tip: Use the toolbar above or keyboard shortcuts to format text.</p></blockquote>`;
+import { useNotebookManager } from './hooks/useNotebookManager';
 
 export default function App() {
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
+  const nb = useNotebookManager();
 
   // Temporary auth state — will be replaced with real auth in Phase 2
   const [isSignedIn, setIsSignedIn] = useState(false);
-
-  // Tab state
-  const [tabs, setTabs] = useState<Tab[]>([
-    { id: 'demo', name: 'Welcome.md', hasUnsavedChanges: false, content: DEMO_CONTENT },
-  ]);
-  const [activeTabId, setActiveTabId] = useState<string | null>('demo');
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
 
-  const handleTabClose = useCallback(
-    (id: string) => {
-      setTabs((prev) => prev.filter((t) => t.id !== id));
-      if (activeTabId === id) {
-        setActiveTabId((prev) => {
-          const remaining = tabs.filter((t) => t.id !== id);
-          return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
-        });
-      }
-    },
-    [activeTabId, tabs],
-  );
-
-  const handleContentChange = useCallback((id: string, html: string) => {
-    setTabs((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, content: html, hasUnsavedChanges: true } : t)),
-    );
-  }, []);
-
   const handleWordCountChange = useCallback((words: number, chars: number) => {
     setWordCount(words);
     setCharCount(chars);
   }, []);
+
+  // Map OpenTab[] to Tab[] for DocumentPane
+  const docTabs: Tab[] = nb.tabs.map((t) => ({
+    id: t.id,
+    name: t.name,
+    hasUnsavedChanges: t.hasUnsavedChanges,
+    content: t.content,
+  }));
+
+  const lastSaved = nb.activeTab?.lastSaved
+    ? new Date(nb.activeTab.lastSaved).toLocaleTimeString()
+    : null;
 
   // Welcome screen when not signed in
   if (!isSignedIn) {
@@ -94,17 +63,32 @@ export default function App() {
           collapsed={sidebar.collapsed}
           onToggleCollapse={sidebar.toggleCollapse}
           onResizeMouseDown={sidebar.onMouseDown}
+          notebooks={nb.notebooks}
+          files={nb.files}
+          onCreateNotebook={nb.handleCreateNotebook}
+          onDeleteNotebook={nb.handleDeleteNotebook}
+          onRenameNotebook={nb.handleRenameNotebook}
+          onCreateFile={nb.handleCreateFile}
+          onDeleteFile={nb.handleDeleteFile}
+          onRenameFile={nb.handleRenameFile}
+          onOpenFile={nb.handleOpenFile}
+          activeFilePath={nb.activeTabId}
         />
         <DocumentPane
-          tabs={tabs}
-          activeTabId={activeTabId}
-          onTabSelect={setActiveTabId}
-          onTabClose={handleTabClose}
-          onContentChange={handleContentChange}
+          tabs={docTabs}
+          activeTabId={nb.activeTabId}
+          onTabSelect={nb.setActiveTabId}
+          onTabClose={nb.handleTabClose}
+          onContentChange={nb.handleContentChange}
           onWordCountChange={handleWordCountChange}
         />
       </div>
-      <StatusBar wordCount={wordCount} charCount={charCount} lastSaved={null} message={null} />
+      <StatusBar
+        wordCount={wordCount}
+        charCount={charCount}
+        lastSaved={lastSaved}
+        message={nb.statusMessage}
+      />
     </div>
   );
 }

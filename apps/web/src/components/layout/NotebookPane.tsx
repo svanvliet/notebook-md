@@ -1,11 +1,23 @@
 import { useTranslation } from 'react-i18next';
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, FolderIcon } from '../icons/Icons';
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '../icons/Icons';
+import { NotebookTree } from '../notebook/NotebookTree';
+import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 
 interface NotebookPaneProps {
   width: number;
   collapsed: boolean;
   onToggleCollapse: () => void;
   onResizeMouseDown: (e: React.MouseEvent) => void;
+  notebooks: NotebookMeta[];
+  files: Record<string, FileEntry[]>;
+  onCreateNotebook: () => void;
+  onDeleteNotebook: (id: string) => void;
+  onRenameNotebook: (id: string, name: string) => void;
+  onCreateFile: (notebookId: string, parentPath: string, type: 'file' | 'folder') => void;
+  onDeleteFile: (notebookId: string, path: string) => void;
+  onRenameFile: (notebookId: string, path: string, newName: string) => void;
+  onOpenFile: (notebookId: string, path: string) => void;
+  activeFilePath: string | null;
 }
 
 export function NotebookPane({
@@ -13,6 +25,16 @@ export function NotebookPane({
   collapsed,
   onToggleCollapse,
   onResizeMouseDown,
+  notebooks,
+  files,
+  onCreateNotebook,
+  onDeleteNotebook,
+  onRenameNotebook,
+  onCreateFile,
+  onDeleteFile,
+  onRenameFile,
+  onOpenFile,
+  activeFilePath,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
 
@@ -26,9 +48,10 @@ export function NotebookPane({
         {!collapsed && (
           <>
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {t('notebook.addNotebook')}
+              Notebooks
             </span>
             <button
+              onClick={onCreateNotebook}
               className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
               title={t('notebook.addNotebook')}
               aria-label={t('notebook.addNotebook')}
@@ -53,16 +76,19 @@ export function NotebookPane({
 
       {/* Tree content */}
       {!collapsed && (
-        <div className="flex-1 overflow-y-auto p-2">
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <FolderIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-              {t('notebook.addFirst')}
-            </p>
-            <button className="text-xs px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-              {t('notebook.addNotebook')}
-            </button>
-          </div>
+        <div className="flex-1 overflow-y-auto">
+          <NotebookTree
+            notebooks={notebooks}
+            files={files}
+            onCreateNotebook={onCreateNotebook}
+            onDeleteNotebook={onDeleteNotebook}
+            onRenameNotebook={onRenameNotebook}
+            onCreateFile={onCreateFile}
+            onDeleteFile={onDeleteFile}
+            onRenameFile={onRenameFile}
+            onOpenFile={onOpenFile}
+            activeFilePath={activeFilePath}
+          />
         </div>
       )}
 
