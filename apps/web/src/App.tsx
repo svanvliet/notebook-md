@@ -31,6 +31,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [showAddNotebook, setShowAddNotebook] = useState(false);
+  const [initialSource, setInitialSource] = useState<string | null>(null);
 
   // Detect OAuth error from URL before auth init can clear it
   const [oauthError, setOauthError] = useState<string | null>(() => {
@@ -78,8 +79,10 @@ export default function App() {
 
     // Auto-open Add Notebook modal if returning from provider linking
     if (params.has('source')) {
+      const src = params.get('source');
       params.delete('source');
       params.delete('linked');
+      setInitialSource(src);
       setShowAddNotebook(true);
       const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
       window.history.replaceState({}, '', newUrl);
@@ -294,10 +297,12 @@ export default function App() {
         <AddNotebookModal
           onAdd={(name, sourceType, sourceConfig) => {
             setShowAddNotebook(false);
+            setInitialSource(null);
             nb.handleAddNotebook(name, sourceType, sourceConfig);
           }}
-          onCancel={() => setShowAddNotebook(false)}
+          onCancel={() => { setShowAddNotebook(false); setInitialSource(null); }}
           userId={auth.user?.id}
+          initialSource={initialSource}
         />
       )}
     </div>

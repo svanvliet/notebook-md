@@ -29,13 +29,15 @@ interface AddNotebookModalProps {
   onAdd: (name: string, sourceType: SourceType, sourceConfig: Record<string, unknown>) => void;
   onCancel: () => void;
   userId?: string;
+  initialSource?: string | null;
 }
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, userId }: AddNotebookModalProps) {
-  const [step, setStep] = useState<Step>('source');
-  const [sourceType, setSourceType] = useState<SourceType | null>(null);
+export function AddNotebookModal({ onAdd, onCancel, userId, initialSource }: AddNotebookModalProps) {
+  const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
+  const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
+  const [sourceType, setSourceType] = useState<SourceType | null>(validSource);
   const [sourceConfig, setSourceConfig] = useState<Record<string, unknown>>({});
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
