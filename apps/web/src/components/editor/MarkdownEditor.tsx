@@ -25,7 +25,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     content: DOMPurify.sanitize(content),
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-8 py-6',
+        class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-8 py-6',
       },
     },
     onUpdate: ({ editor }) => {

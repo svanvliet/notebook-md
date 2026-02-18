@@ -39,20 +39,20 @@
   flex: 1;
 }
 
-/* Code blocks */
+/* Code blocks — GitHub style */
 .tiptap pre {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.875rem;
+  background: #f6f8fa;
+  border: none;
+  border-radius: 6px;
+  padding: 16px;
+  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 85%;
+  line-height: 1.45;
   overflow-x: auto;
 }
 
 .dark .tiptap pre {
-  background: #1e293b;
-  border-color: #334155;
+  background: #161b22;
 }
 
 .tiptap pre code {
@@ -107,33 +107,29 @@
   color: #60a5fa;
 }
 
-/* Tables */
+/* Tables — GitHub style */
 .tiptap table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1rem 0;
+  margin: 16px 0;
 }
 
 .tiptap table td,
 .tiptap table th {
-  border: 1px solid #e2e8f0;
-  padding: 0.5rem 0.75rem;
+  border: 1px solid #d0d7de;
+  padding: 6px 13px;
   position: relative;
   min-width: 80px;
 }
 
 .tiptap table th {
-  background: #f8fafc;
+  background: transparent;
   font-weight: 600;
 }
 
 .dark .tiptap table td,
 .dark .tiptap table th {
-  border-color: #334155;
-}
-
-.dark .tiptap table th {
-  background: #1e293b;
+  border-color: #3d444d;
 }
 
 /* Selected table cells */
@@ -157,51 +153,55 @@
   z-index: 20;
 }
 
-/* Blockquote */
+/* Blockquote — GitHub style */
 .tiptap blockquote {
-  border-left: 3px solid #d1d5db;
-  padding-left: 1rem;
-  color: #6b7280;
+  border-left: 0.25em solid #d0d7de;
+  padding: 0 1em;
+  color: #656d76;
 }
 
 .dark .tiptap blockquote {
-  border-left-color: #4b5563;
-  color: #9ca3af;
+  border-left-color: #3d444d;
+  color: #9198a1;
 }
 
-/* Horizontal rule */
+/* Horizontal rule — GitHub style */
 .tiptap hr {
   border: none;
-  border-top: 2px solid #e5e7eb;
-  margin: 1.5rem 0;
+  border-top: 4px solid #d1d9e0b3;
+  margin: 24px 0;
 }
 
 .dark .tiptap hr {
-  border-top-color: #374151;
+  border-top-color: #3d444db3;
 }
 
-/* Link styling */
+/* Link styling — GitHub style */
 .tiptap a {
-  color: #2563eb;
-  text-decoration: underline;
+  color: #0969da;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.dark .tiptap a {
-  color: #60a5fa;
+.tiptap a:hover {
+  text-decoration: underline;
 }
 
-/* Inline code */
+.dark .tiptap a {
+  color: #4493f8;
+}
+
+/* Inline code — GitHub style */
 .tiptap code {
-  background: #f1f5f9;
-  padding: 0.15rem 0.35rem;
-  border-radius: 0.25rem;
-  font-size: 0.875em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #eff1f3;
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  font-size: 85%;
+  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 }
 
 .dark .tiptap code {
-  background: #1e293b;
+  background: #343942;
 }
 
 /* Highlight */
