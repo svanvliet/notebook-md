@@ -10,6 +10,7 @@ import {
   renameFile as renameF,
   deleteFile as deleteF,
   getFile,
+  setStorageScope,
   type NotebookMeta,
   type FileEntry,
 } from '../stores/localNotebookStore';
@@ -39,7 +40,7 @@ export interface SaveLocationRequest {
   onSave: (notebookId: string, parentPath: string) => void;
 }
 
-export function useNotebookManager() {
+export function useNotebookManager(userId?: string | null) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
   const [tabs, setTabs] = useState<OpenTab[]>([]);
@@ -56,8 +57,9 @@ export function useNotebookManager() {
     messageTimer.current = setTimeout(() => setStatusMessage(null), ms);
   }, []);
 
-  // Load notebooks and their files on mount
+  // Load notebooks and their files when scope changes
   useEffect(() => {
+    setStorageScope(userId ?? null);
     (async () => {
       const nbs = await listNotebooks();
       setNotebooks(nbs);
@@ -66,8 +68,11 @@ export function useNotebookManager() {
         fileMap[nb.id] = await listFiles(nb.id);
       }
       setFiles(fileMap);
+      // Clear tabs when switching users
+      setTabs([]);
+      setActiveTabId(null);
     })();
-  }, []);
+  }, [userId]);
 
   const refreshFiles = useCallback(async (notebookId: string) => {
     const entries = await listFiles(notebookId);

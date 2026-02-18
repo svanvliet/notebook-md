@@ -21,16 +21,27 @@ export interface FileEntry {
   updatedAt: number;
 }
 
-const DB_NAME = 'notebook-md';
+const DB_PREFIX = 'notebook-md';
 const DB_VERSION = 1;
 const NOTEBOOKS_STORE = 'notebooks';
 const FILES_STORE = 'files';
 
+let currentScope: string | null = null;
 let dbPromise: Promise<IDBPDatabase> | null = null;
+
+/** Set the user scope for IndexedDB. Call before any data access. */
+export function setStorageScope(userId: string | null) {
+  const scope = userId ?? 'anonymous';
+  if (scope !== currentScope) {
+    currentScope = scope;
+    dbPromise = null; // force re-open with new DB name
+  }
+}
 
 function getDb() {
   if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
+    const dbName = currentScope ? `${DB_PREFIX}-${currentScope}` : DB_PREFIX;
+    dbPromise = openDB(dbName, DB_VERSION, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(NOTEBOOKS_STORE)) {
           db.createObjectStore(NOTEBOOKS_STORE, { keyPath: 'id' });

@@ -18,8 +18,8 @@ import { useSettings } from './hooks/useSettings';
 export default function App() {
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
-  const nb = useNotebookManager();
   const auth = useAuth();
+  const nb = useNotebookManager(auth.user?.id);
   const { settings, updateSettings } = useSettings(auth.isSignedIn);
 
   // Status bar state
