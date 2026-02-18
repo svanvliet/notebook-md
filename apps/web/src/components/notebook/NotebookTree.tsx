@@ -303,9 +303,11 @@ export function NotebookTree({
           <div key={nb.id}>
             <div
               className={`flex items-center gap-1.5 py-1 px-2 cursor-pointer rounded select-none transition-colors ${
-                dragNotebookId && dragNotebookId !== nb.id
-                  ? 'border-t-2 border-blue-400'
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                dropTarget === `notebook:${nb.id}`
+                  ? 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400'
+                  : dragNotebookId && dragNotebookId !== nb.id
+                    ? 'border-t-2 border-blue-400'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
               draggable
               onDragStart={(e) => {
@@ -316,22 +318,46 @@ export function NotebookTree({
               }}
               onDragEnd={() => setDragNotebookId(null)}
               onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes('text/notebook-reorder')) return;
+                // Accept notebook reorder OR file move to root
+                const isReorder = e.dataTransfer.types.includes('text/notebook-reorder');
+                const isFileMove = e.dataTransfer.types.includes('text/notebook-tree-item') && !isReorder;
+                if (!isReorder && !isFileMove) return;
                 e.preventDefault();
                 e.stopPropagation();
+                if (isFileMove) setDropTarget(`notebook:${nb.id}`);
+              }}
+              onDragLeave={() => {
+                if (dropTarget === `notebook:${nb.id}`) setDropTarget(null);
               }}
               onDrop={(e) => {
+                setDropTarget(null);
+                // Handle notebook reorder
                 const draggedId = e.dataTransfer.getData('text/notebook-reorder');
-                if (!draggedId || draggedId === nb.id || !onReorderNotebooks) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const ids = notebooks.map((n) => n.id);
-                const fromIdx = ids.indexOf(draggedId);
-                const toIdx = ids.indexOf(nb.id);
-                if (fromIdx < 0 || toIdx < 0) return;
-                ids.splice(fromIdx, 1);
-                ids.splice(toIdx, 0, draggedId);
-                onReorderNotebooks(ids);
+                if (draggedId && draggedId !== nb.id && onReorderNotebooks) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const ids = notebooks.map((n) => n.id);
+                  const fromIdx = ids.indexOf(draggedId);
+                  const toIdx = ids.indexOf(nb.id);
+                  if (fromIdx >= 0 && toIdx >= 0) {
+                    ids.splice(fromIdx, 1);
+                    ids.splice(toIdx, 0, draggedId);
+                    onReorderNotebooks(ids);
+                  }
+                  return;
+                }
+                // Handle file move to root
+                const raw = e.dataTransfer.getData('text/notebook-tree-item');
+                if (raw && onMoveFile) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  try {
+                    const data = JSON.parse(raw) as { notebookId: string; path: string; type: string };
+                    if (data.notebookId !== nb.id) return;
+                    if (!data.path.includes('/')) return; // Already at root
+                    onMoveFile(data.notebookId, data.path, '');
+                  } catch { /* ignore */ }
+                }
               }}
               onClick={() => toggleNotebook(nb.id)}
               onContextMenu={(e) => {

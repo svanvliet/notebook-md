@@ -857,14 +857,36 @@ export function useNotebookManager(userId?: string | null) {
 
   const handleMoveFile = useCallback(async (notebookId: string, oldPath: string, newParentPath: string) => {
     try {
+      const notebook = notebooks.find((n) => n.id === notebookId);
+      if (notebook && notebook.sourceType !== 'local' && notebook.sourceType) {
+        // Remote move not yet supported
+        console.warn('File move not supported for remote notebooks');
+        return;
+      }
+      const oldKey = `${notebookId}:${oldPath}`;
+      const fileName = oldPath.split('/').pop() || oldPath;
+      const newPath = newParentPath ? `${newParentPath}/${fileName}` : fileName;
+      const newKey = `${notebookId}:${newPath}`;
+
       await moveF(notebookId, oldPath, newParentPath);
+
+      // Update any open tab pointing to the old path
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === oldKey
+            ? { ...tab, id: newKey, title: tab.title }
+            : tab,
+        ),
+      );
+      setActiveTabId((prev) => (prev === oldKey ? newKey : prev));
+
       // Reload files for this notebook
       const updatedFiles = await listFiles(notebookId);
       setFiles((prev) => ({ ...prev, [notebookId]: updatedFiles }));
     } catch (err) {
       console.error('Failed to move file:', err);
     }
-  }, []);
+  }, [notebooks]);
 
   const handleReorderNotebooks = useCallback(async (orderedIds: string[]) => {
     try {
