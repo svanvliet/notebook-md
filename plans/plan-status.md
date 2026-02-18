@@ -676,6 +676,68 @@ Registered a GitHub App for reading/writing .md files in user repos.
 - ✅ Vite build succeeds
 - ✅ TypeScript compiles cleanly (no new errors)
 
+### 3.6 End-to-End Validation — COMPLETED ✅
+
+**Commits:** `7570e36` → `324dd6e` (8 commits) — Validation fixes and crash hardening
+
+**Bugs found and fixed during E2E testing:**
+
+1. **ESM import hoisting broke env var loading** (`lib/github-app.ts`):
+   - `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` were read at module scope before `dotenv.config()` ran
+   - Fix: lazy `getAppId()` and `getPrivateKey()` helpers that read `process.env` at call time
+   - Commits: `7570e36`, `8c09e21`
+
+2. **Private key path resolved relative to wrong directory** (`lib/github-app.ts`):
+   - `resolve(process.cwd(), keyPath)` resolved against `apps/api/` but the path in `.env` is relative to monorepo root
+   - Fix: compute `MONOREPO_ROOT` from `__dirname` and resolve against that
+   - Commit: `9618ce9`
+
+3. **Express 5 wildcard params are arrays** (`middleware/path-validation.ts`):
+   - `{*filePath}` yields `req.params.filePath` as `string[]` in Express 5, not a string
+   - Fix: `Array.isArray(rawParam) ? rawParam.join('/') : rawParam`
+   - Commit: `0f913d8`
+
+4. **New file creation used local store for GitHub notebooks** (`hooks/useNotebookManager.ts`):
+   - `handleCreateFile` always called IndexedDB `createFile()` regardless of source type
+   - Fix: check `nb.sourceType === 'github'` and call `createGitHubFile()` via API instead
+   - Commit: `b47789d`
+
+5. **File tree only showed root-level entries** (`hooks/useNotebookManager.ts`):
+   - `refreshFiles` fetched only root directory contents; subfolder files never appeared
+   - Fix: `fetchGitHubTreeRecursive()` walks all subdirectories and sets correct `parentPath` per level
+   - Commit: `324dd6e`
+
+6. **GITHUB_APP_SLUG was wrong** (`.env`, `routes/github.ts`):
+   - Default slug was `notebook-md-dev` but user registered the app as `notebook-md`
+   - Fix: updated `.env`, `.env.example`, and default in `routes/github.ts`
+
+**Infrastructure improvements:**
+
+7. **Crash protection** (`index.ts`):
+   - Added `process.on('unhandledRejection')` and `process.on('uncaughtException')` handlers
+   - Added HTTP server `error` and `close` event listeners for diagnostics
+   - Commit: `4ad4a85`
+
+8. **Dev server auto-restart** (`dev.sh`):
+   - Changed `tsx` to `tsx watch` for auto-restart on file changes and crashes
+   - Commit: `d3e9ad3`
+
+**Validated end-to-end flows:**
+- ✅ Sign in with email/password
+- ✅ Add GitHub notebook (select installation → repo → name)
+- ✅ Browse GitHub file tree (recursive subdirectories)
+- ✅ Open .md files from GitHub repos
+- ✅ Edit and save changes back to GitHub (with SHA conflict detection)
+- ✅ Create new files in GitHub notebooks (appears in tree and on github.com)
+- ✅ Multiple notebooks from different repos
+- ✅ Tabbed view with multiple open files
+- ✅ Auto-save with debounce (5s for GitHub)
+
+**Known issues (non-blocking):**
+- Smee webhook signature verification fails (smee modifies payload); webhooks work in production
+- SHA conflict (409) on rapid saves — auto-save can race with manual save; retries succeed
+- API process occasionally dies silently under load — restart loop wrapper keeps it alive
+
 ---
 
 ## Open Questions
