@@ -57,8 +57,9 @@ export interface OneDriveFileContent {
 
 export async function listOneDriveFiles(rootPath: string, dirPath = ''): Promise<OneDriveFileEntry[]> {
   const params = new URLSearchParams({ root: rootPath });
-  if (dirPath) params.set('dir', dirPath);
-  return api(`/api/sources/onedrive/files?${params.toString()}`);
+  if (dirPath) params.set('path', dirPath);
+  const data = await api<{ entries: OneDriveFileEntry[] }>(`/api/sources/onedrive/files?${params.toString()}`);
+  return data.entries;
 }
 
 export async function readOneDriveFile(rootPath: string, filePath: string): Promise<OneDriveFileContent> {
