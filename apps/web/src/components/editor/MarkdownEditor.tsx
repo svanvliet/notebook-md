@@ -137,7 +137,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="border-b border-gray-200 dark:border-gray-800 px-3 py-1.5 flex items-center justify-between bg-white dark:bg-gray-950 shrink-0">
+      <div data-print="hide" className="border-b border-gray-200 dark:border-gray-800 px-3 py-1.5 flex items-center justify-between bg-white dark:bg-gray-950 shrink-0">
         <EditorToolbar editor={editor} />
         <button
           onClick={toggleRawMode}

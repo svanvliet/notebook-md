@@ -125,13 +125,13 @@
     color: #555;
   }
 
-  /* Margin preferences — applied via data attribute on root */
-  [data-print-margins="narrow"] { margin: 0.5in !important; }
-  [data-print-margins="regular"] { margin: 0.75in 1in !important; }
-  [data-print-margins="wide"] { margin: 1in 1.5in !important; }
+  /* Margin preferences — control content padding since @page can't use selectors */
+  [data-print-margins="narrow"] .ProseMirror { padding: 0 0.25in !important; }
+  [data-print-margins="regular"] .ProseMirror { padding: 0 !important; }
+  [data-print-margins="wide"] .ProseMirror { padding: 0 0.5in !important; }
 
   @page {
     size: auto;
-    margin: 0.75in 1in;
+    margin: 0.5in 0.5in;
   }
 }
