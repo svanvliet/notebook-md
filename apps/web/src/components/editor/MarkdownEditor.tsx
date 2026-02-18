@@ -36,6 +36,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const wysiwygScrollRef = useRef<HTMLDivElement>(null);
   const syncingScroll = useRef(false);
+  const syncingFromSource = useRef(false);
 
   const extensions = [...getEditorExtensions(), SlashCommandExtension];
 
@@ -51,8 +52,8 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
       const html = editor.getHTML();
       onChange(html);
 
-      // Keep raw content in sync during split view
-      if (viewMode === 'split') {
+      // Keep raw content in sync during split view, but skip if update came from source pane
+      if (viewMode === 'split' && !syncingFromSource.current) {
         setRawContent(htmlToMarkdown(html));
       }
 
@@ -122,8 +123,10 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
           const html = sanitize(markdownToHtml(value));
           const currentHtml = editor.getHTML();
           if (html !== currentHtml) {
+            syncingFromSource.current = true;
             editor.commands.setContent(html);
             onChange(editor.getHTML());
+            syncingFromSource.current = false;
           }
         }, 500);
       }
