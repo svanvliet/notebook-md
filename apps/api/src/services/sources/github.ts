@@ -24,6 +24,11 @@ function headers(token: string) {
   return { ...HEADERS_BASE, Authorization: `Bearer ${token}` };
 }
 
+/** Encode each segment of a path for URLs — preserves slashes */
+function encodePath(p: string): string {
+  return p.split('/').map(encodeURIComponent).join('/');
+}
+
 /** Parse rootPath into { owner, repo, prefix } */
 function parseRoot(rootPath: string): { owner: string; repo: string; prefix: string } {
   const parts = rootPath.split('/').filter(Boolean);
@@ -47,7 +52,7 @@ class GitHubAdapter implements SourceAdapter {
   async listFiles(accessToken: string, rootPath: string, dirPath: string): Promise<FileEntry[]> {
     const { owner, repo, prefix } = parseRoot(rootPath);
     const fullPath = joinPath(prefix, dirPath);
-    const url = `${API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(fullPath)}`;
+    const url = `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`;
 
     const res = await fetch(url, { headers: headers(accessToken) });
     if (!res.ok) {
@@ -82,7 +87,7 @@ class GitHubAdapter implements SourceAdapter {
     const fullPath = joinPath(prefix, filePath);
 
     const res = await fetch(
-      `${API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(fullPath)}`,
+      `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`,
       { headers: headers(accessToken) },
     );
 
@@ -128,7 +133,7 @@ class GitHubAdapter implements SourceAdapter {
     if (sha) body.sha = sha;
 
     const res = await fetch(
-      `${API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(fullPath)}`,
+      `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`,
       {
         method: 'PUT',
         headers: headers(accessToken),
@@ -174,7 +179,7 @@ class GitHubAdapter implements SourceAdapter {
     }
 
     const res = await fetch(
-      `${API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(fullPath)}`,
+      `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`,
       {
         method: 'DELETE',
         headers: headers(accessToken),

@@ -105,6 +105,11 @@ export interface GitHubFileContent {
   sha?: string;
 }
 
+/** Encode a file path for URL usage — encode each segment but preserve slashes */
+function encodePath(filePath: string): string {
+  return filePath.split('/').map(encodeURIComponent).join('/');
+}
+
 export async function listGitHubFiles(rootPath: string, dirPath = ''): Promise<GitHubFileEntry[]> {
   const params = new URLSearchParams({ root: rootPath });
   if (dirPath) params.set('path', dirPath);
@@ -114,12 +119,12 @@ export async function listGitHubFiles(rootPath: string, dirPath = ''): Promise<G
 
 export async function readGitHubFile(rootPath: string, filePath: string): Promise<GitHubFileContent> {
   const params = new URLSearchParams({ root: rootPath });
-  return api(`/api/sources/github/files/${encodeURIComponent(filePath)}?${params}`);
+  return api(`/api/sources/github/files/${encodePath(filePath)}?${params}`);
 }
 
 export async function writeGitHubFile(rootPath: string, filePath: string, content: string, sha?: string): Promise<{ path: string; sha?: string }> {
   const params = new URLSearchParams({ root: rootPath });
-  return api(`/api/sources/github/files/${encodeURIComponent(filePath)}?${params}`, {
+  return api(`/api/sources/github/files/${encodePath(filePath)}?${params}`, {
     method: 'PUT',
     body: JSON.stringify({ content, sha }),
   });
@@ -127,7 +132,7 @@ export async function writeGitHubFile(rootPath: string, filePath: string, conten
 
 export async function createGitHubFile(rootPath: string, filePath: string, content = ''): Promise<{ path: string; sha?: string }> {
   const params = new URLSearchParams({ root: rootPath });
-  return api(`/api/sources/github/files/${encodeURIComponent(filePath)}?${params}`, {
+  return api(`/api/sources/github/files/${encodePath(filePath)}?${params}`, {
     method: 'POST',
     body: JSON.stringify({ content }),
   });
@@ -136,7 +141,7 @@ export async function createGitHubFile(rootPath: string, filePath: string, conte
 export async function deleteGitHubFile(rootPath: string, filePath: string, sha?: string): Promise<void> {
   const params = new URLSearchParams({ root: rootPath });
   if (sha) params.set('sha', sha);
-  await api(`/api/sources/github/files/${encodeURIComponent(filePath)}?${params}`, {
+  await api(`/api/sources/github/files/${encodePath(filePath)}?${params}`, {
     method: 'DELETE',
   });
 }

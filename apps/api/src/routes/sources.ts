@@ -8,6 +8,8 @@ import { validatePath, filterTreeEntries } from '../middleware/path-validation.j
 import { getSourceAdapter } from '../services/sources/types.js';
 import { getValidAccessToken } from '../services/token-refresh.js';
 import { getCircuitBreaker } from '../lib/circuit-breaker.js';
+import { getInstallationToken } from '../lib/github-app.js';
+import { query as dbQuery } from '../db/pool.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
@@ -52,8 +54,38 @@ async function resolveProvider(req: Request, res: Response): Promise<{ adapter: 
     return null;
   }
 
-  // Get valid access token
-  const accessToken = await getValidAccessToken(req.userId!, provider);
+  // Get valid access token — GitHub uses installation tokens, others use OAuth tokens
+  let accessToken: string | null = null;
+
+  if (provider === 'github') {
+    // Extract owner from rootPath query param (format: "owner/repo" or "owner/repo/subpath")
+    const rootPath = (req.query.root as string) ?? '';
+    const owner = rootPath.split('/')[0];
+
+    if (owner) {
+      // Look up installation for this owner + user
+      const installResult = await dbQuery<{ installation_id: number }>(
+        'SELECT installation_id FROM github_installations WHERE account_login = $1 AND user_id = $2 AND suspended_at IS NULL',
+        [owner, req.userId!],
+      );
+
+      if (installResult.rows.length > 0) {
+        try {
+          accessToken = await getInstallationToken(installResult.rows[0].installation_id);
+        } catch (err) {
+          logger.error('Failed to get installation token', { owner, error: (err as Error).message });
+        }
+      }
+    }
+
+    // Fallback to user OAuth token if no installation found
+    if (!accessToken) {
+      accessToken = await getValidAccessToken(req.userId!, provider);
+    }
+  } else {
+    accessToken = await getValidAccessToken(req.userId!, provider);
+  }
+
   if (!accessToken) {
     res.status(401).json({ error: `No valid ${provider} credentials. Please re-link your ${provider} account.` });
     return null;
