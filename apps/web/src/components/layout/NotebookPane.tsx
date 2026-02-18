@@ -1,7 +1,17 @@
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '../icons/Icons';
 import { NotebookTree } from '../notebook/NotebookTree';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
+
+// Small SVG icons for the + dropdown
+const ic = 'w-4 h-4 shrink-0';
+function NotebookPlusIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
+}
+function FilePlusIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>;
+}
 
 interface NotebookPaneProps {
   width: number;
@@ -37,6 +47,23 @@ export function NotebookPane({
   activeFilePath,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
+  const plusBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Close the + dropdown on outside click
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node) && !plusBtnRef.current?.contains(e.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPlusMenu]);
+
+  const firstNotebookId = notebooks.length > 0 ? notebooks[0].id : null;
 
   return (
     <div
@@ -51,14 +78,40 @@ export function NotebookPane({
           </span>
         )}
         {!collapsed && (
-          <button
-            onClick={onCreateNotebook}
-            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors mr-1"
-            title={t('notebook.addNotebook')}
-            aria-label={t('notebook.addNotebook')}
-          >
-            <PlusIcon className="w-3.5 h-3.5" />
-          </button>
+          <div className="relative">
+            <button
+              ref={plusBtnRef}
+              onClick={() => setShowPlusMenu((v) => !v)}
+              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors mr-1"
+              title="New…"
+              aria-label="New…"
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+            </button>
+            {showPlusMenu && (
+              <div
+                ref={plusMenuRef}
+                className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 min-w-[160px]"
+              >
+                <button
+                  onClick={() => { onCreateNotebook(); setShowPlusMenu(false); }}
+                  className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <span className="opacity-70"><NotebookPlusIcon /></span>
+                  <span>{t('notebook.addNotebook')}</span>
+                </button>
+                {firstNotebookId && (
+                  <button
+                    onClick={() => { onCreateFile(firstNotebookId, '', 'file'); setShowPlusMenu(false); }}
+                    className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <span className="opacity-70"><FilePlusIcon /></span>
+                    <span>{t('notebook.newFile')}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
         <button
           onClick={onToggleCollapse}

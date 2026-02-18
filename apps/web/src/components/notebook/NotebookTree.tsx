@@ -3,6 +3,25 @@ import { useTranslation } from 'react-i18next';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 import { ChevronRightIcon, FolderIcon } from '../icons/Icons';
 
+// --- Small SVG icons for context menu items ---
+const ic = 'w-4 h-4 shrink-0';
+
+function NewFileIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>;
+}
+function NewFolderIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>;
+}
+function RenameIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function TrashIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
+}
+function NotebookIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
+}
+
 function DeviceIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -277,22 +296,23 @@ export function NotebookTree({
         >
           {contextMenu.target.kind === 'notebook' ? (
             <>
-              <CtxItem label={t('notebook.newFile')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'file'); setContextMenu(null); }} />
-              <CtxItem label={t('notebook.newFolder')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'folder'); setContextMenu(null); }} />
+              <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'file'); setContextMenu(null); }} />
+              <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'folder'); setContextMenu(null); }} />
               <CtxDivider />
-              <CtxItem label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />
-              <CtxItem label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
+              <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />
+              <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
             </>
           ) : (
             <>
               {contextMenu.target.fileType === 'folder' && (
                 <>
-                  <CtxItem label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
-                  <CtxItem label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
+                  <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
+                  <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
                   <CtxDivider />
                 </>
               )}
               <CtxItem
+                icon={<RenameIcon />}
                 label={t('notebook.rename')}
                 onClick={() => {
                   if (contextMenu.target.kind === 'file') {
@@ -301,7 +321,7 @@ export function NotebookTree({
                   }
                 }}
               />
-              <CtxItem label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'file') onDeleteFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
+              <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'file') onDeleteFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
             </>
           )}
         </div>
@@ -310,15 +330,16 @@ export function NotebookTree({
   );
 }
 
-function CtxItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+function CtxItem({ label, icon, onClick, danger }: { label: string; icon?: React.ReactNode; onClick: () => void; danger?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+      className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 transition-colors ${
         danger ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
       }`}
     >
-      {label}
+      {icon && <span className="opacity-70">{icon}</span>}
+      <span>{label}</span>
     </button>
   );
 }
