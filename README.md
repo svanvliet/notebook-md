@@ -2,24 +2,103 @@
 
 A web application for creating, editing, and organizing Markdown notebooks through an intuitive WYSIWYG canvas interface. Notebooks are stored in your existing cloud storage and version control systems — OneDrive, Google Drive, and GitHub — so your content stays where you control it.
 
-## Key Features (Planned)
+## Features
 
-- **WYSIWYG Markdown editing** — rich-text experience powered by Tiptap/ProseMirror with GFM support, slash commands, and split view
-- **Bring your own storage** — connect OneDrive, Google Drive, or GitHub repos as notebook sources
-- **Multi-provider authentication** — sign in with Microsoft, GitHub, Google, Apple, or email
-- **Tabbed editor** — work on multiple documents simultaneously
-- **GitHub-native workflows** — working branch model with squash-on-publish for clean commit history
+- **WYSIWYG Markdown editor** — Tiptap/ProseMirror with full GFM support, slash commands, floating table toolbar, and raw markdown toggle
+- **Bring your own storage** — connect OneDrive, Google Drive, or GitHub repos as notebook sources (local browser storage available now)
+- **Multi-provider auth** — email + password, magic link, or OAuth (Microsoft, GitHub, Google)
+- **Tabbed editor** — multiple documents open simultaneously
+- **Notebook tree** — hierarchical file/folder browser with drag-and-drop import
+- **Settings sync** — display mode, font, margins, and preferences persist across sessions
+- **Account management** — profile editing, password change, linked accounts, account deletion
 
 ## Tech Stack
 
-- **Frontend:** React + TypeScript + Tailwind CSS + Tiptap
-- **Backend:** Node.js + TypeScript (Express/Fastify)
-- **Database:** PostgreSQL (metadata only — no document content stored)
-- **Infrastructure:** Docker, Azure Container Apps, GitHub Actions CI/CD
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript, Tailwind CSS, Tiptap |
+| Backend | Express 5, TypeScript, node-pg-migrate |
+| Database | PostgreSQL 16 (metadata only — no document content) |
+| Cache | Redis 7 (sessions, rate limiting) |
+| Email | Nodemailer (Mailpit for local dev) |
+| Infrastructure | Docker Compose (local), containers (production) |
+
+## Project Structure
+
+```
+notebook-md/
+├── apps/
+│   ├── web/          # React frontend (Vite, port 5173)
+│   └── api/          # Express API server (port 3001)
+├── packages/
+│   └── shared/       # Shared types and utilities
+├── docker/           # Docker configuration
+├── requirements/     # Product requirements document
+├── plans/            # Implementation plan and status
+├── dev.sh            # Development startup script
+└── docker-compose.yml
+```
+
+## Prerequisites
+
+- **Node.js** ≥ 20
+- **Docker Desktop** (for PostgreSQL, Redis, Mailpit)
+
+## Getting Started
+
+Clone the repo and install dependencies:
+
+```sh
+git clone https://github.com/svanvliet/notebook-md.git
+cd notebook-md
+npm install
+```
+
+Start all services with the dev script:
+
+```sh
+./dev.sh
+```
+
+This single command will:
+
+1. Start Docker services (PostgreSQL, Redis, Mailpit)
+2. Run database migrations
+3. Start the API server (port 3001)
+4. Start the Vite dev server (port 5173)
+5. Print all service URLs
+6. Tail logs (Ctrl+C to detach — services keep running)
+
+### Dev Script Commands
+
+| Command | Description |
+|---------|-------------|
+| `./dev.sh` | Start everything and tail logs |
+| `./dev.sh stop` | Stop all services |
+| `./dev.sh status` | Check health of each service |
+| `./dev.sh logs` | Tail API and web server logs |
+
+### Service URLs
+
+| Service | URL |
+|---------|-----|
+| Web App | http://localhost:5173 |
+| API Health | http://localhost:3001/api/health |
+| Mailpit (email inbox) | http://localhost:8025 |
+| Mock OAuth | http://localhost:3001/auth/oauth/mock |
+
+### Dev Accounts
+
+| Account | Credentials |
+|---------|-------------|
+| Admin | `admin@localhost` / `admin123` |
+| Mock OAuth | Use the mock provider form to simulate any profile |
+
+> **Tip:** On the welcome screen, click **Skip to app (dev)** to bypass auth during development.
 
 ## Status
 
-🚧 **In development** — see [`requirements/`](requirements/) for the full product requirements document.
+🚧 **In development** — Phase 1 (editor) and Phase 2 (auth) complete. See [`plans/`](plans/) for progress.
 
 ## License
 
