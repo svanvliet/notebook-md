@@ -93,12 +93,12 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
   const { code, state, error } = req.query;
 
   if (error) {
-    res.redirect(`${APP_URL}/auth/error?error=${encodeURIComponent(error as string)}`);
+    res.redirect(`${APP_URL}/app/auth-error?error=${encodeURIComponent(error as string)}`);
     return;
   }
 
   if (!code || !state) {
-    res.redirect(`${APP_URL}/auth/error?error=missing_params`);
+    res.redirect(`${APP_URL}/app/auth-error?error=missing_params`);
     return;
   }
 
@@ -106,7 +106,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
   const stateKey = `oauth:state:${hashToken(state as string)}`;
   const stateDataRaw = await redis.get(stateKey);
   if (!stateDataRaw) {
-    res.redirect(`${APP_URL}/auth/error?error=invalid_state`);
+    res.redirect(`${APP_URL}/app/auth-error?error=invalid_state`);
     return;
   }
   await redis.del(stateKey);
@@ -114,7 +114,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
 
   const provider = getProvider(providerName);
   if (!provider) {
-    res.redirect(`${APP_URL}/auth/error?error=unknown_provider`);
+    res.redirect(`${APP_URL}/app/auth-error?error=unknown_provider`);
     return;
   }
 
@@ -151,8 +151,13 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
     const returnTo = stateData.returnTo || '/';
     res.redirect(`${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}auth=success&new=${result.isNewUser}`);
   } catch (err) {
+    const code = (err as any)?.code;
+    if (code === 'ACCOUNT_EXISTS_EMAIL_PASSWORD') {
+      res.redirect(`${APP_URL}/app/auth-error?error=account_exists&provider=${providerName}`);
+      return;
+    }
     const message = err instanceof Error ? err.message : 'OAuth authentication failed';
-    res.redirect(`${APP_URL}/auth/error?error=${encodeURIComponent(message)}`);
+    res.redirect(`${APP_URL}/app/auth-error?error=${encodeURIComponent(message)}`);
   }
 });
 

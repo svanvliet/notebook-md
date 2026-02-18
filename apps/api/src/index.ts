@@ -1,3 +1,11 @@
+import dotenv from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from monorepo root (CWD may be apps/api/ via npm workspace)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, '../../../.env') });
+
 import app from './app.js';
 import { redis } from './lib/redis.js';
 import { logger } from './lib/logger.js';

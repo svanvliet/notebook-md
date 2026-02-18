@@ -191,6 +191,10 @@ export function useAuth() {
     setState(s => ({ ...s, error: null }));
   }, []);
 
+  const setError = useCallback((error: string) => {
+    setState(s => ({ ...s, error }));
+  }, []);
+
   // Dev-only skip auth
   const devSkipAuth = useCallback(() => {
     setState({
@@ -215,6 +219,7 @@ export function useAuth() {
     changePassword,
     deleteAccount,
     clearError,
+    setError,
     devSkipAuth,
   };
 }

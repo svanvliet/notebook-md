@@ -115,9 +115,12 @@ export async function handleOAuthLogin(
           };
         }
 
-        // Email+password ↔ OAuth: do NOT auto-merge. Create a separate account.
-        // The user can manually link accounts later from settings.
-        logger.info('OAuth: email matches existing email+password user, creating separate account', { provider, email: profile.email });
+        // Email+password ↔ OAuth: do NOT auto-merge.
+        // Redirect user to sign in with password, then link from settings.
+        await client.query('ROLLBACK');
+        const err = new Error('ACCOUNT_EXISTS_EMAIL_PASSWORD');
+        (err as any).code = 'ACCOUNT_EXISTS_EMAIL_PASSWORD';
+        throw err;
       }
     }
 

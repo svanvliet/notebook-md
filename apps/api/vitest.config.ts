@@ -8,6 +8,10 @@ export default defineConfig({
     hookTimeout: 30000,
     fileParallelism: false,
     include: ['src/**/*.test.ts'],
-    env: { NODE_ENV: 'test' },
+    globalSetup: ['src/tests/globalSetup.ts'],
+    env: {
+      NODE_ENV: 'test',
+      DB_NAME: 'notebookmd_test',
+    },
   },
 });
