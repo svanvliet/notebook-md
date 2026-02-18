@@ -96,13 +96,6 @@ export function getEditorExtensions(placeholder?: string) {
       inline: true,
       allowBase64: true,
     }).extend({
-      addAttributes() {
-        return {
-          ...this.parent?.(),
-          width: { default: null, renderHTML: (a) => (a.width ? { width: a.width } : {}) },
-          height: { default: null, renderHTML: (a) => (a.height ? { height: a.height } : {}) },
-        };
-      },
       addNodeView() {
         return ReactNodeViewRenderer(ImageView);
       },
