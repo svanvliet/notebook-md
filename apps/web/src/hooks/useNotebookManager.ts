@@ -88,13 +88,50 @@ export function useNotebookManager(userId?: string | null) {
       placeholder: 'My Notebook',
       onSubmit: async (name: string) => {
         setModalRequest(null);
-        const nb = await createNotebook(name);
+        const nb = await createNotebook(name, 'local');
         setNotebooks((prev) => [...prev, nb]);
         setFiles((prev) => ({ ...prev, [nb.id]: [] }));
         flash(`Created notebook "${nb.name}"`);
       },
     });
   }, [flash]);
+
+  const handleAddNotebook = useCallback(
+    async (name: string, sourceType: string, sourceConfig: Record<string, unknown>) => {
+      if (sourceType === 'local') {
+        const nb = await createNotebook(name, 'local');
+        setNotebooks((prev) => [...prev, nb]);
+        setFiles((prev) => ({ ...prev, [nb.id]: [] }));
+        flash(`Created notebook "${nb.name}"`);
+      } else {
+        // Remote notebook — also save to server via API
+        try {
+          const res = await fetch('/api/notebooks', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, sourceType, sourceConfig }),
+          });
+          if (!res.ok) throw new Error('Failed to create notebook');
+          const { notebook } = await res.json();
+          // Also store locally for the tree to display
+          const nb = await createNotebook(
+            name,
+            sourceType as NotebookMeta['sourceType'],
+            sourceConfig,
+          );
+          // Override the id with the server's id
+          nb.id = notebook.id;
+          setNotebooks((prev) => [...prev, nb]);
+          setFiles((prev) => ({ ...prev, [nb.id]: [] }));
+          flash(`Added ${sourceType} notebook "${name}"`);
+        } catch (err) {
+          flash(`Failed to add notebook: ${(err as Error).message}`);
+        }
+      }
+    },
+    [flash],
+  );
 
   const handleDeleteNotebook = useCallback(async (id: string) => {
     const nb = notebooks.find((n) => n.id === id);
@@ -427,6 +464,7 @@ export function useNotebookManager(userId?: string | null) {
     setSaveLocationRequest,
     setActiveTabId,
     handleCreateNotebook,
+    handleAddNotebook,
     handleDeleteNotebook,
     handleRenameNotebook,
     handleCreateFile,

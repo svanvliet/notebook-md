@@ -1,0 +1,377 @@
+/**
+ * Add Notebook Modal — multi-step flow for creating a notebook from any source.
+ *
+ * Step 1: Select source type (Local, GitHub, OneDrive, Google Drive, iCloud)
+ * Step 2: Configure source (varies by type)
+ *   - Local: just name
+ *   - GitHub: pick installation → repo → branch
+ *   - Others: "Coming soon" placeholder
+ * Step 3: Confirm
+ */
+
+import { useState, useEffect } from 'react';
+import { XIcon } from '../icons/Icons';
+import { SOURCE_TYPES, SourceIcon, type SourceType } from './SourceTypes';
+import {
+  listInstallations,
+  listRepos,
+  getInstallUrl,
+  type GitHubInstallation,
+  type GitHubRepo,
+} from '../../api/github';
+
+interface AddNotebookModalProps {
+  onAdd: (name: string, sourceType: SourceType, sourceConfig: Record<string, unknown>) => void;
+  onCancel: () => void;
+}
+
+type Step = 'source' | 'configure' | 'name';
+
+export function AddNotebookModal({ onAdd, onCancel }: AddNotebookModalProps) {
+  const [step, setStep] = useState<Step>('source');
+  const [sourceType, setSourceType] = useState<SourceType | null>(null);
+  const [sourceConfig, setSourceConfig] = useState<Record<string, unknown>>({});
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSelectSource(type: SourceType) {
+    const info = SOURCE_TYPES[type];
+    if (!info.available) return;
+    setSourceType(type);
+    setError(null);
+    if (type === 'local') {
+      setStep('name');
+    } else {
+      setStep('configure');
+    }
+  }
+
+  function handleConfigured(config: Record<string, unknown>, suggestedName: string) {
+    setSourceConfig(config);
+    setName(suggestedName);
+    setStep('name');
+  }
+
+  function handleCreate() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError('Name is required');
+      return;
+    }
+    onAdd(trimmed, sourceType!, sourceConfig);
+  }
+
+  function goBack() {
+    if (step === 'name' && sourceType !== 'local') {
+      setStep('configure');
+    } else {
+      setStep('source');
+      setSourceType(null);
+      setSourceConfig({});
+    }
+    setError(null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCancel}>
+      <div
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            {step === 'source' && 'Add Notebook'}
+            {step === 'configure' && `Configure ${SOURCE_TYPES[sourceType!]?.label}`}
+            {step === 'name' && 'Name Your Notebook'}
+          </h2>
+          <button onClick={onCancel} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 min-h-[220px]">
+          {step === 'source' && <SourcePicker onSelect={handleSelectSource} />}
+          {step === 'configure' && sourceType === 'github' && (
+            <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
+          )}
+          {step === 'configure' && sourceType && sourceType !== 'github' && (
+            <ComingSoon sourceType={sourceType} onBack={goBack} />
+          )}
+          {step === 'name' && (
+            <NameStep
+              name={name}
+              onChange={setName}
+              error={error}
+              sourceType={sourceType!}
+              onBack={goBack}
+              onCreate={handleCreate}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 1: Source picker ─────────────────────────────────────────────────
+
+function SourcePicker({ onSelect }: { onSelect: (type: SourceType) => void }) {
+  const types = Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][];
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Choose where your notebook files are stored:</p>
+      {types.map(([type, info]) => (
+        <button
+          key={type}
+          onClick={() => onSelect(type)}
+          disabled={!info.available}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+            info.available
+              ? 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer'
+              : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
+          }`}
+        >
+          <SourceIcon sourceType={type} className="w-5 h-5" />
+          <div className="flex-1">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">{info.label}</span>
+            {!info.available && (
+              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Coming soon</span>
+            )}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Step 2a: GitHub config ────────────────────────────────────────────────
+
+function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<string, unknown>, name: string) => void; onBack: () => void }) {
+  const [installations, setInstallations] = useState<GitHubInstallation[]>([]);
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [selectedInstall, setSelectedInstall] = useState<GitHubInstallation | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadInstallations();
+  }, []);
+
+  async function loadInstallations() {
+    try {
+      setLoading(true);
+      const installs = await listInstallations();
+      setInstallations(installs);
+      if (installs.length === 1) {
+        handleSelectInstallation(installs[0]);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSelectInstallation(install: GitHubInstallation) {
+    setSelectedInstall(install);
+    setSelectedRepo(null);
+    try {
+      setLoading(true);
+      const { repos } = await listRepos(install.installationId);
+      setRepos(repos);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSelectRepo(repo: GitHubRepo) {
+    setSelectedRepo(repo);
+    onConfigured(
+      {
+        installationId: selectedInstall!.installationId,
+        owner: repo.owner,
+        repo: repo.name,
+        rootPath: `${repo.owner}/${repo.name}`,
+        defaultBranch: repo.default_branch,
+      },
+      repo.name,
+    );
+  }
+
+  async function handleInstallApp() {
+    try {
+      const url = await getInstallUrl();
+      window.location.href = url;
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="flex gap-2">
+          <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Back</button>
+          <button onClick={loadInstallations} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  // No installations — prompt to install the app
+  if (installations.length === 0) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          To access your GitHub repositories, you need to install the Notebook.md GitHub App on your account or organization.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Back</button>
+          <button onClick={handleInstallApp} className="px-3 py-1.5 text-sm rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 flex items-center gap-2">
+            <SourceIcon sourceType="github" className="w-4 h-4" />
+            Install GitHub App
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Pick installation (if multiple)
+  if (!selectedInstall || (installations.length > 1 && repos.length === 0)) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Select a GitHub account:</p>
+        {installations.map((install) => (
+          <button
+            key={install.id}
+            onClick={() => handleSelectInstallation(install)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-left"
+          >
+            <SourceIcon sourceType="github" className="w-4 h-4" />
+            <span className="text-sm font-medium text-gray-900 dark:text-white">{install.accountLogin}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">{install.accountType}</span>
+          </button>
+        ))}
+        <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+          <button onClick={handleInstallApp} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+            Install on another account…
+          </button>
+        </div>
+        <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mt-2">← Back</button>
+      </div>
+    );
+  }
+
+  // Pick repo
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm text-gray-500 dark:text-gray-400">Select a repository from <strong>{selectedInstall.accountLogin}</strong>:</p>
+        {installations.length > 1 && (
+          <button onClick={() => { setSelectedInstall(null); setRepos([]); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+            Change account
+          </button>
+        )}
+      </div>
+      <div className="max-h-[240px] overflow-y-auto space-y-1">
+        {repos.map((repo) => (
+          <button
+            key={repo.id}
+            onClick={() => handleSelectRepo(repo)}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors ${
+              selectedRepo?.id === repo.id
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+            }`}
+          >
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-gray-900 dark:text-white truncate block">{repo.name}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{repo.default_branch} • {repo.private ? 'Private' : 'Public'}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+      <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mt-2">← Back</button>
+    </div>
+  );
+}
+
+// ── Step 2b: Coming soon placeholder ──────────────────────────────────────
+
+function ComingSoon({ sourceType, onBack }: { sourceType: SourceType; onBack: () => void }) {
+  const info = SOURCE_TYPES[sourceType];
+  return (
+    <div className="text-center py-8">
+      <SourceIcon sourceType={sourceType} className="w-10 h-10 mx-auto mb-3 opacity-40" />
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        {info.label} integration is coming soon!
+      </p>
+      <button onClick={onBack} className="px-4 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+        ← Back
+      </button>
+    </div>
+  );
+}
+
+// ── Step 3: Name the notebook ─────────────────────────────────────────────
+
+function NameStep({
+  name,
+  onChange,
+  error,
+  sourceType,
+  onBack,
+  onCreate,
+}: {
+  name: string;
+  onChange: (v: string) => void;
+  error: string | null;
+  sourceType: SourceType;
+  onBack: () => void;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <SourceIcon sourceType={sourceType} className="w-4 h-4" />
+        <span>{SOURCE_TYPES[sourceType].label}</span>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notebook name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onCreate()}
+          autoFocus
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="My Notebook"
+        />
+        {error && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}
+      </div>
+      <div className="flex justify-between">
+        <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+          ← Back
+        </button>
+        <button onClick={onCreate} className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium">
+          Create Notebook
+        </button>
+      </div>
+    </div>
+  );
+}

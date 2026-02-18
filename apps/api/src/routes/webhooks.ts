@@ -22,10 +22,11 @@ const DELIVERY_TTL = 600; // 10 minutes
 
 // ── Signature verification ────────────────────────────────────────────────
 
-function verifySignature(payload: string, signature: string | undefined): boolean {
-  if (!WEBHOOK_SECRET || !signature) return false;
+export function verifyWebhookSignature(payload: string, signature: string | undefined, secret?: string): boolean {
+  const key = secret ?? WEBHOOK_SECRET;
+  if (!key || !signature) return false;
 
-  const expected = 'sha256=' + createHmac('sha256', WEBHOOK_SECRET).update(payload).digest('hex');
+  const expected = 'sha256=' + createHmac('sha256', key).update(payload).digest('hex');
 
   // Timing-safe comparison
   try {
@@ -45,7 +46,7 @@ router.post('/', async (req: Request, res: Response) => {
   const deliveryId = req.headers['x-github-delivery'] as string;
 
   // 1. Verify signature
-  if (!verifySignature(rawBody, signature)) {
+  if (!verifyWebhookSignature(rawBody, signature)) {
     logger.warn('Webhook signature verification failed', { event, deliveryId });
     res.status(401).json({ error: 'Invalid signature' });
     return;

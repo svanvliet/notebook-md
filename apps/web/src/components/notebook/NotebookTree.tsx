@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 import { ChevronRightIcon, FolderIcon } from '../icons/Icons';
+import { SourceIcon } from './SourceTypes';
 
 // --- Small SVG icons for context menu items ---
 const ic = 'w-4 h-4 shrink-0';
@@ -23,16 +24,6 @@ function NotebookIcon() {
 }
 function ImportIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-}
-
-function DeviceIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-      <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
-  );
 }
 
 function FileIcon({ name, className = 'w-4 h-4' }: { name: string; className?: string }) {
@@ -261,7 +252,7 @@ export function NotebookTree({
               }}
             >
               <ChevronRightIcon className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-              <DeviceIcon className="w-4 h-4 text-gray-500 shrink-0" />
+              <SourceIcon sourceType={nb.sourceType ?? 'local'} className="w-4 h-4 shrink-0" />
               {isRenaming ? (
                 <input
                   ref={renameInputRef}

@@ -3,6 +3,9 @@ import { openDB, type IDBPDatabase } from 'idb';
 export interface NotebookMeta {
   id: string;
   name: string;
+  sourceType: 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud';
+  /** Source-specific config (e.g., { owner, repo, branch, rootPath } for GitHub) */
+  sourceConfig: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
 }
@@ -59,12 +62,18 @@ function getDb() {
 
 // --- Notebook CRUD ---
 
-export async function createNotebook(name: string): Promise<NotebookMeta> {
+export async function createNotebook(
+  name: string,
+  sourceType: NotebookMeta['sourceType'] = 'local',
+  sourceConfig: Record<string, unknown> = {},
+): Promise<NotebookMeta> {
   const db = await getDb();
   const now = Date.now();
   const notebook: NotebookMeta = {
     id: crypto.randomUUID(),
     name,
+    sourceType,
+    sourceConfig,
     createdAt: now,
     updatedAt: now,
   };

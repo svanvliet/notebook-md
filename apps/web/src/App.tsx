@@ -9,6 +9,7 @@ import { InputModal } from './components/common/InputModal';
 import { SaveLocationPicker } from './components/common/SaveLocationPicker';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AccountModal } from './components/account/AccountModal';
+import { AddNotebookModal } from './components/notebook/AddNotebookModal';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
@@ -29,6 +30,7 @@ export default function App() {
   // Modal states
   const [showSettings, setShowSettings] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
+  const [showAddNotebook, setShowAddNotebook] = useState(false);
 
   // Detect OAuth error from URL before auth init can clear it
   const [oauthError, setOauthError] = useState<string | null>(() => {
@@ -184,7 +186,7 @@ export default function App() {
           onResizeMouseDown={sidebar.onMouseDown}
           notebooks={nb.notebooks}
           files={nb.files}
-          onCreateNotebook={nb.handleCreateNotebook}
+          onCreateNotebook={() => setShowAddNotebook(true)}
           onDeleteNotebook={nb.handleDeleteNotebook}
           onRenameNotebook={nb.handleRenameNotebook}
           onCreateFile={nb.handleCreateFile}
@@ -262,6 +264,17 @@ export default function App() {
           onDeleteAccount={auth.deleteAccount}
           onSignOut={auth.signOut}
           onClose={() => setShowAccount(false)}
+        />
+      )}
+
+      {/* Add Notebook modal */}
+      {showAddNotebook && (
+        <AddNotebookModal
+          onAdd={(name, sourceType, sourceConfig) => {
+            setShowAddNotebook(false);
+            nb.handleAddNotebook(name, sourceType, sourceConfig);
+          }}
+          onCancel={() => setShowAddNotebook(false)}
         />
       )}
     </div>
