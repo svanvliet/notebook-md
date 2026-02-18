@@ -63,11 +63,12 @@ Start all services with the dev script:
 This single command will:
 
 1. Start Docker services (PostgreSQL, Redis, Mailpit)
-2. Run database migrations
+2. Run database migrations (dev + test databases)
 3. Start the API server (port 3001)
 4. Start the Vite dev server (port 5173)
-5. Print all service URLs
-6. Tail logs (Ctrl+C to detach — services keep running)
+5. Start the webhook proxy (smee.io → localhost, if configured)
+6. Print all service URLs
+7. Tail logs (Ctrl+C to detach — services keep running)
 
 ### Dev Script Commands
 
@@ -95,6 +96,16 @@ This single command will:
 | Mock OAuth | Use the mock provider form to simulate any profile |
 
 > **Tip:** On the welcome screen, click **Skip to app (dev)** to bypass auth during development.
+
+### Webhook Proxy (GitHub)
+
+GitHub can't deliver webhooks to `localhost`. We use [smee.io](https://smee.io) to proxy them in dev:
+
+1. Create a channel at https://smee.io/new (or reuse an existing one)
+2. Set `WEBHOOK_PROXY_URL=https://smee.io/YOUR_CHANNEL` in `.env`
+3. Use the same URL as the **Webhook URL** in your GitHub App settings
+
+`dev.sh` auto-starts the smee proxy when `WEBHOOK_PROXY_URL` is set. Events are forwarded to `http://localhost:3001/webhooks/github`.
 
 ## Status
 

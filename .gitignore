@@ -31,3 +31,4 @@ docker/secrets/
 # Logs
 *.log
 .dev-logs/
+stuff.txt

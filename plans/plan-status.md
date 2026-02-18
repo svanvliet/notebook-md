@@ -476,9 +476,29 @@ Registered a GitHub OAuth App for "Sign in with GitHub" on the welcome screen.
 - ✅ Dev database preserved after test runs
 - ✅ TypeScript compiles cleanly (API + Web)
 
-### 3-Prep.2 — GitHub App (Repo Access) — IN PROGRESS
+### 3-Prep.2 — GitHub App (Repo Access) — COMPLETED ✅
 
-Next step per `plans/auth-provider-plan.md` §1b.
+Registered a GitHub App for reading/writing .md files in user repos.
+
+**What was done:**
+- Created GitHub App "Notebook.md" at github.com/settings/apps
+  - Permissions: Contents (read & write), Metadata (read-only)
+  - Subscribed to: Push events
+  - Webhook URL: smee.io proxy (see below)
+  - Installable by: Any account
+- Saved credentials to `.env`: `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY_PATH`, `GITHUB_WEBHOOK_SECRET`
+- Moved private key `.pem` to `docker/secrets/github-app-private-key.pem` (gitignored)
+- Updated `.env.example` with all new placeholder vars
+
+**Smee.io webhook proxy for local dev:**
+- User created smee.io channel: `https://smee.io/V2BOwXCCcJ5XS4ur` (set as webhook URL in GitHub App)
+- Installed `smee-client` as dev dependency
+- Added `WEBHOOK_PROXY_URL` to `.env` and `.env.example`
+- Integrated smee into `dev.sh` as step 5/5: auto-starts when `WEBHOOK_PROXY_URL` is set, forwards to `http://localhost:3001/webhooks/github`
+- Added smee to `dev.sh stop/status`, log tailing, and URL display
+- Updated README.md with webhook proxy setup instructions
+
+### 3-Prep.3 — Microsoft Entra ID App — NEXT
 
 ---
 

@@ -28,6 +28,7 @@ NC='\033[0m' # No Color
 LOG_DIR="$SCRIPT_DIR/.dev-logs"
 API_PID_FILE="$LOG_DIR/api.pid"
 WEB_PID_FILE="$LOG_DIR/web.pid"
+SMEE_PID_FILE="$LOG_DIR/smee.pid"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ print_urls() {
   echo -e "${BOLD}  Logs:${NC}"
   echo -e "    ${GREEN}API${NC}            $LOG_DIR/api.log"
   echo -e "    ${GREEN}Web${NC}            $LOG_DIR/web.log"
+  echo -e "    ${GREEN}Smee${NC}           $LOG_DIR/smee.log"
   echo -e "    ${GREEN}Docker${NC}         docker compose logs -f"
   echo ""
 }
@@ -97,6 +99,14 @@ do_stop() {
     echo "  Stopping web dev server (PID $pid)"
     kill "$pid" 2>/dev/null || true
     rm -f "$WEB_PID_FILE"
+  fi
+
+  # Stop smee proxy
+  if is_running "$SMEE_PID_FILE"; then
+    local pid; pid=$(cat "$SMEE_PID_FILE")
+    echo "  Stopping webhook proxy (PID $pid)"
+    kill "$pid" 2>/dev/null || true
+    rm -f "$SMEE_PID_FILE"
   fi
 
   # Stop API server
@@ -147,6 +157,13 @@ do_status() {
     echo -e "  ${RED}●${NC} web (stopped)"
   fi
 
+  # Smee
+  if is_running "$SMEE_PID_FILE"; then
+    echo -e "  ${GREEN}●${NC} smee webhook proxy (PID $(cat "$SMEE_PID_FILE"))"
+  else
+    echo -e "  ${YELLOW}●${NC} smee webhook proxy (not running)"
+  fi
+
   echo ""
 }
 
@@ -174,7 +191,7 @@ do_start() {
   fi
 
   # ── 1. Docker services ──────────────────────────────────────────────────
-  echo -e "${BOLD}[1/4] Starting Docker services...${NC}"
+  echo -e "${BOLD}[1/5] Starting Docker services...${NC}"
   docker compose up -d
 
   # Wait for Docker health checks
@@ -207,7 +224,7 @@ do_start() {
 
   # ── 2. Run migrations ───────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[2/4] Running database migrations...${NC}"
+  echo -e "${BOLD}[2/5] Running database migrations...${NC}"
   DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd" \
     npx --workspace=apps/api node-pg-migrate up --migrations-dir apps/api/migrations --migration-file-language sql 2>&1 | \
     grep -E "(Migrating|complete|already)" || echo "  Migrations up to date"
@@ -222,7 +239,7 @@ do_start() {
 
   # ── 3. Start API server ─────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[3/4] Starting API server...${NC}"
+  echo -e "${BOLD}[3/5] Starting API server...${NC}"
   npx --workspace=apps/api tsx src/index.ts > "$LOG_DIR/api.log" 2>&1 &
   echo $! > "$API_PID_FILE"
   echo "  API server starting (PID $(cat "$API_PID_FILE"))..."
@@ -232,12 +249,31 @@ do_start() {
 
   # ── 4. Start web dev server ─────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[4/4] Starting web dev server...${NC}"
+  echo -e "${BOLD}[4/5] Starting web dev server...${NC}"
   npx --workspace=apps/web vite --host > "$LOG_DIR/web.log" 2>&1 &
   echo $! > "$WEB_PID_FILE"
   echo "  Web dev server starting (PID $(cat "$WEB_PID_FILE"))..."
 
   wait_for_service "Web" "http://localhost:5173" 15
+
+  # ── 5. Start webhook proxy (smee.io) if configured ────────────────────
+  # Load WEBHOOK_PROXY_URL from .env
+  WEBHOOK_PROXY_URL=""
+  if [ -f .env ]; then
+    WEBHOOK_PROXY_URL=$(grep -E '^WEBHOOK_PROXY_URL=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
+  fi
+
+  if [ -n "$WEBHOOK_PROXY_URL" ]; then
+    echo ""
+    echo -e "${BOLD}[5/5] Starting webhook proxy (smee.io)...${NC}"
+    npx smee -u "$WEBHOOK_PROXY_URL" -t http://localhost:3001/webhooks/github -p 3001 > "$LOG_DIR/smee.log" 2>&1 &
+    echo $! > "$SMEE_PID_FILE"
+    echo "  Smee proxy starting (PID $(cat "$SMEE_PID_FILE"))..."
+    echo "  Forwarding: $WEBHOOK_PROXY_URL → http://localhost:3001/webhooks/github"
+  else
+    echo ""
+    echo -e "  ${YELLOW}⚠${NC}  Webhook proxy skipped (WEBHOOK_PROXY_URL not set in .env)"
+  fi
 
   # ── Done! ───────────────────────────────────────────────────────────────
   echo ""
@@ -253,7 +289,9 @@ do_start() {
   echo ""
 
   # Tail logs
-  tail -f "$LOG_DIR/api.log" "$LOG_DIR/web.log" 2>/dev/null || true
+  local logfiles=("$LOG_DIR/api.log" "$LOG_DIR/web.log")
+  [ -f "$LOG_DIR/smee.log" ] && logfiles+=("$LOG_DIR/smee.log")
+  tail -f "${logfiles[@]}" 2>/dev/null || true
 }
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
