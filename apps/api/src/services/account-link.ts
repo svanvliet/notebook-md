@@ -2,6 +2,7 @@ import { query, getClient } from '../db/pool.js';
 import type { OAuthUserProfile, OAuthTokens } from './oauth/types.js';
 import { auditLog } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
+import { encryptOptional } from '../lib/encryption.js';
 
 interface LinkResult {
   userId: string;
@@ -46,7 +47,7 @@ export async function handleOAuthLogin(
       await client.query(
         `UPDATE identity_links SET access_token_enc = $1, refresh_token_enc = $2, token_expires_at = $3, scopes = $4, provider_email = $5, updated_at = now()
          WHERE provider = $6 AND provider_user_id = $7`,
-        [tokens.accessToken, tokens.refreshToken ?? null, tokens.expiresAt ?? null, tokens.scopes ?? null, profile.email, provider, profile.providerId],
+        [encryptOptional(tokens.accessToken), encryptOptional(tokens.refreshToken), tokens.expiresAt ?? null, tokens.scopes ?? null, profile.email, provider, profile.providerId],
       );
 
       // Update user avatar/name if still default
@@ -96,7 +97,7 @@ export async function handleOAuthLogin(
           await client.query(
             `INSERT INTO identity_links (user_id, provider, provider_user_id, provider_email, access_token_enc, refresh_token_enc, token_expires_at, scopes)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [existingUser.id, provider, profile.providerId, profile.email, tokens.accessToken, tokens.refreshToken ?? null, tokens.expiresAt ?? null, tokens.scopes ?? null],
+            [existingUser.id, provider, profile.providerId, profile.email, encryptOptional(tokens.accessToken), encryptOptional(tokens.refreshToken), tokens.expiresAt ?? null, tokens.scopes ?? null],
           );
 
           await client.query('COMMIT');
@@ -135,7 +136,7 @@ export async function handleOAuthLogin(
     await client.query(
       `INSERT INTO identity_links (user_id, provider, provider_user_id, provider_email, access_token_enc, refresh_token_enc, token_expires_at, scopes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [userId, provider, profile.providerId, profile.email, tokens.accessToken, tokens.refreshToken ?? null, tokens.expiresAt ?? null, tokens.scopes ?? null],
+      [userId, provider, profile.providerId, profile.email, encryptOptional(tokens.accessToken), encryptOptional(tokens.refreshToken), tokens.expiresAt ?? null, tokens.scopes ?? null],
     );
 
     await client.query('COMMIT');
@@ -182,7 +183,7 @@ export async function linkProviderToUser(
       await query(
         `UPDATE identity_links SET access_token_enc = $1, refresh_token_enc = $2, token_expires_at = $3, scopes = $4, updated_at = now()
          WHERE provider = $5 AND provider_user_id = $6`,
-        [tokens.accessToken, tokens.refreshToken ?? null, tokens.expiresAt ?? null, tokens.scopes ?? null, provider, profile.providerId],
+        [encryptOptional(tokens.accessToken), encryptOptional(tokens.refreshToken), tokens.expiresAt ?? null, tokens.scopes ?? null, provider, profile.providerId],
       );
       return;
     }
@@ -192,7 +193,7 @@ export async function linkProviderToUser(
   await query(
     `INSERT INTO identity_links (user_id, provider, provider_user_id, provider_email, access_token_enc, refresh_token_enc, token_expires_at, scopes)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [userId, provider, profile.providerId, profile.email, tokens.accessToken, tokens.refreshToken ?? null, tokens.expiresAt ?? null, tokens.scopes ?? null],
+    [userId, provider, profile.providerId, profile.email, encryptOptional(tokens.accessToken), encryptOptional(tokens.refreshToken), tokens.expiresAt ?? null, tokens.scopes ?? null],
   );
 
   await auditLog({ userId, action: 'link_provider', details: { provider, manual: true }, ipAddress: opts.ip, userAgent: opts.userAgent });

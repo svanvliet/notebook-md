@@ -1,0 +1,183 @@
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import { redis } from '../lib/redis.js';
+import { requireAuth } from '../middleware/auth.js';
+import { validatePath, filterTreeEntries } from '../middleware/path-validation.js';
+import { getSourceAdapter } from '../services/sources/types.js';
+import { getValidAccessToken } from '../services/token-refresh.js';
+import { getCircuitBreaker } from '../lib/circuit-breaker.js';
+import { logger } from '../lib/logger.js';
+
+const router = Router();
+
+// ── Per-user rate limiting (Redis-backed) ─────────────────────────────────
+const isTest = process.env.VITEST === 'true';
+
+const sourceRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: isTest ? 10000 : 100, // 100 req/min per user
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.userId ?? 'unknown',
+  store: isTest ? undefined : new RedisStore({
+    // @ts-expect-error - redis client types are compatible
+    sendCommand: (...args: string[]) => redis.call(...args),
+    prefix: 'rl:sources:',
+  }),
+  message: { error: 'Too many requests to source APIs, please slow down' },
+});
+
+// Apply auth + rate limit to all source routes
+router.use(requireAuth);
+router.use(sourceRateLimit);
+
+// ── Middleware: resolve provider + access token + circuit breaker ──────────
+
+async function resolveProvider(req: Request, res: Response): Promise<{ adapter: ReturnType<typeof getSourceAdapter>; accessToken: string } | null> {
+  const provider = req.params.provider as string;
+
+  // Check circuit breaker
+  const cb = getCircuitBreaker(provider);
+  if (cb.isOpen()) {
+    res.status(503).json({ error: `${provider} is temporarily unavailable, please try again shortly` });
+    return null;
+  }
+
+  // Get adapter
+  const adapter = getSourceAdapter(provider);
+  if (!adapter) {
+    res.status(404).json({ error: `Unknown source provider: ${provider}` });
+    return null;
+  }
+
+  // Get valid access token
+  const accessToken = await getValidAccessToken(req.userId!, provider);
+  if (!accessToken) {
+    res.status(401).json({ error: `No valid ${provider} credentials. Please re-link your ${provider} account.` });
+    return null;
+  }
+
+  return { adapter, accessToken };
+}
+
+// ── GET /api/sources/:provider/files — List directory ─────────────────────
+
+router.get('/:provider/files', async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const dirPath = (req.query.path as string) ?? '';
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  try {
+    const entries = await adapter!.listFiles(accessToken, rootPath, dirPath);
+    cb.onSuccess();
+    res.json({ entries: filterTreeEntries(entries) });
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source list failed', { provider: req.params.provider as string, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to list files from ${req.params.provider as string}` });
+  }
+});
+
+// ── GET /api/sources/:provider/files/* — Read file ────────────────────────
+
+router.get('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const filePath = (req as any).cleanPath;
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  try {
+    const file = await adapter!.readFile(accessToken, rootPath, filePath);
+    cb.onSuccess();
+    res.json(file);
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source read failed', { provider: req.params.provider as string, path: filePath, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to read file from ${req.params.provider as string}` });
+  }
+});
+
+// ── PUT /api/sources/:provider/files/* — Update file ──────────────────────
+
+router.put('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const filePath = (req as any).cleanPath;
+  const { content, sha } = req.body;
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  if (typeof content !== 'string') {
+    res.status(400).json({ error: 'content is required and must be a string' });
+    return;
+  }
+
+  try {
+    const result = await adapter!.writeFile(accessToken, rootPath, filePath, content, sha);
+    cb.onSuccess();
+    res.json(result);
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source write failed', { provider: req.params.provider as string, path: filePath, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to write file to ${req.params.provider as string}` });
+  }
+});
+
+// ── POST /api/sources/:provider/files/* — Create file ─────────────────────
+
+router.post('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const filePath = (req as any).cleanPath;
+  const { content } = req.body;
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  try {
+    const result = await adapter!.createFile(accessToken, rootPath, filePath, content ?? '');
+    cb.onSuccess();
+    res.status(201).json(result);
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source create failed', { provider: req.params.provider as string, path: filePath, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to create file on ${req.params.provider as string}` });
+  }
+});
+
+// ── DELETE /api/sources/:provider/files/* — Delete file ───────────────────
+
+router.delete('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const filePath = (req as any).cleanPath;
+  const sha = req.query.sha as string | undefined;
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  try {
+    await adapter!.deleteFile(accessToken, rootPath, filePath, sha);
+    cb.onSuccess();
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source delete failed', { provider: req.params.provider as string, path: filePath, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to delete file on ${req.params.provider as string}` });
+  }
+});
+
+export default router;

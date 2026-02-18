@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import oauthRoutes from './routes/oauth.js';
 import settingsRoutes from './routes/settings.js';
 import notebookRoutes from './routes/notebooks.js';
+import sourcesRoutes from './routes/sources.js';
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/auth', authRoutes);
 app.use('/auth/oauth', oauthRoutes);
 app.use('/auth/settings', settingsRoutes);
 app.use('/api/notebooks', notebookRoutes);
+app.use('/api/sources', sourcesRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
