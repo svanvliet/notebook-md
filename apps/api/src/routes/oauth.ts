@@ -123,13 +123,14 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
     const tokens = await provider.exchangeCode(code as string, redirectUri);
     const profile = await provider.getUserProfile(tokens.accessToken);
 
-    // If linking to existing user (from account settings)
+    // If linking to existing user (from account settings or provider setup)
     if (stateData.linkToUser) {
       await linkProviderToUser(stateData.linkToUser, providerName, profile, tokens, {
         ip: getClientIp(req),
         userAgent: req.headers['user-agent'],
       });
-      res.redirect(`${APP_URL}/settings?linked=${providerName}`);
+      const returnTo = stateData.returnTo || `/settings?linked=${providerName}`;
+      res.redirect(`${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}linked=${providerName}`);
       return;
     }
 

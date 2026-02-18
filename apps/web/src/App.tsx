@@ -72,14 +72,15 @@ export default function App() {
     if (params.has('auth')) {
       params.delete('auth');
       params.delete('new');
+      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
 
-      // Auto-open Add Notebook modal if returning from provider linking
-      const source = params.get('source');
-      if (source) {
-        params.delete('source');
-        setShowAddNotebook(true);
-      }
-
+    // Auto-open Add Notebook modal if returning from provider linking
+    if (params.has('source')) {
+      params.delete('source');
+      params.delete('linked');
+      setShowAddNotebook(true);
       const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
