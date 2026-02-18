@@ -31,6 +31,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    onClearError();
     await onSignIn(email, password, rememberMe);
     setLoading(false);
   };
@@ -38,6 +39,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    onClearError();
     const ok = await onSignUp(email, password, displayName || email.split('@')[0], rememberMe);
     if (ok) switchView('main');
     setLoading(false);

@@ -31,7 +31,7 @@ export default function App() {
   const [showAccount, setShowAccount] = useState(false);
 
   // Detect OAuth error from URL before auth init can clear it
-  const [oauthError] = useState<string | null>(() => {
+  const [oauthError, setOauthError] = useState<string | null>(() => {
     const path = window.location.pathname;
     if (path === '/app/auth-error') {
       const params = new URLSearchParams(window.location.search);
@@ -137,7 +137,7 @@ export default function App() {
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
           error={oauthError ?? auth.error}
-          onClearError={auth.clearError}
+          onClearError={() => { setOauthError(null); auth.clearError(); }}
         />
         {/* Dev shortcut to skip auth */}
         {process.env.NODE_ENV !== 'production' && (
