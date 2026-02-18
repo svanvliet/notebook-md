@@ -21,6 +21,9 @@ function TrashIcon() {
 function NotebookIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
 }
+function ImportIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+}
 
 function DeviceIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
@@ -61,6 +64,7 @@ interface NotebookTreeProps {
   onDeleteNotebook: (id: string) => void;
   onRenameNotebook: (id: string, name: string) => void;
   onCreateFile: (notebookId: string, parentPath: string, type: 'file' | 'folder') => void;
+  onImportFile: (notebookId?: string, parentPath?: string) => void;
   onDeleteFile: (notebookId: string, path: string) => void;
   onRenameFile: (notebookId: string, path: string, newName: string) => void;
   onOpenFile: (notebookId: string, path: string) => void;
@@ -74,6 +78,7 @@ export function NotebookTree({
   onDeleteNotebook,
   onRenameNotebook,
   onCreateFile,
+  onImportFile,
   onDeleteFile,
   onRenameFile,
   onOpenFile,
@@ -298,6 +303,7 @@ export function NotebookTree({
             <>
               <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'file'); setContextMenu(null); }} />
               <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'folder'); setContextMenu(null); }} />
+              <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'notebook') onImportFile(contextMenu.target.id, ''); setContextMenu(null); }} />
               <CtxDivider />
               <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />
               <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
@@ -308,6 +314,7 @@ export function NotebookTree({
                 <>
                   <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
                   <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
+                  <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'file') onImportFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
                   <CtxDivider />
                 </>
               )}

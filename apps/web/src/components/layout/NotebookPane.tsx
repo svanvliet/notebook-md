@@ -12,6 +12,9 @@ function NotebookPlusIcon() {
 function FilePlusIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>;
 }
+function ImportIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+}
 
 interface NotebookPaneProps {
   width: number;
@@ -24,6 +27,7 @@ interface NotebookPaneProps {
   onDeleteNotebook: (id: string) => void;
   onRenameNotebook: (id: string, name: string) => void;
   onCreateFile: (notebookId: string, parentPath: string, type: 'file' | 'folder') => void;
+  onImportFile: (notebookId?: string, parentPath?: string) => void;
   onDeleteFile: (notebookId: string, path: string) => void;
   onRenameFile: (notebookId: string, path: string, newName: string) => void;
   onOpenFile: (notebookId: string, path: string) => void;
@@ -41,6 +45,7 @@ export function NotebookPane({
   onDeleteNotebook,
   onRenameNotebook,
   onCreateFile,
+  onImportFile,
   onDeleteFile,
   onRenameFile,
   onOpenFile,
@@ -101,13 +106,22 @@ export function NotebookPane({
                   <span>{t('notebook.addNotebook')}</span>
                 </button>
                 {firstNotebookId && (
-                  <button
-                    onClick={() => { onCreateFile(firstNotebookId, '', 'file'); setShowPlusMenu(false); }}
-                    className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <span className="opacity-70"><FilePlusIcon /></span>
-                    <span>{t('notebook.newFile')}</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => { onCreateFile(firstNotebookId, '', 'file'); setShowPlusMenu(false); }}
+                      className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <span className="opacity-70"><FilePlusIcon /></span>
+                      <span>{t('notebook.newFile')}</span>
+                    </button>
+                    <button
+                      onClick={() => { onImportFile(); setShowPlusMenu(false); }}
+                      className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <span className="opacity-70"><ImportIcon /></span>
+                      <span>Import File…</span>
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -137,6 +151,7 @@ export function NotebookPane({
             onDeleteNotebook={onDeleteNotebook}
             onRenameNotebook={onRenameNotebook}
             onCreateFile={onCreateFile}
+            onImportFile={onImportFile}
             onDeleteFile={onDeleteFile}
             onRenameFile={onRenameFile}
             onOpenFile={onOpenFile}

@@ -6,6 +6,7 @@ import type { Tab } from './components/layout/DocumentPane';
 import { StatusBar } from './components/layout/StatusBar';
 import { WelcomeScreen } from './components/welcome/WelcomeScreen';
 import { InputModal } from './components/common/InputModal';
+import { SaveLocationPicker } from './components/common/SaveLocationPicker';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
@@ -55,8 +56,45 @@ export default function App() {
     );
   }
 
+  // Drag-and-drop handler for markdown files
+  const SUPPORTED_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+      if (!e.dataTransfer.files?.length) return;
+      for (const file of Array.from(e.dataTransfer.files)) {
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        if (!SUPPORTED_EXTS.has(ext)) continue;
+        const content = await file.text();
+        nb.handleDropImport(file.name, content);
+      }
+    },
+    [nb],
+  );
+
   return (
-    <div className="h-full flex flex-col">
+    <div
+      className="h-full flex flex-col"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <TitleBar displayMode={mode} onDisplayModeChange={setMode} />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -70,6 +108,7 @@ export default function App() {
           onDeleteNotebook={nb.handleDeleteNotebook}
           onRenameNotebook={nb.handleRenameNotebook}
           onCreateFile={nb.handleCreateFile}
+          onImportFile={nb.handleImportFile}
           onDeleteFile={nb.handleDeleteFile}
           onRenameFile={nb.handleRenameFile}
           onOpenFile={nb.handleOpenFile}
@@ -91,6 +130,16 @@ export default function App() {
         message={nb.statusMessage}
       />
 
+      {/* Drag-and-drop overlay */}
+      {dragOver && nb.notebooks.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400 pointer-events-none">
+          <div className="bg-white dark:bg-gray-900 px-6 py-4 rounded-lg shadow-lg text-center">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop Markdown file to import</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">.md, .mdx, .markdown, .txt</p>
+          </div>
+        </div>
+      )}
+
       {/* Input modal for notebook/file creation */}
       {nb.modalRequest && (
         <InputModal
@@ -99,6 +148,17 @@ export default function App() {
           placeholder={nb.modalRequest.placeholder}
           onSubmit={nb.modalRequest.onSubmit}
           onCancel={() => nb.setModalRequest(null)}
+        />
+      )}
+
+      {/* Save location picker for imported files */}
+      {nb.saveLocationRequest && (
+        <SaveLocationPicker
+          fileName={nb.saveLocationRequest.fileName}
+          notebooks={nb.notebooks}
+          files={nb.files}
+          onSave={nb.saveLocationRequest.onSave}
+          onCancel={() => nb.setSaveLocationRequest(null)}
         />
       )}
     </div>

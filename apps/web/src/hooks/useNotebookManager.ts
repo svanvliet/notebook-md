@@ -32,6 +32,12 @@ export interface ModalRequest {
   onSubmit: (value: string) => void;
 }
 
+export interface SaveLocationRequest {
+  fileName: string;
+  content: string;
+  onSave: (notebookId: string, parentPath: string) => void;
+}
+
 export function useNotebookManager() {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
@@ -39,6 +45,7 @@ export function useNotebookManager() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [modalRequest, setModalRequest] = useState<ModalRequest | null>(null);
+  const [saveLocationRequest, setSaveLocationRequest] = useState<SaveLocationRequest | null>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Show a temporary status bar message
@@ -130,6 +137,60 @@ export function useNotebookManager() {
           await createFile(notebookId, parentPath, name, type);
           await refreshFiles(notebookId);
           flash(`Created ${type} "${name}"`);
+        },
+      });
+    },
+    [refreshFiles, flash],
+  );
+
+  // Import a file from the user's device
+  const handleImportFile = useCallback(
+    (notebookId?: string, parentPath?: string) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.md,.mdx,.markdown,.txt';
+      input.multiple = true;
+      input.onchange = async () => {
+        if (!input.files?.length) return;
+        for (const file of Array.from(input.files)) {
+          const content = await file.text();
+          const fileName = file.name;
+          if (notebookId) {
+            // Direct import to a known location
+            await createFile(notebookId, parentPath ?? '', fileName, 'file', content);
+            await refreshFiles(notebookId);
+            flash(`Imported "${fileName}"`);
+          } else {
+            // Show save location picker
+            setSaveLocationRequest({
+              fileName,
+              content,
+              onSave: async (nbId: string, savePath: string) => {
+                setSaveLocationRequest(null);
+                await createFile(nbId, savePath, fileName, 'file', content);
+                await refreshFiles(nbId);
+                flash(`Imported "${fileName}"`);
+              },
+            });
+          }
+        }
+      };
+      input.click();
+    },
+    [refreshFiles, flash],
+  );
+
+  // Import via drag-and-drop (shows save location picker)
+  const handleDropImport = useCallback(
+    (fileName: string, content: string) => {
+      setSaveLocationRequest({
+        fileName,
+        content,
+        onSave: async (nbId: string, savePath: string) => {
+          setSaveLocationRequest(null);
+          await createFile(nbId, savePath, fileName, 'file', content);
+          await refreshFiles(nbId);
+          flash(`Imported "${fileName}"`);
         },
       });
     },
@@ -323,11 +384,15 @@ export function useNotebookManager() {
     statusMessage,
     modalRequest,
     setModalRequest,
+    saveLocationRequest,
+    setSaveLocationRequest,
     setActiveTabId,
     handleCreateNotebook,
     handleDeleteNotebook,
     handleRenameNotebook,
     handleCreateFile,
+    handleImportFile,
+    handleDropImport,
     handleDeleteFile,
     handleRenameFile,
     handleOpenFile,

@@ -136,14 +136,17 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
         <EditorToolbar editor={editor} />
         <button
           onClick={toggleRawMode}
-          className={`ml-2 px-2 py-1 text-xs rounded transition-colors shrink-0 ${
+          className={`ml-2 px-1.5 py-1 rounded transition-colors shrink-0 ${
             rawMode
               ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
               : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
           }`}
           title="Toggle raw Markdown (⌘⇧M)"
         >
-          {'</>'}
+          <svg className="w-5 h-3.5" viewBox="0 0 208 128" fill="currentColor">
+            <rect x="5" y="5" width="198" height="118" rx="15" fill="none" stroke="currentColor" strokeWidth="10"/>
+            <path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0-30-33h20V30h20v35h20z"/>
+          </svg>
         </button>
       </div>
 
