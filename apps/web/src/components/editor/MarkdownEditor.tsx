@@ -1,12 +1,21 @@
 import { useEditor, EditorContent } from '@tiptap/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { getEditorExtensions } from './extensions';
 import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { SlashCommandExtension } from './SlashCommands';
+import { EditorContextMenu } from './EditorContextMenu';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import './editor.css';
+
+// Allow table-related attributes and elements that Tiptap generates
+function sanitize(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ['colgroup', 'col'],
+    ADD_ATTR: ['colspan', 'rowspan', 'style', 'data-type', 'data-checked'],
+  }) as string;
+}
 
 interface MarkdownEditorProps {
   content: string;
@@ -17,12 +26,14 @@ interface MarkdownEditorProps {
 export function MarkdownEditor({ content, onChange, onWordCountChange }: MarkdownEditorProps) {
   const [rawMode, setRawMode] = useState(false);
   const [rawContent, setRawContent] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
 
   const extensions = [...getEditorExtensions(), SlashCommandExtension];
 
   const editor = useEditor({
     extensions,
-    content: DOMPurify.sanitize(content),
+    content: sanitize(content),
     editorProps: {
       attributes: {
         class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-8 py-6',
@@ -43,7 +54,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
   // Sync content from outside (e.g., when switching tabs)
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(DOMPurify.sanitize(content));
+      editor.commands.setContent(sanitize(content));
     }
     // Only trigger when content prop changes, not when editor types
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,7 +80,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
       setRawContent(htmlToMarkdown(editor.getHTML()));
     } else {
       // Switching back to WYSIWYG: convert Markdown to HTML and load
-      const html = DOMPurify.sanitize(markdownToHtml(rawContent));
+      const html = sanitize(markdownToHtml(rawContent));
       editor.commands.setContent(html);
       onChange(editor.getHTML());
     }
@@ -84,6 +95,38 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
       onWordCountChange?.(words, text.length);
     }
   }, [editor, onWordCountChange]);
+
+  // Right-click context menu handler
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!editor || !editor.view) return;
+      const target = e.target as HTMLElement;
+      const isLink = !!target.closest('a');
+      const isTable = !!target.closest('table');
+      if (isLink || isTable) {
+        e.preventDefault();
+        // Position cursor at the right-click location so editor knows context
+        const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+        if (pos) {
+          editor.chain().focus().setTextSelection(pos.pos).run();
+        }
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }
+    },
+    [editor],
+  );
+
+  // Close context menu on outside click or scroll
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    document.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('scroll', close, true);
+    };
+  }, [contextMenu]);
 
   return (
     <div className="flex flex-col h-full">
@@ -113,9 +156,21 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
             spellCheck={false}
           />
         ) : (
-          <div className="relative editor-wrapper">
+          <div
+            ref={editorWrapperRef}
+            className="relative editor-wrapper"
+            onContextMenu={handleContextMenu}
+          >
             <EditorContent editor={editor} />
             <SlashCommandMenu editor={editor} />
+            {contextMenu && editor && (
+              <EditorContextMenu
+                editor={editor}
+                x={contextMenu.x}
+                y={contextMenu.y}
+                onClose={() => setContextMenu(null)}
+              />
+            )}
           </div>
         )}
       </div>
