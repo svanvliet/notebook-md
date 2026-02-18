@@ -147,69 +147,73 @@ MICROSOFT_TENANT_ID=common
 
 ## 3. Google Cloud OAuth App (OAuth + Google Drive)
 
-This single registration handles both "Sign in with Google" and Google Drive file access.
+This single registration handles both "Sign in with Google" and Google Drive file access. Google now uses the **Google Auth Platform** interface (not the old "APIs & Services → Credentials" flow).
 
-### Steps:
+### Step 1: Create a Google Cloud Project
 
 1. Go to https://console.cloud.google.com
 2. Click the project dropdown at the top → **"New Project"**
-   - **Project name:** `Notebook.md`
+   - **Project name:** `notebook-md`
    - **Organization:** Leave as default (or select yours)
    - Click **"Create"**
 3. Make sure the new project is selected in the top dropdown
 
-### Enable APIs:
+### Step 2: Enable the Google Drive API
 
-4. In the left sidebar, go to **"APIs & Services" → "Library"**
-5. Search for and enable these APIs (click each, then click "Enable"):
-   - **Google Drive API**
-   - **Google Identity Services** (or "Google+ API" — for profile info)
+4. In the search bar at the top, search for **"Google Drive API"**
+5. Click **"Google Drive API"** in the results
+6. Click **"Enable"**
 
-### Configure OAuth Consent Screen:
+### Step 3: Configure OAuth via Google Auth Platform
 
-6. In the left sidebar, go to **"APIs & Services" → "OAuth consent screen"**
-7. Choose **"External"** user type → click **"Create"**
-8. Fill in:
-   - **App name:** `Notebook.md`
-   - **User support email:** Your email
-   - **App logo:** Upload a notebook icon (optional for now)
-   - **App domain:**
-     - Application home page: `https://notebookmd.io`
-     - Application privacy policy link: `https://notebookmd.io/privacy` (placeholder — we'll create this in Phase 5)
-     - Application terms of service link: `https://notebookmd.io/terms` (placeholder)
-   - **Authorized domains:** Add `notebookmd.io`
-   - **Developer contact email:** Your email
-9. Click **"Save and Continue"**
+7. In the search bar, search for **"Google Auth Platform"** and open it (or navigate via the hamburger menu → **"Google Auth Platform"**)
+8. You'll land on the **Overview** page. If prompted, click **"Get Started"** or **"Configure"** to set up your OAuth configuration.
 
-### Add Scopes:
+### Step 4: Branding
 
-10. Click **"Add or Remove Scopes"**
-11. Add these scopes:
+9. Click **"Branding"** in the left sidebar
+10. Fill in:
+    - **App name:** `Notebook.md`
+    - **User support email:** Your email
+    - **App logo:** Upload a notebook icon (optional for now)
+    - **Application home page:** `https://notebookmd.io`
+    - **Application privacy policy link:** `https://notebookmd.io/privacy` (placeholder)
+    - **Application terms of service link:** `https://notebookmd.io/terms` (placeholder)
+    - **Developer contact email:** Your email
+11. Click **"Save"**
+
+### Step 5: Audience
+
+12. Click **"Audience"** in the left sidebar
+13. Select **"External"** (allows any Google account to sign in)
+14. While in **testing mode**, add your Google email as a test user
+    - Click **"+ Add Users"**, enter your email, and save
+15. Click **"Save"**
+
+**Note:** While the app is in "Testing" mode, only test users can sign in. You'll need to submit for verification before production launch. This requires a privacy policy page and a short review process.
+
+### Step 6: Data Access (Scopes)
+
+16. Click **"Data Access"** in the left sidebar
+17. Click **"Add or Remove Scopes"**
+18. Add these scopes:
     - `openid`
     - `email`
     - `profile`
     - `https://www.googleapis.com/auth/drive.file` (allows access only to files created/opened by the app — least privilege)
-12. Click **"Update"** → **"Save and Continue"**
+19. Click **"Update"** → **"Save"**
 
-### Add Test Users (while in testing mode):
+### Step 7: Create OAuth Client
 
-13. Click **"+ Add Users"**
-14. Add your Google email address
-15. Click **"Save and Continue"** → **"Back to Dashboard"**
-
-**Note:** While the app is in "Testing" mode, only test users can sign in. You'll need to submit for verification before production launch (Phase 6). This requires a privacy policy page and a short review process.
-
-### Create OAuth Credentials:
-
-16. In the left sidebar, go to **"APIs & Services" → "Credentials"**
-17. Click **"+ Create Credentials" → "OAuth client ID"**
-18. Fill in:
+20. Click **"Clients"** in the left sidebar
+21. Click **"+ Create Client"** (or use the **"Create OAuth client"** button from the Overview page)
+22. Fill in:
     - **Application type:** Web application
     - **Name:** `Notebook.md (Dev)`
     - **Authorized JavaScript origins:** Add `http://localhost:5173`
     - **Authorized redirect URIs:** Add `http://localhost:3001/auth/oauth/google/callback`
-19. Click **"Create"**
-20. A dialog shows your Client ID and Client Secret — copy both
+23. Click **"Create"**
+24. A dialog shows your **Client ID** and **Client Secret** — copy both
 
 **Save these values:**
 ```
