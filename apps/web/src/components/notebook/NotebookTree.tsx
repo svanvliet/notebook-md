@@ -65,6 +65,7 @@ interface NotebookTreeProps {
   onExpandNotebook?: (notebookId: string) => void;
   onRefreshNotebook?: (notebookId: string) => void;
   onMoveFile?: (notebookId: string, oldPath: string, newParentPath: string) => void;
+  onCopyFile?: (sourceNotebookId: string, sourcePath: string, targetNotebookId: string, targetParentPath: string) => void;
   onReorderNotebooks?: (orderedIds: string[]) => void;
   activeFilePath: string | null;
 }
@@ -83,6 +84,7 @@ export function NotebookTree({
   onExpandNotebook,
   onRefreshNotebook,
   onMoveFile,
+  onCopyFile,
   onReorderNotebooks,
   activeFilePath,
 }: NotebookTreeProps) {
@@ -97,6 +99,7 @@ export function NotebookTree({
   // Drag state for tree items
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragNotebookId, setDragNotebookId] = useState<string | null>(null);
+  const [dragSourceNotebookId, setDragSourceNotebookId] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -182,7 +185,9 @@ export function NotebookTree({
         <div
           className={`flex items-center gap-1 py-0.5 px-1 rounded cursor-pointer text-sm select-none transition-colors ${
             dropTarget === fileKey
-              ? 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400'
+              ? (dragSourceNotebookId && dragSourceNotebookId !== file.notebookId
+                  ? 'bg-green-200 dark:bg-green-800/40 ring-1 ring-green-400'
+                  : 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400')
               : isActive
                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
@@ -190,14 +195,18 @@ export function NotebookTree({
           style={{ paddingLeft: `${depth * 16 + 4}px` }}
           draggable
           onDragStart={(e) => {
+            const nb = notebooks.find((n) => n.id === file.notebookId);
             e.dataTransfer.setData('text/notebook-file', file.path);
             e.dataTransfer.setData('text/notebook-tree-item', JSON.stringify({
               notebookId: file.notebookId,
               path: file.path,
               type: file.type,
+              sourceType: nb?.sourceType ?? 'local',
             }));
-            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.effectAllowed = 'copyMove';
+            setDragSourceNotebookId(file.notebookId);
           }}
+          onDragEnd={() => setDragSourceNotebookId(null)}
           onDragOver={(e) => {
             if (!isFolder) return;
             const raw = e.dataTransfer.types.includes('text/notebook-tree-item');
@@ -205,6 +214,10 @@ export function NotebookTree({
             e.preventDefault();
             e.stopPropagation();
             setDropTarget(fileKey);
+            // Show copy cursor when dragging across notebooks
+            if (file.notebookId !== dragSourceNotebookId) {
+              e.dataTransfer.dropEffect = 'copy';
+            }
           }}
           onDragLeave={() => {
             if (dropTarget === fileKey) setDropTarget(null);
@@ -213,15 +226,24 @@ export function NotebookTree({
             e.preventDefault();
             e.stopPropagation();
             setDropTarget(null);
-            if (!isFolder || !onMoveFile) return;
+            if (!isFolder) return;
             const raw = e.dataTransfer.getData('text/notebook-tree-item');
             if (!raw) return;
             try {
-              const data = JSON.parse(raw) as { notebookId: string; path: string; type: string };
-              if (data.notebookId !== file.notebookId) return; // Only within same notebook for now
-              if (data.path === file.path) return; // Can't drop on self
-              if (file.path.startsWith(data.path + '/')) return; // Can't drop parent into child
-              onMoveFile(data.notebookId, data.path, file.path);
+              const data = JSON.parse(raw) as { notebookId: string; path: string; type: string; sourceType?: string };
+              if (data.notebookId === file.notebookId) {
+                // Same notebook → move
+                if (!onMoveFile) return;
+                if (data.path === file.path) return;
+                if (file.path.startsWith(data.path + '/')) return;
+                onMoveFile(data.notebookId, data.path, file.path);
+              } else {
+                // Cross-notebook → copy (only local-to-local)
+                if (!onCopyFile) return;
+                const targetNb = notebooks.find((n) => n.id === file.notebookId);
+                if (data.sourceType !== 'local' || (targetNb?.sourceType ?? 'local') !== 'local') return;
+                onCopyFile(data.notebookId, data.path, file.notebookId, file.path);
+              }
             } catch { /* ignore */ }
           }}
           onClick={() => {
@@ -304,7 +326,9 @@ export function NotebookTree({
             <div
               className={`flex items-center gap-1.5 py-1 px-2 cursor-pointer rounded select-none transition-colors ${
                 dropTarget === `notebook:${nb.id}`
-                  ? 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400'
+                  ? (dragSourceNotebookId && dragSourceNotebookId !== nb.id
+                      ? 'bg-green-200 dark:bg-green-800/40 ring-1 ring-green-400'
+                      : 'bg-blue-200 dark:bg-blue-800/40 ring-1 ring-blue-400')
                   : dragNotebookId && dragNotebookId !== nb.id
                     ? 'border-t-2 border-blue-400'
                     : 'hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -324,7 +348,12 @@ export function NotebookTree({
                 if (!isReorder && !isFileMove) return;
                 e.preventDefault();
                 e.stopPropagation();
-                if (isFileMove) setDropTarget(`notebook:${nb.id}`);
+                if (isFileMove) {
+                  setDropTarget(`notebook:${nb.id}`);
+                  if (dragSourceNotebookId && dragSourceNotebookId !== nb.id) {
+                    e.dataTransfer.dropEffect = 'copy';
+                  }
+                }
               }}
               onDragLeave={() => {
                 if (dropTarget === `notebook:${nb.id}`) setDropTarget(null);
@@ -346,16 +375,24 @@ export function NotebookTree({
                   }
                   return;
                 }
-                // Handle file move to root
+                // Handle file move to root or cross-notebook copy
                 const raw = e.dataTransfer.getData('text/notebook-tree-item');
-                if (raw && onMoveFile) {
+                if (raw) {
                   e.preventDefault();
                   e.stopPropagation();
                   try {
-                    const data = JSON.parse(raw) as { notebookId: string; path: string; type: string };
-                    if (data.notebookId !== nb.id) return;
-                    if (!data.path.includes('/')) return; // Already at root
-                    onMoveFile(data.notebookId, data.path, '');
+                    const data = JSON.parse(raw) as { notebookId: string; path: string; type: string; sourceType?: string };
+                    if (data.notebookId === nb.id) {
+                      // Same notebook → move to root
+                      if (!onMoveFile) return;
+                      if (!data.path.includes('/')) return; // Already at root
+                      onMoveFile(data.notebookId, data.path, '');
+                    } else {
+                      // Cross-notebook → copy to root (local-to-local only)
+                      if (!onCopyFile) return;
+                      if (data.sourceType !== 'local' || (nb.sourceType ?? 'local') !== 'local') return;
+                      onCopyFile(data.notebookId, data.path, nb.id, '');
+                    }
                   } catch { /* ignore */ }
                 }
               }}

@@ -898,6 +898,49 @@ export function useNotebookManager(userId?: string | null) {
     }
   }, []);
 
+  const handleCopyFile = useCallback(async (
+    sourceNotebookId: string,
+    sourcePath: string,
+    targetNotebookId: string,
+    targetParentPath: string,
+  ) => {
+    try {
+      const sourceNb = notebooks.find((n) => n.id === sourceNotebookId);
+      const targetNb = notebooks.find((n) => n.id === targetNotebookId);
+      if (!sourceNb || !targetNb) return;
+      if ((sourceNb.sourceType ?? 'local') !== 'local' || (targetNb.sourceType ?? 'local') !== 'local') {
+        console.warn('Cross-notebook copy only supported between local notebooks');
+        return;
+      }
+
+      const sourceFile = await getFile(sourceNotebookId, sourcePath);
+      if (!sourceFile) return;
+
+      const fileName = sourcePath.split('/').pop() || sourcePath;
+      await createFile(targetNotebookId, targetParentPath, fileName, sourceFile.type, sourceFile.content ?? '');
+
+      // If the source is a folder, copy children recursively
+      if (sourceFile.type === 'folder') {
+        const allSourceFiles = await listFiles(sourceNotebookId);
+        const children = allSourceFiles.filter((f) => f.parentPath === sourcePath || f.path.startsWith(sourcePath + '/'));
+        for (const child of children) {
+          const relativePath = child.path.slice(sourcePath.length + 1);
+          const newParent = targetParentPath ? `${targetParentPath}/${fileName}` : fileName;
+          const parts = relativePath.split('/');
+          const childName = parts.pop() || relativePath;
+          const childParent = parts.length > 0 ? `${newParent}/${parts.join('/')}` : newParent;
+          await createFile(targetNotebookId, childParent, childName, child.type, child.content ?? '');
+        }
+      }
+
+      // Reload target notebook files
+      const updatedFiles = await listFiles(targetNotebookId);
+      setFiles((prev) => ({ ...prev, [targetNotebookId]: updatedFiles }));
+    } catch (err) {
+      console.error('Failed to copy file:', err);
+    }
+  }, [notebooks]);
+
   return {
     notebooks,
     files,
@@ -927,6 +970,7 @@ export function useNotebookManager(userId?: string | null) {
     hasWorkingBranch,
     refreshFiles,
     handleMoveFile,
+    handleCopyFile,
     handleReorderNotebooks,
   };
 }

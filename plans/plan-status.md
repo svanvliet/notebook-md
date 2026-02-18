@@ -1122,6 +1122,33 @@ Commits: `2287fc5`, `a5ab990`
 - `moveFile`: to folder, to root, folder with children, not found (4 tests)
 - `sortOrder`: new notebooks have it, list returns sorted (2 tests)
 
+**Bug fixes (post-initial):**
+- **Duplicate tab on move:** Moving an open file now updates the existing tab's id/path instead of opening a duplicate
+- **Drop to notebook root:** Notebook header row accepts file drops to move items to root (parentPath='')
+- **Remote move guard:** Skips move for non-local notebooks with console warning
+
+**Cross-notebook file copy:**
+- Dragging a file between local notebooks copies it to the target (not move)
+- Visual indicators: green highlight + copy cursor on cross-notebook drag targets (vs blue for same-notebook move)
+- `dragSourceNotebookId` state tracks origin notebook during drag for cursor/highlight logic
+- `effectAllowed = 'copyMove'` and `dropEffect = 'copy'` provide native OS copy cursor
+- Recursive folder copy (copies folder and all children)
+- Cross-notebook copy restricted to local-to-local only
+- New `handleCopyFile` in useNotebookManager with `onCopyFile` prop threading
+- 2 new tests: single file copy, folder with children copy (39 web total, 191 overall)
+
+---
+
+### Follow-up: Remote Notebook Drag-and-Drop
+
+The following drag-and-drop features for remote notebooks are deferred for future implementation:
+- **OneDrive:** File move/copy within OneDrive notebooks (requires move/rename API in source proxy)
+- **Google Drive:** File move/copy within Google Drive notebooks (requires move API endpoint)
+- **GitHub:** File move/copy within GitHub repo notebooks (needs git-based file rename/move support)
+- **Cross-source type:** Copy between different source types (e.g., OneDrive → local) — requires read from remote + write to local
+
+These will need backend API additions for each source type's file management operations.
+
 ---
 
 ## Open Questions

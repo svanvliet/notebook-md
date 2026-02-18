@@ -34,6 +34,7 @@ interface NotebookPaneProps {
   onExpandNotebook?: (notebookId: string) => void;
   onRefreshNotebook?: (notebookId: string) => void;
   onMoveFile?: (notebookId: string, oldPath: string, newParentPath: string) => void;
+  onCopyFile?: (sourceNotebookId: string, sourcePath: string, targetNotebookId: string, targetParentPath: string) => void;
   onReorderNotebooks?: (orderedIds: string[]) => void;
   activeFilePath: string | null;
 }
@@ -56,6 +57,7 @@ export function NotebookPane({
   onExpandNotebook,
   onRefreshNotebook,
   onMoveFile,
+  onCopyFile,
   onReorderNotebooks,
   activeFilePath,
 }: NotebookPaneProps) {
@@ -167,6 +169,7 @@ export function NotebookPane({
             onExpandNotebook={onExpandNotebook}
             onRefreshNotebook={onRefreshNotebook}
             onMoveFile={onMoveFile}
+            onCopyFile={onCopyFile}
             onReorderNotebooks={onReorderNotebooks}
             activeFilePath={activeFilePath}
           />

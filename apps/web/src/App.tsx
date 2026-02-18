@@ -227,6 +227,7 @@ export default function App() {
             nb.refreshFiles(notebookId);
           }}
           onMoveFile={nb.handleMoveFile}
+          onCopyFile={nb.handleCopyFile}
           onReorderNotebooks={nb.handleReorderNotebooks}
           activeFilePath={nb.activeTabId}
         />
