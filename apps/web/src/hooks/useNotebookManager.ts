@@ -13,6 +13,7 @@ import {
   type NotebookMeta,
   type FileEntry,
 } from '../stores/localNotebookStore';
+import { markdownToHtml, isMarkdownContent } from '../components/editor/markdownConverter';
 
 export interface OpenTab {
   id: string; // "notebookId:path"
@@ -157,9 +158,18 @@ export function useNotebookManager() {
           const fileName = file.name;
           if (notebookId) {
             // Direct import to a known location
-            await createFile(notebookId, parentPath ?? '', fileName, 'file', content);
+            const entry = await createFile(notebookId, parentPath ?? '', fileName, 'file', content);
             await refreshFiles(notebookId);
             flash(`Imported "${fileName}"`);
+            // Auto-open the imported file
+            const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+            const tabId = `${notebookId}:${entry.path}`;
+            setTabs((prev) => [...prev, {
+              id: tabId, notebookId, path: entry.path, name: entry.name,
+              content: htmlContent, savedContent: content,
+              hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+            }]);
+            setActiveTabId(tabId);
           } else {
             // Show save location picker
             setSaveLocationRequest({
@@ -167,9 +177,18 @@ export function useNotebookManager() {
               content,
               onSave: async (nbId: string, savePath: string) => {
                 setSaveLocationRequest(null);
-                await createFile(nbId, savePath, fileName, 'file', content);
+                const entry = await createFile(nbId, savePath, fileName, 'file', content);
                 await refreshFiles(nbId);
                 flash(`Imported "${fileName}"`);
+                // Auto-open the imported file
+                const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+                const tabId = `${nbId}:${entry.path}`;
+                setTabs((prev) => [...prev, {
+                  id: tabId, notebookId: nbId, path: entry.path, name: entry.name,
+                  content: htmlContent, savedContent: content,
+                  hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+                }]);
+                setActiveTabId(tabId);
               },
             });
           }
@@ -188,9 +207,18 @@ export function useNotebookManager() {
         content,
         onSave: async (nbId: string, savePath: string) => {
           setSaveLocationRequest(null);
-          await createFile(nbId, savePath, fileName, 'file', content);
+          const entry = await createFile(nbId, savePath, fileName, 'file', content);
           await refreshFiles(nbId);
           flash(`Imported "${fileName}"`);
+          // Auto-open the imported file
+          const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+          const tabId = `${nbId}:${entry.path}`;
+          setTabs((prev) => [...prev, {
+            id: tabId, notebookId: nbId, path: entry.path, name: entry.name,
+            content: htmlContent, savedContent: content,
+            hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+          }]);
+          setActiveTabId(tabId);
         },
       });
     },
@@ -255,12 +283,18 @@ export function useNotebookManager() {
       const entry = await getFile(notebookId, path);
       if (!entry || entry.type === 'folder') return;
 
+      // Convert markdown to HTML if the stored content is raw markdown
+      let content = entry.content;
+      if (isMarkdownContent(content)) {
+        content = markdownToHtml(content);
+      }
+
       const tab: OpenTab = {
         id: tabId,
         notebookId,
         path,
         name: entry.name,
-        content: entry.content,
+        content,
         savedContent: entry.content,
         hasUnsavedChanges: false,
         lastSaved: entry.updatedAt,
