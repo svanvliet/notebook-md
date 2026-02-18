@@ -164,8 +164,8 @@ router.get('/repos', async (req: Request, res: Response) => {
 router.post('/branches', async (req: Request, res: Response) => {
   const { owner, repo, baseBranch, branchName } = req.body;
 
-  if (!owner || !repo || !baseBranch) {
-    res.status(400).json({ error: 'owner, repo, and baseBranch are required' });
+  if (!owner || !repo) {
+    res.status(400).json({ error: 'owner and repo are required' });
     return;
   }
 
@@ -181,9 +181,24 @@ router.post('/branches', async (req: Request, res: Response) => {
 
   try {
     const token = await getInstallationToken(install.rows[0].installation_id);
+
+    // Auto-detect default branch if baseBranch not provided
+    let base = baseBranch;
+    if (!base) {
+      const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+        headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json', 'User-Agent': 'notebook-md' },
+      });
+      if (repoRes.ok) {
+        const repoData = (await repoRes.json()) as { default_branch: string };
+        base = repoData.default_branch;
+      } else {
+        base = 'main';
+      }
+    }
+
     const name = branchName ?? `notebook-md/${uuid().slice(0, 8)}`;
-    const result = await createWorkingBranch(token, owner, repo, baseBranch, name);
-    res.status(201).json({ branch: name, ...result });
+    const result = await createWorkingBranch(token, owner, repo, base, name);
+    res.status(201).json({ branch: name, defaultBranch: base, ...result });
   } catch (err) {
     logger.error('Failed to create branch', { owner, repo, error: (err as Error).message });
     res.status(502).json({ error: 'Failed to create branch on GitHub' });

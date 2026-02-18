@@ -241,6 +241,8 @@ export function useNotebookManager(userId?: string | null) {
   // Working branch per notebook: notebookId → branch name
   const workingBranches = useRef<Record<string, string>>({});
   const branchCreating = useRef<Record<string, Promise<string>>>({});
+  // Default branch per notebook (detected from GitHub)
+  const defaultBranches = useRef<Record<string, string>>({});
   // Reactive set of notebook IDs that have a working branch (for UI)
   const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
 
@@ -258,8 +260,10 @@ export function useNotebookManager(userId?: string | null) {
 
       const owner = nb.sourceConfig.owner as string;
       const repo = nb.sourceConfig.repo as string;
-      const promise = createWorkingBranch(owner, repo, 'main').then((result) => {
+      // Let the backend auto-detect the default branch
+      const promise = createWorkingBranch(owner, repo).then((result) => {
         workingBranches.current[notebookId] = result.branch;
+        defaultBranches.current[notebookId] = result.defaultBranch;
         delete branchCreating.current[notebookId];
         setPublishableNotebooks((prev) => new Set(prev).add(notebookId));
         return result.branch;
@@ -539,8 +543,10 @@ export function useNotebookManager(userId?: string | null) {
       const repo = nb.sourceConfig.repo as string;
 
       try {
-        await publishBranch(owner, repo, branch, 'main', `Notebook.md: update from ${branch}`, true);
+        const baseBranch = defaultBranches.current[notebookId] ?? 'main';
+        await publishBranch(owner, repo, branch, baseBranch, `Notebook.md: update from ${branch}`, true);
         delete workingBranches.current[notebookId];
+        delete defaultBranches.current[notebookId];
         setPublishableNotebooks((prev) => {
           const next = new Set(prev);
           next.delete(notebookId);

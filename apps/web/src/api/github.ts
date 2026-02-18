@@ -66,7 +66,7 @@ export async function listBranches(owner: string, repo: string): Promise<Branch[
   return data.branches;
 }
 
-export async function createWorkingBranch(owner: string, repo: string, baseBranch: string): Promise<{ branch: string; ref: string; sha: string }> {
+export async function createWorkingBranch(owner: string, repo: string, baseBranch?: string): Promise<{ branch: string; defaultBranch: string; ref: string; sha: string }> {
   return api('/api/github/branches', {
     method: 'POST',
     body: JSON.stringify({ owner, repo, baseBranch }),
