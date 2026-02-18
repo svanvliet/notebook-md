@@ -177,9 +177,9 @@ export function markdownToHtml(md: string): string {
     /<ul>\s*\n?((?:\s*<li>(?:<p>)?<input[^>]*>[\s\S]*?<\/li>\s*\n?)+)<\/ul>/gs,
     (_match, items: string) => {
       const converted = items.replace(
-        /<li>(?:<p>)?<input[^>]*?(checked)?[^>]*>\s*([\s\S]*?)(?:<\/p>\s*)?<\/li>/gs,
-        (_m: string, checked: string | undefined, text: string) => {
-          const isChecked = checked ? 'true' : 'false';
+        /<li>(?:<p>)?<input([^>]*)>\s*([\s\S]*?)(?:<\/p>\s*)?<\/li>/gs,
+        (_m: string, attrs: string, text: string) => {
+          const isChecked = /\bchecked\b/.test(attrs) ? 'true' : 'false';
           return `<li data-type="taskItem" data-checked="${isChecked}"><div>${text.trim()}</div></li>`;
         },
       );

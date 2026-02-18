@@ -1039,6 +1039,49 @@ Commits: `f114cb1`, `76033be`, `7d4dc28`, `c09d41b`
 
 ---
 
+### Phase 4.2: Split View — COMPLETED ✅
+
+**Implementation:**
+- Three-state view mode in `MarkdownEditor.tsx`: `wysiwyg` | `source` | `split`
+- Split view renders source textarea (left, 50%) and WYSIWYG editor (right, 50%) side-by-side
+- Dedicated split-view toolbar button (vertical split icon) alongside existing source toggle
+- ⌘⇧M cycles through all three modes
+
+**Synchronized editing:**
+- Editing in source pane → debounced (500ms) sync to WYSIWYG via `markdownToHtml` + `setContent`
+- Editing in WYSIWYG pane → immediate sync to source pane via `htmlToMarkdown` in `onUpdate`
+- `syncingFromSource` flag prevents feedback loop (source edit → `setContent` → `onUpdate` → overwrite source → cursor jump)
+
+**Synchronized scrolling:**
+- Percentage-based scroll sync between panes using `requestAnimationFrame`
+- `syncingScroll` flag prevents infinite scroll feedback loops
+
+**Bug fix:** Split view cursor jump when editing tables in source pane — the debounced sync triggered `onUpdate` which overwrote `rawContent`, resetting the textarea cursor position
+
+Commits: `2287fc5`, `a5ab990`
+
+---
+
+### Phase 4.1–4.2 Tests — COMPLETED ✅
+
+**Web app test infrastructure:**
+- Created `apps/web/vitest.config.ts` — standalone vitest config for frontend unit tests
+- Created `apps/web/src/tests/markdownConverter.test.ts` — 29 tests
+
+**Test coverage:**
+- `markdownToHtml`: headings, bullet lists, blockquotes, images, inline code, code blocks (6 tests)
+- Task list roundtrip: GFM→Tiptap conversion, blank line handling, regular list non-conversion (3 tests)
+- Callout roundtrip: multi-line, single-line, all types, regular blockquote distinction, consecutive separation (5 tests)
+- `htmlToMarkdown`: headings, bold/italic, links, images, highlight marks (5 tests)
+- Full roundtrip (MD→HTML→MD): headings, blockquotes, images, horizontal rules (4 tests)
+- `isMarkdownContent`: headings, lists, code blocks, HTML detection, empty string, plain text (6 tests)
+
+**Bug fix during testing:** Checked task list regex — `(checked)?` capture group was consumed by lazy `[^>]*?`. Changed to capture all attrs then test with `/\bchecked\b/`.
+
+**Total tests: 152 API + 29 web = 181**
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
