@@ -26,7 +26,7 @@ export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
     label: 'OneDrive',
     icon: OneDriveIcon,
     color: 'text-blue-500',
-    available: false,
+    available: true,
   },
   'google-drive': {
     label: 'Google Drive',

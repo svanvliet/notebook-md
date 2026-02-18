@@ -9,7 +9,7 @@ export function createMicrosoftProvider(clientId: string, clientSecret: string, 
         client_id: clientId,
         response_type: 'code',
         redirect_uri: redirectUri,
-        scope: 'openid profile email User.Read',
+        scope: 'openid profile email User.Read Files.ReadWrite offline_access',
         state,
         response_mode: 'query',
       });

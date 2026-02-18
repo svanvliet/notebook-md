@@ -12,10 +12,12 @@ import settingsRoutes from './routes/settings.js';
 import notebookRoutes from './routes/notebooks.js';
 import sourcesRoutes from './routes/sources.js';
 import githubRoutes from './routes/github.js';
+import onedriveRoutes from './routes/onedrive.js';
 import webhookRoutes from './routes/webhooks.js';
 
-// Register GitHub source adapter (side-effect import)
+// Register source adapters (side-effect imports)
 import './services/sources/github.js';
+import './services/sources/onedrive.js';
 
 const app = express();
 
@@ -49,6 +51,7 @@ app.use('/auth/settings', settingsRoutes);
 app.use('/api/notebooks', notebookRoutes);
 app.use('/api/sources', sourcesRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/onedrive', onedriveRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

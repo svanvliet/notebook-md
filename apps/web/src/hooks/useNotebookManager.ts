@@ -24,6 +24,12 @@ import {
   publishBranch,
   type GitHubFileEntry,
 } from '../api/github';
+import {
+  listOneDriveFiles,
+  readOneDriveFile,
+  writeOneDriveFile,
+  createOneDriveFile,
+} from '../api/onedrive';
 
 const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
 
@@ -136,6 +142,35 @@ export function useNotebookManager(userId?: string | null) {
     return results;
   }
 
+  /** Recursively fetch all OneDrive files/folders into a flat list */
+  async function fetchOneDriveTreeRecursive(
+    rootPath: string,
+    notebookId: string,
+    dirPath: string,
+    parentPath: string,
+  ): Promise<FileEntry[]> {
+    const entries = await listOneDriveFiles(rootPath, dirPath);
+    const fileEntries: FileEntry[] = entries.map((e) => ({
+      id: `${notebookId}:${e.path}`,
+      notebookId,
+      path: e.path,
+      name: e.name,
+      type: e.type,
+      parentPath,
+      content: '',
+      createdAt: Date.now(),
+      updatedAt: e.lastModified ? new Date(e.lastModified).getTime() : Date.now(),
+    }));
+    const results: FileEntry[] = [...fileEntries];
+    for (const entry of fileEntries) {
+      if (entry.type === 'folder') {
+        const children = await fetchOneDriveTreeRecursive(rootPath, notebookId, entry.path, entry.path);
+        results.push(...children);
+      }
+    }
+    return results;
+  }
+
   const refreshFiles = useCallback(async (notebookId: string) => {
     const nb = notebooks.find((n) => n.id === notebookId);
     if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
@@ -145,6 +180,14 @@ export function useNotebookManager(userId?: string | null) {
       try {
         const rootPath = nb.sourceConfig.rootPath as string;
         const allEntries = await fetchGitHubTreeRecursive(rootPath, notebookId, '', '');
+        setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+      } catch (err) {
+        flash(`Failed to load files: ${(err as Error).message}`);
+      }
+    } else if (nb.sourceType === 'onedrive') {
+      try {
+        const rootPath = nb.sourceConfig.rootPath as string;
+        const allEntries = await fetchOneDriveTreeRecursive(rootPath, notebookId, '', '');
         setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
       } catch (err) {
         flash(`Failed to load files: ${(err as Error).message}`);
@@ -296,6 +339,16 @@ export function useNotebookManager(userId?: string | null) {
             try {
               const branch = await ensureWorkingBranch(notebookId, nb);
               await createGitHubFile(rootPath, filePath, '', branch);
+              await refreshFiles(notebookId);
+              flash(`Created ${type} "${name}"`);
+            } catch (err) {
+              flash(`Failed to create file: ${(err as Error).message}`);
+            }
+          } else if (nb?.sourceType === 'onedrive') {
+            const rootPath = nb.sourceConfig.rootPath as string;
+            const filePath = parentPath ? `${parentPath}/${name}` : name;
+            try {
+              await createOneDriveFile(rootPath, filePath, '');
               await refreshFiles(notebookId);
               flash(`Created ${type} "${name}"`);
             } catch (err) {
@@ -479,6 +532,35 @@ export function useNotebookManager(userId?: string | null) {
         return;
       }
 
+      if (nb && nb.sourceType === 'onedrive') {
+        // Fetch from OneDrive API
+        try {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          const file = await readOneDriveFile(rootPath, path);
+          let content = file.content;
+          if (isMarkdownContent(content)) {
+            content = markdownToHtml(content);
+          }
+
+          const tab: OpenTab = {
+            id: tabId,
+            notebookId,
+            path,
+            name: file.name,
+            content,
+            savedContent: file.content,
+            hasUnsavedChanges: false,
+            lastSaved: Date.now(),
+            sha: file.sha,
+          };
+          setTabs((prev) => [...prev, tab]);
+          setActiveTabId(tabId);
+        } catch (err) {
+          flash(`Failed to open file: ${(err as Error).message}`);
+        }
+        return;
+      }
+
       // Local file
       const entry = await getFile(notebookId, path);
       if (!entry || entry.type === 'folder') return;
@@ -520,6 +602,11 @@ export function useNotebookManager(userId?: string | null) {
         const rootPath = nb.sourceConfig.rootPath as string;
         const branch = await ensureWorkingBranch(tab.notebookId, nb);
         const result = await writeGitHubFile(rootPath, tab.path, markdown, tab.sha, branch);
+        return result.sha ?? undefined;
+      }
+      if (nb && nb.sourceType === 'onedrive') {
+        const rootPath = nb.sourceConfig.rootPath as string;
+        const result = await writeOneDriveFile(rootPath, tab.path, markdown, tab.sha);
         return result.sha ?? undefined;
       }
       // Local save

@@ -19,6 +19,11 @@ import {
   type GitHubInstallation,
   type GitHubRepo,
 } from '../../api/github';
+import {
+  checkOneDriveAccess,
+  listOneDriveFolders,
+  type OneDriveFolder,
+} from '../../api/onedrive';
 
 interface AddNotebookModalProps {
   onAdd: (name: string, sourceType: SourceType, sourceConfig: Record<string, unknown>) => void;
@@ -96,7 +101,10 @@ export function AddNotebookModal({ onAdd, onCancel }: AddNotebookModalProps) {
           {step === 'configure' && sourceType === 'github' && (
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
           )}
-          {step === 'configure' && sourceType && sourceType !== 'github' && (
+          {step === 'configure' && sourceType === 'onedrive' && (
+            <OneDriveConfig onConfigured={handleConfigured} onBack={goBack} />
+          )}
+          {step === 'configure' && sourceType && sourceType !== 'github' && sourceType !== 'onedrive' && (
             <ComingSoon sourceType={sourceType} onBack={goBack} />
           )}
           {step === 'name' && (
@@ -311,7 +319,168 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
   );
 }
 
-// ── Step 2b: Coming soon placeholder ──────────────────────────────────────
+// ── Step 2b: OneDrive config ──────────────────────────────────────────────
+
+function OneDriveConfig({ onConfigured, onBack }: { onConfigured: (config: Record<string, unknown>, name: string) => void; onBack: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [linked, setLinked] = useState(false);
+  const [folders, setFolders] = useState<OneDriveFolder[]>([]);
+  const [currentPath, setCurrentPath] = useState('');
+  const [breadcrumbs, setBreadcrumbs] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkAccess();
+  }, []);
+
+  async function checkAccess() {
+    try {
+      setLoading(true);
+      const status = await checkOneDriveAccess();
+      setLinked(status.linked);
+      if (status.linked) {
+        await loadFolders('');
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadFolders(path: string) {
+    try {
+      setLoading(true);
+      setError(null);
+      const items = await listOneDriveFolders(path);
+      setFolders(items);
+      setCurrentPath(path);
+      if (path) {
+        setBreadcrumbs(path.split('/'));
+      } else {
+        setBreadcrumbs([]);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function navigateTo(index: number) {
+    if (index < 0) {
+      loadFolders('');
+    } else {
+      const path = breadcrumbs.slice(0, index + 1).join('/');
+      loadFolders(path);
+    }
+  }
+
+  function selectFolder(folder: OneDriveFolder) {
+    loadFolders(folder.path);
+  }
+
+  function useCurrentFolder() {
+    const folderName = currentPath ? currentPath.split('/').pop()! : 'OneDrive';
+    onConfigured(
+      {
+        rootPath: currentPath || '/',
+        provider: 'onedrive',
+      },
+      folderName,
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!linked) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          To access OneDrive, you need to link your Microsoft account. Go to your account settings and connect Microsoft.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Back</button>
+          <button onClick={() => window.location.href = '/auth/oauth/microsoft'} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
+            <SourceIcon sourceType="onedrive" className="w-4 h-4" />
+            Link Microsoft Account
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="flex gap-2">
+          <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Back</button>
+          <button onClick={checkAccess} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Breadcrumb navigation */}
+      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+        <button onClick={() => navigateTo(-1)} className="hover:text-blue-600 dark:hover:text-blue-400">
+          OneDrive
+        </button>
+        {breadcrumbs.map((crumb, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span>/</span>
+            <button onClick={() => navigateTo(i)} className="hover:text-blue-600 dark:hover:text-blue-400">
+              {crumb}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {/* Folder list */}
+      <div className="max-h-[200px] overflow-y-auto space-y-1">
+        {folders.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No subfolders here</p>
+        ) : (
+          folders.map((folder) => (
+            <button
+              key={folder.path}
+              onClick={() => selectFolder(folder)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-left"
+            >
+              <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-gray-900 dark:text-white truncate block">{folder.name}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{folder.childCount} items</span>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-800">
+        <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">← Back</button>
+        <button
+          onClick={useCurrentFolder}
+          className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
+        >
+          Use this folder
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 2c: Coming soon placeholder ──────────────────────────────────────
 
 function ComingSoon({ sourceType, onBack }: { sourceType: SourceType; onBack: () => void }) {
   const info = SOURCE_TYPES[sourceType];
