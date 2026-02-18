@@ -11,8 +11,6 @@ import { resolve } from 'path';
 import { logger } from './logger.js';
 import { redis } from './redis.js';
 
-const PRIVATE_KEY_PATH = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
-
 let _privateKey: string | null = null;
 
 function getAppId(): string {
@@ -23,10 +21,10 @@ function getAppId(): string {
 
 function getPrivateKey(): string {
   if (_privateKey) return _privateKey;
-  const keyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH ?? PRIVATE_KEY_PATH;
+  const keyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
   if (!keyPath) throw new Error('GITHUB_APP_PRIVATE_KEY_PATH not set');
 
-  const absPath = resolve(process.cwd(), PRIVATE_KEY_PATH);
+  const absPath = resolve(process.cwd(), keyPath);
   _privateKey = readFileSync(absPath, 'utf8');
   return _privateKey;
 }
