@@ -215,15 +215,13 @@ export function useNotebookManager() {
       if (autoSaveTimers.current[tabId]) {
         clearTimeout(autoSaveTimers.current[tabId]);
       }
-      autoSaveTimers.current[tabId] = setTimeout(async () => {
-        const tab = tabs.find((t) => t.id === tabId);
-        if (!tab) return;
-        try {
-          // Get latest content from state
-          setTabs((prev) => {
-            const current = prev.find((t) => t.id === tabId);
-            if (current) {
-              saveFileContent(current.notebookId, current.path, current.content).then(() => {
+      autoSaveTimers.current[tabId] = setTimeout(() => {
+        // Read fresh state inside the setter to avoid stale closures
+        setTabs((prev) => {
+          const current = prev.find((t) => t.id === tabId);
+          if (current && current.hasUnsavedChanges) {
+            saveFileContent(current.notebookId, current.path, current.content)
+              .then(() => {
                 setTabs((p) =>
                   p.map((t) =>
                     t.id === tabId
@@ -231,29 +229,33 @@ export function useNotebookManager() {
                       : t,
                   ),
                 );
-              });
-            }
-            return prev;
-          });
-        } catch {
-          flash('Failed to auto-save');
-        }
+              })
+              .catch(() => flash('Failed to auto-save'));
+          }
+          return prev;
+        });
       }, 1000);
     },
-    [tabs, flash],
+    [flash],
   );
 
   // --- Manual save (Cmd+S) ---
 
   const handleSave = useCallback(async () => {
-    const tab = tabs.find((t) => t.id === activeTabId);
-    if (!tab || !tab.hasUnsavedChanges) return;
+    // Use a promise to read fresh state inside the setter
+    let tabToSave: OpenTab | undefined;
+    setTabs((prev) => {
+      tabToSave = prev.find((t) => t.id === activeTabId);
+      return prev;
+    });
+
+    if (!tabToSave || !tabToSave.hasUnsavedChanges) return;
 
     try {
-      await saveFileContent(tab.notebookId, tab.path, tab.content);
+      await saveFileContent(tabToSave.notebookId, tabToSave.path, tabToSave.content);
       setTabs((prev) =>
         prev.map((t) =>
-          t.id === tab.id
+          t.id === tabToSave!.id
             ? { ...t, savedContent: t.content, hasUnsavedChanges: false, lastSaved: Date.now() }
             : t,
         ),
@@ -262,7 +264,7 @@ export function useNotebookManager() {
     } catch {
       flash('Failed to save');
     }
-  }, [tabs, activeTabId, flash]);
+  }, [activeTabId, flash]);
 
   // Register Cmd/Ctrl+S globally
   useEffect(() => {

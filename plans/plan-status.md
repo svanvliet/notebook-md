@@ -165,11 +165,36 @@
 - TypeScript compiles cleanly
 - Vite build succeeds (858KB JS)
 
+#### 1.5 Phase 1 Validation
+- **Status:** Complete
+- **Started:** 2026-02-18
+- **Completed:** 2026-02-18
+
+**Technical validation performed:**
+- ✅ TypeScript: all 3 packages (shared, web, api) compile cleanly with `tsc --noEmit`
+- ✅ Vite production build: succeeds (858KB JS, 52KB CSS). Chunk size warning expected — will code-split in Phase 7.
+- ✅ GFM extension audit: all 17 Tiptap extensions verified present and configured (headings, bold/italic/strikethrough, inline code, highlight, links with autolink, images, blockquotes, ordered/unordered/nested lists, task lists, code blocks with lowlight, tables, horizontal rules, superscript/subscript, typography, text align, underline, color)
+- ✅ IndexedDB data flow audit: localNotebookStore → useNotebookManager → App.tsx → components chain is complete
+- ✅ Docker services: PostgreSQL 16, Redis 7, Mailpit all healthy
+- ✅ File structure: 24 source files, well-organized (components/editor, components/layout, components/notebook, components/welcome, components/icons, hooks, stores, types, locales)
+
+**Bugs found and fixed during validation:**
+1. **Auto-save stale closure** (HIGH): `handleContentChange` captured stale `tabs` array in its closure and dependency array, causing potential data loss and unnecessary re-renders. Fixed by removing `tabs` from deps and reading fresh state inside `setTabs` callback.
+2. **Manual save stale closure** (MEDIUM): `handleSave` read `tabs` from closure which could be stale. Fixed by reading fresh state inside `setTabs` callback before saving.
+
+**Remaining for UX review (user feedback requested):**
+- Editor feel — does WYSIWYG editing feel responsive?
+- Toolbar layout — are the controls intuitive? Any missing?
+- Sidebar behavior — collapse/resize/tree navigation feel natural?
+- Dark mode appearance — consistent across all elements?
+- Overall layout proportions — title bar, sidebar, editor, status bar sizing
+
 ---
 
 ## Iteration Notes
 
 - **1.3 follow-up:** User noticed raw Markdown toggle was showing HTML instead of Markdown. Added `turndown` + `turndown-plugin-gfm` for proper HTML→Markdown conversion with custom task list and highlight rules. Fixed and committed separately.
+- **1.5 validation:** Code review found stale closure bugs in auto-save and manual save. Both fixed before committing.
 
 ---
 
