@@ -70,43 +70,64 @@ function Divider() {
   return <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5" />;
 }
 
-// Link insertion modal
-function LinkInput({
+// Link insertion modal with URL + display text
+function LinkModal({
   onSubmit,
   onCancel,
   initialUrl,
+  initialText,
 }: {
-  onSubmit: (url: string) => void;
+  onSubmit: (url: string, text: string) => void;
   onCancel: () => void;
   initialUrl?: string;
+  initialText?: string;
 }) {
   const [url, setUrl] = useState(initialUrl ?? '');
+  const [text, setText] = useState(initialText ?? '');
   return (
-    <div className="absolute top-full left-0 mt-1 flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 z-50">
-      <input
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://..."
-        className="h-7 px-2 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 w-56 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onSubmit(url);
-          if (e.key === 'Escape') onCancel();
-        }}
-      />
-      <button
-        onClick={() => onSubmit(url)}
-        className="h-7 px-2 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
-      >
-        OK
-      </button>
-      <button
-        onClick={onCancel}
-        className="h-7 px-2 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-      >
-        ✕
-      </button>
+    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 z-50 w-72">
+      <div className="space-y-2">
+        <div>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Display text</label>
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Link text"
+            className="w-full h-8 px-2.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://..."
+            className="w-full h-8 px-2.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && url) onSubmit(url, text);
+              if (e.key === 'Escape') onCancel();
+            }}
+          />
+        </div>
+        <div className="flex justify-end gap-1.5 pt-1">
+          <button
+            onClick={onCancel}
+            className="h-7 px-3 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => url && onSubmit(url, text)}
+            disabled={!url}
+            className="h-7 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -116,12 +137,25 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
 
   const setLink = useCallback(
-    (url: string) => {
+    (url: string, text: string) => {
       if (!editor) return;
       if (url === '') {
         editor.chain().focus().extendMarkRange('link').unsetLink().run();
       } else {
-        editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+        const { from, to } = editor.state.selection;
+        const hasSelection = from !== to;
+
+        if (text && !hasSelection) {
+          // Insert new text with link
+          editor
+            .chain()
+            .focus()
+            .insertContent(`<a href="${url}" rel="noopener noreferrer nofollow" target="_blank">${text}</a>`)
+            .run();
+        } else {
+          // Apply link to existing selection or update existing link
+          editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+        }
       }
       setShowLinkInput(false);
     },
@@ -269,10 +303,15 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           🔗
         </ToolbarButton>
         {showLinkInput && (
-          <LinkInput
+          <LinkModal
             onSubmit={setLink}
             onCancel={() => setShowLinkInput(false)}
             initialUrl={editor.getAttributes('link').href}
+            initialText={editor.state.doc.textBetween(
+              editor.state.selection.from,
+              editor.state.selection.to,
+              '',
+            )}
           />
         )}
       </div>

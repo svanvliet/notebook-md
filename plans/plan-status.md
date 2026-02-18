@@ -195,6 +195,17 @@
 
 - **1.3 follow-up:** User noticed raw Markdown toggle was showing HTML instead of Markdown. Added `turndown` + `turndown-plugin-gfm` for proper HTML→Markdown conversion with custom task list and highlight rules. Fixed and committed separately.
 - **1.5 validation:** Code review found stale closure bugs in auto-save and manual save. Both fixed before committing.
+- **1.5 UX feedback round:** User tested and reported 10 issues. All addressed:
+  1. **+ button placement** — fixed flex layout so + is right-aligned next to NOTEBOOKS heading
+  2. **File extension** — auto-appends .md if no extension provided on new file
+  3. **Table raw view** — added turndown rule to strip Tiptap's tableWrapper div so GFM plugin converts tables to Markdown
+  4. **Link button** — rewrote link insertion to handle both new text insertion and existing selection
+  5. **Code block language** — added CodeBlockView with dropdown language selector (18 languages) positioned in top-right of code block
+  6. **Inline code bolding** — added `font-weight: normal` to inline code and code inside headings/strong
+  7. **Link slash command** — added /Link command with URL and display text prompts
+  8. **Link modal** — rewrote as proper modal with Display Text and URL fields, Cancel/Apply buttons
+  9. **Tooltips** — toolbar buttons already had `title` attributes (browser native tooltips); verified working
+  10. **Prompt alignment** — using browser native `prompt()` for now; will replace with custom modal in Phase 4
 
 ---
 

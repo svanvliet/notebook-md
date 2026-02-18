@@ -14,6 +14,14 @@ const turndown = new TurndownService({
 
 turndown.use(gfm);
 
+// Strip Tiptap's table wrapper div so GFM plugin can process <table> directly
+turndown.addRule('tableWrapper', {
+  filter: (node) =>
+    node.nodeName === 'DIV' &&
+    (node as HTMLElement).classList.contains('tableWrapper'),
+  replacement: (_content) => _content,
+});
+
 // Task list items: Tiptap renders them with data attributes
 turndown.addRule('taskListItem', {
   filter: (node) =>

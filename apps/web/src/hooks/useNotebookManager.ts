@@ -111,13 +111,19 @@ export function useNotebookManager() {
 
   const handleCreateFile = useCallback(
     async (notebookId: string, parentPath: string, type: 'file' | 'folder') => {
-      const label = type === 'folder' ? 'Folder name:' : 'File name (e.g. notes.md):';
-      const name = prompt(label);
+      const label = type === 'folder' ? 'Folder name:' : 'File name:';
+      let name = prompt(label);
       if (!name?.trim()) return;
+      name = name.trim();
 
-      await createFile(notebookId, parentPath, name.trim(), type);
+      // Auto-append .md if creating a file with no extension
+      if (type === 'file' && !name.includes('.')) {
+        name = `${name}.md`;
+      }
+
+      await createFile(notebookId, parentPath, name, type);
       await refreshFiles(notebookId);
-      flash(`Created ${type} "${name.trim()}"`);
+      flash(`Created ${type} "${name}"`);
     },
     [refreshFiles, flash],
   );

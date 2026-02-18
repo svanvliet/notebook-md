@@ -44,21 +44,21 @@ export function NotebookPane({
       style={{ width }}
     >
       {/* Header */}
-      <div className="h-9 flex items-center justify-between px-2 border-b border-gray-200 dark:border-gray-800">
+      <div className="h-9 flex items-center px-2 border-b border-gray-200 dark:border-gray-800">
         {!collapsed && (
-          <>
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Notebooks
-            </span>
-            <button
-              onClick={onCreateNotebook}
-              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-              title={t('notebook.addNotebook')}
-              aria-label={t('notebook.addNotebook')}
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-            </button>
-          </>
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1">
+            Notebooks
+          </span>
+        )}
+        {!collapsed && (
+          <button
+            onClick={onCreateNotebook}
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors mr-1"
+            title={t('notebook.addNotebook')}
+            aria-label={t('notebook.addNotebook')}
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+          </button>
         )}
         <button
           onClick={onToggleCollapse}

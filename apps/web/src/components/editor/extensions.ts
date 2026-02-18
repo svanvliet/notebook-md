@@ -8,6 +8,8 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Table } from '@tiptap/extension-table';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+import { CodeBlockView } from './CodeBlockView';
 import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
@@ -92,7 +94,11 @@ export function getEditorExtensions(placeholder?: string) {
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    CodeBlockLowlight.configure({ lowlight }),
+    CodeBlockLowlight.configure({ lowlight }).extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(CodeBlockView);
+      },
+    }),
     Table.configure({ resizable: true }),
     TableRow,
     TableHeader,

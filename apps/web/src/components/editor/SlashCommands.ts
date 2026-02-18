@@ -102,6 +102,29 @@ export const slashCommands: SlashCommand[] = [
     icon: 'H',
     action: (editor) => editor.chain().focus().toggleHighlight().run(),
   },
+  {
+    title: 'Link',
+    description: 'Insert a hyperlink',
+    icon: '🔗',
+    action: (editor) => {
+      const url = prompt('URL:');
+      if (!url) return;
+      const text = prompt('Display text (leave empty to use URL):');
+      if (text) {
+        editor
+          .chain()
+          .focus()
+          .insertContent(`<a href="${url}" rel="noopener noreferrer nofollow" target="_blank">${text}</a>`)
+          .run();
+      } else {
+        editor
+          .chain()
+          .focus()
+          .insertContent(`<a href="${url}" rel="noopener noreferrer nofollow" target="_blank">${url}</a>`)
+          .run();
+      }
+    },
+  },
 ];
 
 // The slash command UI is rendered via React portal (see SlashCommandMenu).
