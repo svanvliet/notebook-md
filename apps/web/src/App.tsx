@@ -213,6 +213,8 @@ export default function App() {
           onTabClose={nb.handleTabClose}
           onContentChange={nb.handleContentChange}
           onWordCountChange={handleWordCountChange}
+          showPublish={!!(nb.activeTab && nb.hasWorkingBranch(nb.activeTab.notebookId))}
+          onPublish={() => nb.activeTab && nb.handlePublish(nb.activeTab.notebookId)}
         />
       </div>
       <StatusBar

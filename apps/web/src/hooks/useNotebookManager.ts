@@ -475,6 +475,8 @@ export function useNotebookManager(userId?: string | null) {
   // Working branch per notebook: notebookId → branch name
   const workingBranches = useRef<Record<string, string>>({});
   const branchCreating = useRef<Record<string, Promise<string>>>({});
+  // Reactive set of notebook IDs that have a working branch (for UI)
+  const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
 
   /** Ensure a working branch exists for a GitHub notebook, create one if needed */
   const ensureWorkingBranch = useCallback(
@@ -493,6 +495,7 @@ export function useNotebookManager(userId?: string | null) {
       const promise = createWorkingBranch(owner, repo, 'main').then((result) => {
         workingBranches.current[notebookId] = result.branch;
         delete branchCreating.current[notebookId];
+        setPublishableNotebooks((prev) => new Set(prev).add(notebookId));
         return result.branch;
       });
       branchCreating.current[notebookId] = promise;
@@ -536,6 +539,11 @@ export function useNotebookManager(userId?: string | null) {
       try {
         await publishBranch(owner, repo, branch, 'main', `Notebook.md: update from ${branch}`, true);
         delete workingBranches.current[notebookId];
+        setPublishableNotebooks((prev) => {
+          const next = new Set(prev);
+          next.delete(notebookId);
+          return next;
+        });
         // Refresh files from main to get updated SHAs
         await refreshFiles(notebookId);
         // Update SHA on open tabs for this notebook (they now point at main)
@@ -552,8 +560,8 @@ export function useNotebookManager(userId?: string | null) {
 
   /** Check if a notebook has a working branch with unpublished changes */
   const hasWorkingBranch = useCallback(
-    (notebookId: string) => !!workingBranches.current[notebookId],
-    [],
+    (notebookId: string) => publishableNotebooks.has(notebookId),
+    [publishableNotebooks],
   );
 
   const handleContentChange = useCallback(
