@@ -18,8 +18,9 @@ const TREE_EXTENSIONS = new Set([
  * - Stores cleaned path on `req.cleanPath`
  */
 export function validatePath(req: Request, res: Response, next: NextFunction): void {
-  // Path comes from named wildcard param (e.g., /api/sources/:provider/files/{*filePath})
-  const rawPath = (req.params as any).filePath ?? req.query.path as string ?? '';
+  // In Express 5, wildcard params ({*filePath}) are arrays of path segments
+  const rawParam = (req.params as any).filePath;
+  const rawPath = Array.isArray(rawParam) ? rawParam.join('/') : rawParam ?? req.query.path as string ?? '';
 
   // Normalize: resolve . and .., collapse multiple slashes
   const cleaned = posix.normalize(rawPath).replace(/^\/+|\/+$/g, '');

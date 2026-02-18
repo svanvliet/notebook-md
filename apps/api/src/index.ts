@@ -14,6 +14,14 @@ import { initializeOAuthProviders } from './services/oauth/index.js';
 
 const port = process.env.PORT ?? 3001;
 
+// Prevent unhandled errors from crashing the process
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', { error: String(reason) });
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', { error: err.message, stack: err.stack });
+});
+
 // Start server
 async function start() {
   try {
