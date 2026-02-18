@@ -24,6 +24,10 @@ Thumbs.db
 # Docker
 pgdata/
 
+# Secrets
+docker/secrets/
+*.pem
+
 # Logs
 *.log
 .dev-logs/
