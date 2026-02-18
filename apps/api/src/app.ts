@@ -11,8 +11,16 @@ import oauthRoutes from './routes/oauth.js';
 import settingsRoutes from './routes/settings.js';
 import notebookRoutes from './routes/notebooks.js';
 import sourcesRoutes from './routes/sources.js';
+import githubRoutes from './routes/github.js';
+import webhookRoutes from './routes/webhooks.js';
+
+// Register GitHub source adapter (side-effect import)
+import './services/sources/github.js';
 
 const app = express();
+
+// Webhooks need raw body for signature verification — mount BEFORE json parser
+app.use('/webhooks/github', express.text({ type: 'application/json' }), webhookRoutes);
 
 // Core middleware
 app.use(helmet());
@@ -40,6 +48,7 @@ app.use('/auth/oauth', oauthRoutes);
 app.use('/auth/settings', settingsRoutes);
 app.use('/api/notebooks', notebookRoutes);
 app.use('/api/sources', sourcesRoutes);
+app.use('/api/github', githubRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

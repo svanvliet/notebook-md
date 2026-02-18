@@ -528,6 +528,15 @@ Registered a GitHub App for reading/writing .md files in user repos.
 - `rate-limit-redis` installed for Redis-backed rate limiting on source endpoints
 - `decryptOptional()` falls back to returning raw value if decryption fails — handles migration from plaintext tokens gracefully
 
+**Phase 3.1 Tests (35 new, total 87 passing):**
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| `encryption.test.ts` | 12 | Round-trip, random IV, unicode, tamper detection (ciphertext + auth tag), format validation, optional helpers, plaintext fallback |
+| `path-validation.test.ts` | 11 | Traversal attacks (`../`, `../../`), null bytes, slash normalization, query param fallback, filterTreeEntries, isEditableExtension |
+| `circuit-breaker.test.ts` | 8 | State transitions closed→open→half-open→closed, probe success/failure, failure window expiry, reset on success |
+
+### 3.4 GitHub Integration — IN PROGRESS
+
 ---
 
 ## Open Questions
