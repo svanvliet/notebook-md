@@ -115,59 +115,59 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 2.1 Backend API Foundation
 
-- [ ] Set up Express/Fastify API server with TypeScript
-- [ ] Configure PostgreSQL connection with a migration tool (e.g., `node-pg-migrate` or Knex migrations)
-- [ ] Create initial database migrations for all tables (§10.1): `users`, `identity_links`, `notebooks`, `user_settings`, `sessions`, `audit_log`, `feature_flags`, `announcements`
-- [ ] Set up Redis connection for session storage and rate limiting
-- [ ] Implement structured JSON logging (correlation IDs on every request)
-- [ ] Configure error handling middleware: return correlation IDs to clients, never stack traces (even in dev — use Mailpit for secrets, Log Analytics for errors)
-- [ ] Set up database seed script for local dev (default admin account `admin@localhost`)
+- [x] Set up Express/Fastify API server with TypeScript
+- [x] Configure PostgreSQL connection with a migration tool (e.g., `node-pg-migrate` or Knex migrations)
+- [x] Create initial database migrations for all tables (§10.1): `users`, `identity_links`, `notebooks`, `user_settings`, `sessions`, `audit_log`, `feature_flags`, `announcements`
+- [x] Set up Redis connection for session storage and rate limiting
+- [x] Implement structured JSON logging (correlation IDs on every request)
+- [x] Configure error handling middleware: return correlation IDs to clients, never stack traces (even in dev — use Mailpit for secrets, Log Analytics for errors)
+- [x] Set up database seed script for local dev (default admin account `admin@localhost`)
 
 ### 2.2 Email Authentication
 
-- [ ] Implement email sign-up flow:
+- [x] Implement email sign-up flow:
   - Enter email → choose magic link or create password
   - Magic link: generate token, send via email (Mailpit in dev), verify on click
   - Password: validate strength, hash with bcrypt (cost 12+), store in `users.password_hash`
   - Email verification: send verification link, set `email_verified` flag
-- [ ] Implement email sign-in flow:
+- [x] Implement email sign-in flow:
   - Magic link: enter email → send link → verify
   - Password: enter email + password → validate → create session
-- [ ] Implement password reset: enter email → send reset link → new password form
-- [ ] Session management (§2.6):
+- [x] Implement password reset: enter email → send reset link → new password form
+- [x] Session management (§2.6):
   - Issue HttpOnly, Secure, SameSite session cookies
   - Refresh token rotation with family tracking (detect reuse → revoke all family tokens)
   - "Remember Me" checkbox: extends session to 30 days (refresh token)
   - Default session: 24 hours
-- [ ] Rate limiting on auth endpoints (Redis-backed)
-- [ ] Audit logging for auth events (sign-in, sign-up, password reset)
+- [x] Rate limiting on auth endpoints (Redis-backed)
+- [x] Audit logging for auth events (sign-in, sign-up, password reset)
 
 ### 2.3 OAuth Provider Scaffolding
 
-- [ ] Implement OAuth abstraction layer (provider-agnostic interface)
-- [ ] Set up mock OAuth provider for local dev (simulates the OAuth redirect flow without real credentials)
-- [ ] Wire up OAuth callback → account creation / linking logic
-- [ ] Implement account merging rules (§2.3): OAuth↔OAuth auto-merge (verified email only); email+password ↔ OAuth requires manual link
-- [ ] Configure Microsoft, Google, GitHub OAuth client registrations (real credentials can be added when ready; mock provider for dev)
+- [x] Implement OAuth abstraction layer (provider-agnostic interface)
+- [x] Set up mock OAuth provider for local dev (simulates the OAuth redirect flow without real credentials)
+- [x] Wire up OAuth callback → account creation / linking logic
+- [x] Implement account merging rules (§2.3): OAuth↔OAuth auto-merge (verified email only); email+password ↔ OAuth requires manual link
+- [x] Configure Microsoft, Google, GitHub OAuth client registrations (real credentials can be added when ready; mock provider for dev)
 
 ### 2.4 Account Management UI
 
-- [ ] Sign-in / sign-up page (§6.2, §6.3): provider buttons + email form
-- [ ] Post-sign-in empty state (§6.4): "Add your first notebook" prompt
-- [ ] Account dropdown (§7.1): display name, avatar, menu items
-- [ ] Account Settings modal (§7.2): profile editing, linked accounts list (add/remove), danger zone (delete account)
-- [ ] Settings modal (§7.3): display mode, font family, font size, margins, auto-save default, spell check, line numbers, tab size, word count toggle, GitHub delete-branch-on-publish
-- [ ] Settings sync: persist to `user_settings` table via API, load on sign-in
+- [x] Sign-in / sign-up page (§6.2, §6.3): provider buttons + email form
+- [x] Post-sign-in empty state (§6.4): "Add your first notebook" prompt
+- [x] Account dropdown (§7.1): display name, avatar, menu items
+- [x] Account Settings modal (§7.2): profile editing, linked accounts list (add/remove), danger zone (delete account)
+- [x] Settings modal (§7.3): display mode, font family, font size, margins, auto-save default, spell check, line numbers, tab size, word count toggle, GitHub delete-branch-on-publish
+- [x] Settings sync: persist to `user_settings` table via API, load on sign-in
 
 ### 2.5 Connect Auth to Local Notebooks
 
-- [ ] Persist Local notebook configuration to the `notebooks` table (source_type: `local`) so the notebook list survives sign-out/sign-in
-- [ ] Local notebook data remains in IndexedDB (browser-local); only the notebook metadata (name, config) is stored server-side
+- [x] Persist Local notebook configuration to the `notebooks` table (source_type: `local`) so the notebook list survives sign-out/sign-in
+- [x] Local notebook data remains in IndexedDB (browser-local); only the notebook metadata (name, config) is stored server-side
 
 ### 2.6 Phase 2 Validation
 
-- **Technical:** Full auth flow works end-to-end locally; sessions persist; settings sync; Mailpit captures all emails
-- **UX:** You can sign up with email, sign in, change settings (dark mode, font), sign out, sign back in, and see settings preserved. Local notebooks still work.
+- **Technical:** ✅ Full auth flow works end-to-end locally; sessions persist; settings sync; Mailpit captures all emails
+- **UX:** ✅ You can sign up with email, sign in, change settings (dark mode, font), sign out, sign back in, and see settings preserved. Local notebooks still work.
 - **Feedback points:** Sign-in/sign-up flow, settings options, account modal UX
 
 ---

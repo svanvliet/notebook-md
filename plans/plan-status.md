@@ -240,6 +240,86 @@
 
 ---
 
+## Phase 2: Auth & Account System — COMPLETED ✅
+
+**Completed:** 2026-02-18
+
+### 2.1 Backend API Foundation
+- Express 5 API with helmet, cors, compression, cookie-parser
+- PostgreSQL connection pool (`db/pool.ts`) with health check
+- Redis client (`lib/redis.ts`) with lazy connect
+- SQL migration (`001_initial-schema.sql`) with 11 tables: users, identity_links, sessions, notebooks, user_settings, audit_log, feature_flags, announcements, email_verification_tokens, magic_link_tokens, password_reset_tokens
+- Structured JSON logger with correlation IDs (`lib/logger.ts`)
+- Request logging and global error handler middleware (`middleware/common.ts`)
+- Dev seed script creates `admin@localhost` with bcrypt password
+
+### 2.2 Email Authentication
+- Email+password sign-up/sign-in with bcrypt (cost 12)
+- Magic link request and verify (15 min expiry)
+- Password reset request and confirm (1 hour expiry)
+- Email verification on sign-up
+- Session management: HttpOnly/Secure/SameSite cookies
+- Refresh token rotation with family tracking (reuse detection → revoke all)
+- Remember Me (30 days) vs default (24 hours)
+- Rate limiting (20 req / 15 min per IP, memory-backed)
+- Audit logging for all auth events
+- Nodemailer with Mailpit for local dev
+
+### 2.3 OAuth Provider Scaffolding
+- `OAuthProvider` abstraction interface with provider registry
+- Mock OAuth provider (HTML form for dev testing)
+- GitHub, Microsoft, Google provider implementations (real API integrations)
+- Provider registration from env vars; mock auto-registered in dev
+- Account linking/merging service:
+  - OAuth↔OAuth auto-merge (verified email match)
+  - Email+password ↔ OAuth never auto-merges
+  - Manual link/unlink from settings
+- State tokens in Redis (10 min TTL) for CSRF
+
+### 2.4 Account Management UI
+- `useAuth` hook: sign-up, sign-in, sign-out, magic link, password reset, profile update, password change, account delete, dev skip
+- `useSettings` hook: app preferences with local + server sync
+- `WelcomeScreen`: sign-in/sign-up forms, magic link, OAuth buttons (Microsoft/GitHub/Google) with proper SVG logos
+- `TitleBar`: wired account dropdown (name, email, Account Settings, Settings, Sign Out)
+- `SettingsModal`: display mode, font family, font size, margins, toggles (auto-save, spell check, etc.)
+- `AccountModal`: profile editing, password change, danger zone (account deletion)
+- Settings API (GET/PUT /auth/settings)
+- URL param handling for magic link, email verification, OAuth callback
+
+### 2.5 Connect Auth to Local Notebooks
+- Notebooks CRUD API (GET/POST/PUT/DELETE /api/notebooks)
+- Notebook metadata persisted server-side; local notebook data in IndexedDB
+
+### 2.6 Validation
+- Full E2E test: sign up → get me → save settings → create notebook → sign out → sign back in → settings preserved → notebooks preserved
+- Audit log captures all events
+- Emails arrive in Mailpit
+- Both API and web typecheck clean, web builds successfully
+
+### New Files Created (Phase 2)
+**API:**
+- `apps/api/migrations/001_initial-schema.sql`
+- `apps/api/src/db/pool.ts`, `apps/api/src/db/seed.ts`
+- `apps/api/src/lib/logger.ts`, `apps/api/src/lib/redis.ts`, `apps/api/src/lib/crypto.ts`, `apps/api/src/lib/email.ts`, `apps/api/src/lib/audit.ts`
+- `apps/api/src/middleware/common.ts`, `apps/api/src/middleware/auth.ts`
+- `apps/api/src/routes/auth.ts`, `apps/api/src/routes/oauth.ts`, `apps/api/src/routes/settings.ts`, `apps/api/src/routes/notebooks.ts`
+- `apps/api/src/services/session.ts`, `apps/api/src/services/account-link.ts`
+- `apps/api/src/services/oauth/types.ts`, `apps/api/src/services/oauth/index.ts`, `apps/api/src/services/oauth/mock-provider.ts`, `apps/api/src/services/oauth/github.ts`, `apps/api/src/services/oauth/microsoft.ts`, `apps/api/src/services/oauth/google.ts`
+
+**Web:**
+- `apps/web/src/hooks/useAuth.ts`, `apps/web/src/hooks/useSettings.ts`
+- `apps/web/src/components/settings/SettingsModal.tsx`
+- `apps/web/src/components/account/AccountModal.tsx`
+
+### Key Architecture Decisions (Phase 2)
+- SQL migrations (not JS/CJS) due to ESM `"type": "module"` in package.json
+- Memory-backed rate limiter for dev (swap to Redis store for production)
+- OAuth state stored in Redis, session cookies as refresh tokens
+- Settings sync: localStorage for instant access + API sync when signed in
+- `useAuth` includes `devSkipAuth()` to bypass auth during dev
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
