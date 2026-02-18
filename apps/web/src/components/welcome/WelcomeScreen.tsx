@@ -15,7 +15,7 @@ type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
 export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError }: WelcomeScreenProps) {
   const { t } = useTranslation();
-  const [view, setView] = useState<View>('main');
+  const [view, setView] = useState<View>(error ? 'signin' : 'main');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');

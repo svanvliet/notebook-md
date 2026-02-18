@@ -30,7 +30,23 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
 
-  // Handle magic link, email verification, and OAuth errors from URL
+  // Detect OAuth error from URL before auth init can clear it
+  const [oauthError] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    if (path === '/app/auth-error') {
+      const params = new URLSearchParams(window.location.search);
+      const error = params.get('error');
+      const provider = params.get('provider');
+      window.history.replaceState({}, '', '/');
+      if (error === 'account_exists') {
+        return `An account with this email already exists. Sign in with your email and password, then link ${provider ?? 'this provider'} from Account Settings.`;
+      }
+      return `Authentication failed: ${error ?? 'Unknown error'}`;
+    }
+    return null;
+  });
+
+  // Handle magic link and email verification from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const magicToken = params.get('token');
@@ -48,15 +64,6 @@ export default function App() {
       }).then(() => {
         window.history.replaceState({}, '', '/');
       });
-    } else if (path === '/app/auth-error') {
-      const error = params.get('error');
-      const provider = params.get('provider');
-      if (error === 'account_exists') {
-        auth.setError(`An account with this email already exists. Sign in with your email and password, then link ${provider ?? 'this provider'} from Account Settings.`);
-      } else {
-        auth.setError(`Authentication failed: ${error ?? 'Unknown error'}`);
-      }
-      window.history.replaceState({}, '', '/');
     }
 
     // Clean up auth=success from OAuth callback
@@ -129,7 +136,7 @@ export default function App() {
           onSignUp={auth.signUp}
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
-          error={auth.error}
+          error={oauthError ?? auth.error}
           onClearError={auth.clearError}
         />
         {/* Dev shortcut to skip auth */}

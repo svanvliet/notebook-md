@@ -213,12 +213,12 @@ do_start() {
     grep -E "(Migrating|complete|already)" || echo "  Migrations up to date"
 
   # Ensure test database exists and is migrated
-  "$DOCKER" exec notebook-md-db-1 psql -U notebookmd -d notebookmd -tc \
+  docker exec notebook-md-db-1 psql -U notebookmd -d notebookmd -tc \
     "SELECT 1 FROM pg_database WHERE datname = 'notebookmd_test'" | grep -q 1 || \
-    "$DOCKER" exec notebook-md-db-1 psql -U notebookmd -d notebookmd -c \
+    docker exec notebook-md-db-1 psql -U notebookmd -d notebookmd -c \
     "CREATE DATABASE notebookmd_test OWNER notebookmd" > /dev/null 2>&1
   DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd_test" \
-    npx --workspace=apps/api node-pg-migrate up --migrations-dir apps/api/migrations --migration-file-language sql 2>&1 > /dev/null
+    npx --workspace=apps/api node-pg-migrate up --migrations-dir migrations --migration-file-language sql 2>&1 > /dev/null
 
   # ── 3. Start API server ─────────────────────────────────────────────────
   echo ""
