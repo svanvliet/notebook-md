@@ -837,6 +837,50 @@ Commit: `1ae920b`
 
 ---
 
+### Phase 3.10: OneDrive Integration (Phase 3.2) — COMPLETED ✅
+
+**Backend:**
+- `apps/api/src/services/sources/onedrive.ts` — Full SourceAdapter implementation using Microsoft Graph API
+  - All CRUD operations via `/me/drive/root:/path:` pattern (listFiles, readFile, writeFile, createFile, deleteFile, renameFile)
+  - Path-based access (no file IDs needed, unlike Google Drive)
+  - Uses eTag for optimistic concurrency on writes
+- `apps/api/src/routes/onedrive.ts` — OneDrive-specific endpoints:
+  - `GET /api/onedrive/status` — Check if user has linked Microsoft account with file access
+  - `GET /api/onedrive/folders` — Browse OneDrive folders for notebook setup (folder picker)
+- `apps/api/src/services/oauth/microsoft.ts` — Updated OAuth scope to include `Files.ReadWrite` and `offline_access`
+- Registered adapter and routes in `app.ts`
+
+**Frontend:**
+- `apps/web/src/api/onedrive.ts` — Client API wrapper (list, read, write, create, delete files + folder browser + status check)
+- `AddNotebookModal.tsx` — OneDrive folder picker with breadcrumb navigation and "Use this folder" selection
+- `SourceTypes.tsx` — OneDrive set to `available: true`
+- `useNotebookManager.ts` — OneDrive-aware operations:
+  - `fetchOneDriveTreeRecursive()` for file tree loading
+  - OneDrive handling in `refreshFiles`, `handleCreateFile`, `handleOpenFile`, `saveTab`
+  - Auto-save works via existing debounce (3s inactivity)
+
+**Tests: 12 new tests (132 total, all passing)**
+- `apps/api/src/tests/onedrive-routes.test.ts`:
+  - Status endpoint: linked/unlinked/expired token states (3 tests)
+  - Folder browsing: auth required (2 tests)
+  - Source proxy: auth required for list/read/write/create/delete (5 tests)
+  - Adapter registration: onedrive registered, unknown providers return 404 (1 test)
+  - OAuth scope: Microsoft auth URL includes Files.ReadWrite + offline_access (1 test)
+
+Commit: `ca2720a`
+
+**Note:** User must re-authenticate with Microsoft to consent to the new `Files.ReadWrite` scope.
+
+**Verification needed:**
+- [ ] Re-authenticate with Microsoft (new scope consent)
+- [ ] Add OneDrive notebook: browse folders → select → create
+- [ ] Open .md file from OneDrive
+- [ ] Edit and save changes
+- [ ] Create new file in OneDrive notebook
+- [ ] Verify changes on OneDrive web (onedrive.live.com)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
