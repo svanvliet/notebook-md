@@ -49,7 +49,8 @@ This is a separate registration that enables Notebook.md to read/write files in 
    - **Description:** `Markdown notebook editor — reads and writes .md files in your repositories`
    - **Homepage URL:** `https://notebookmd.io`
    - **Callback URL:** `http://localhost:3001/auth/oauth/github/callback`
-   - **Setup URL (optional):** Leave blank
+   - **Setup URL (optional):** `http://localhost:5173/api/github/install/callback`
+     - ✅ Check **"Redirect on update"** (so re-installations also redirect back)
    - **Webhook:**
      - **Active:** ✅ Check this
      - **Webhook URL:** `http://localhost:3001/webhooks/github` (won't work locally — we'll use a tunnel or skip for dev; change to `https://api.notebookmd.io/webhooks/github` for production)
