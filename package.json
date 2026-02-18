@@ -11,7 +11,9 @@
     "dev:api": "npm -w apps/api run dev",
     "build": "npm -w packages/shared run build && npm -w apps/web run build && npm -w apps/api run build",
     "lint": "npm -w packages/shared run lint && npm -w apps/web run lint && npm -w apps/api run lint",
-    "typecheck": "npm -w packages/shared run typecheck && npm -w apps/web run typecheck && npm -w apps/api run typecheck"
+    "typecheck": "npm -w packages/shared run typecheck && npm -w apps/web run typecheck && npm -w apps/api run typecheck",
+    "test": "npm -w apps/api run test",
+    "test:api": "npm -w apps/api run test"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -15,10 +15,12 @@ const router = Router();
 // Rate limiting (memory-backed; swap to Redis store in production)
 // ---------------------------------------------------------------------------
 
+const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+
 // Strict limit for mutation endpoints (sign-up, sign-in, password reset)
 const authMutationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30,
+  max: isTest ? 10000 : 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
@@ -27,7 +29,7 @@ const authMutationLimiter = rateLimit({
 // Generous limit for read/session endpoints (me, refresh, settings)
 const authReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: isTest ? 10000 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },

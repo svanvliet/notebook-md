@@ -172,35 +172,35 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 2.7 Tier 1: API Integration Tests (§8.15)
 
-- [ ] Install Vitest + Supertest in `apps/api`
-- [ ] Configure Vitest for ESM (`vitest.config.ts`) with test database setup/teardown
-- [ ] Add `test` script to `apps/api/package.json` and root `package.json`
-- [ ] Test suite: Auth flows
-  - [ ] Sign-up with email + password (success + duplicate email + short password)
-  - [ ] Sign-in with email + password (success + wrong password + unknown email)
-  - [ ] Magic link request + verification
-  - [ ] Password reset request + confirmation
-  - [ ] Email verification
-  - [ ] Token refresh + rotation (valid refresh, reused token → family revocation)
-  - [ ] Sign-out (session invalidated)
-- [ ] Test suite: Session management
-  - [ ] Session creation with "Remember Me" (30-day) vs default (24-hour)
-  - [ ] Refresh token rotation: new token issued, old token invalidated
-  - [ ] Token reuse detection: revoke entire token family
-- [ ] Test suite: Notebooks CRUD
-  - [ ] Create, list, update, delete notebooks (scoped to authenticated user)
-  - [ ] Unauthenticated access returns 401
-  - [ ] User A cannot see User B's notebooks
-- [ ] Test suite: Settings CRUD
-  - [ ] GET/PUT settings (scoped to authenticated user)
-  - [ ] Settings persist across sessions
-- [ ] Test suite: OAuth callbacks
-  - [ ] Mock provider callback creates user + session
-  - [ ] Duplicate email merging (OAuth↔OAuth auto-merge)
-  - [ ] Account linking and unlinking
-- [ ] Test suite: Rate limiting
-  - [ ] Mutation endpoints enforce limits
-  - [ ] Read endpoints have higher limits
+- [x] Install Vitest + Supertest in `apps/api`
+- [x] Configure Vitest for ESM (`vitest.config.ts`) with test database setup/teardown
+- [x] Add `test` script to `apps/api/package.json` and root `package.json`
+- [x] Test suite: Auth flows
+  - [x] Sign-up with email + password (success + duplicate email + short password)
+  - [x] Sign-in with email + password (success + wrong password + unknown email)
+  - [x] Magic link request + verification
+  - [x] Password reset request + confirmation
+  - [x] Email verification
+  - [x] Token refresh + rotation (valid refresh, reused token → family revocation)
+  - [x] Sign-out (session invalidated)
+- [x] Test suite: Session management
+  - [x] Session creation with "Remember Me" (30-day) vs default (24-hour)
+  - [x] Refresh token rotation: new token issued, old token invalidated
+  - [x] Token reuse detection: revoke entire token family
+- [x] Test suite: Notebooks CRUD
+  - [x] Create, list, update, delete notebooks (scoped to authenticated user)
+  - [x] Unauthenticated access returns 401
+  - [x] User A cannot see User B's notebooks
+- [x] Test suite: Settings CRUD
+  - [x] GET/PUT settings (scoped to authenticated user)
+  - [x] Settings persist across sessions
+- [x] Test suite: OAuth callbacks
+  - [x] Mock provider callback creates user + session
+  - [x] Duplicate email merging (OAuth↔OAuth auto-merge)
+  - [x] Account linking and unlinking
+- [x] Test suite: Rate limiting
+  - [x] Mutation endpoints enforce limits
+  - [x] Read endpoints have higher limits
 
 ---
 

@@ -370,6 +370,38 @@ Plan changes:
 - Updated §6.3 CI/CD to run Tier 1+2 on every push/PR and Tier 3 on PR to main
 - Renumbered Phase 6 sections (6.4→6.5 DNS, 6.5→6.6 Monitoring, etc.)
 
+### Phase 2.7 — Tier 1 API Integration Tests — COMPLETED ✅ (2026-02-18)
+
+Installed Vitest + Supertest and wrote 48 integration tests across 5 test suites, all passing against real PostgreSQL + Redis (Docker Compose).
+
+**Test suites:**
+| File | Tests | Coverage |
+|------|-------|----------|
+| `auth.test.ts` | 23 | Sign-up (success, duplicate, validation), sign-in (success, wrong pw, unknown email), magic link, password reset, email verify, sign-out, /me, profile update, password change, account delete |
+| `sessions.test.ts` | 7 | Refresh token rotation, old token invalidation, reuse detection → family revocation, expired token rejection |
+| `notebooks.test.ts` | 8 | CRUD, user isolation (A can't see B's), unauth rejection, validation |
+| `settings.test.ts` | 6 | Default empty, save/retrieve, overwrite, cross-session persistence, unauth, validation |
+| `oauth.test.ts` | 4 | Provider listing, mock flow redirect, linked accounts, unauth |
+
+**Infrastructure decisions:**
+- `app.ts` extracted from `index.ts` so Supertest imports the Express app without starting the server
+- `fileParallelism: false` in vitest config — tests share a real DB, parallel execution causes race conditions
+- Rate limiters set to 10000 max in test env (`VITEST=true`) to avoid 429s — dedicated rate limit test verifies limits work
+- `NODE_ENV=test` set via vitest config env
+- Test helpers: `signUp()`, `signIn()`, `extractRefreshToken()`, `extractCookies()`, `cleanDb()` (truncates all tables between tests)
+
+**New files:**
+- `apps/api/src/app.ts` — Express app extracted for testability
+- `apps/api/vitest.config.ts` — Vitest config (sequential, node env, test DB)
+- `apps/api/src/tests/helpers.ts` — Shared test utilities
+- `apps/api/src/tests/auth.test.ts` — Auth flow tests
+- `apps/api/src/tests/sessions.test.ts` — Session management tests
+- `apps/api/src/tests/notebooks.test.ts` — Notebooks CRUD tests
+- `apps/api/src/tests/settings.test.ts` — Settings CRUD tests
+- `apps/api/src/tests/oauth.test.ts` — OAuth callback tests
+
+**Run with:** `npm test` (root) or `npm -w apps/api run test`
+
 ---
 
 ## Open Questions

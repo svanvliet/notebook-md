@@ -1,0 +1,224 @@
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { request, cleanDb, closeDb, signUp, signIn, extractRefreshToken } from './helpers.js';
+
+afterAll(async () => { await closeDb(); });
+
+describe('Auth Flows', () => {
+  beforeEach(async () => { await cleanDb(); });
+
+  // --- Sign-up ---
+
+  it('should sign up a new user with email + password', async () => {
+    const { res } = await signUp('alice@test.com', 'password123', 'Alice');
+    expect(res.status).toBe(201);
+    expect(res.body.user.email).toBe('alice@test.com');
+    expect(res.body.user.displayName).toBe('Alice');
+    expect(res.body.user.emailVerified).toBe(false);
+    expect(res.body.sessionId).toBeTruthy();
+    expect(extractRefreshToken(res)).toBeTruthy();
+  });
+
+  it('should default displayName to email prefix', async () => {
+    const { res } = await signUp('bob@test.com', 'password123');
+    expect(res.status).toBe(201);
+    expect(res.body.user.displayName).toBe('bob');
+  });
+
+  it('should reject duplicate email on sign-up', async () => {
+    await signUp('alice@test.com', 'password123');
+    const { res } = await signUp('alice@test.com', 'otherpassword1');
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/already exists/i);
+  });
+
+  it('should reject short password on sign-up', async () => {
+    const { res } = await signUp('alice@test.com', 'short');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at least 8/);
+  });
+
+  it('should reject invalid email on sign-up', async () => {
+    const res = await request.post('/auth/signup').send({ email: 'notanemail', password: 'password123' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/email/i);
+  });
+
+  it('should reject missing password on sign-up', async () => {
+    const res = await request.post('/auth/signup').send({ email: 'alice@test.com' });
+    expect(res.status).toBe(400);
+  });
+
+  // --- Sign-in ---
+
+  it('should sign in with correct credentials', async () => {
+    await signUp('alice@test.com', 'password123');
+    const { res } = await signIn('alice@test.com', 'password123');
+    expect(res.status).toBe(200);
+    expect(res.body.user.email).toBe('alice@test.com');
+    expect(extractRefreshToken(res)).toBeTruthy();
+  });
+
+  it('should reject wrong password on sign-in', async () => {
+    await signUp('alice@test.com', 'password123');
+    const { res } = await signIn('alice@test.com', 'wrongpassword');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid/i);
+  });
+
+  it('should reject unknown email on sign-in', async () => {
+    const { res } = await signIn('nobody@test.com', 'password123');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid/i);
+  });
+
+  it('should reject missing fields on sign-in', async () => {
+    const res = await request.post('/auth/signin').send({ email: 'alice@test.com' });
+    expect(res.status).toBe(400);
+  });
+
+  // --- Magic link ---
+
+  it('should request magic link without revealing if email exists', async () => {
+    // Non-existent email should still return 200
+    const res = await request.post('/auth/magic-link/request').send({ email: 'nobody@test.com' });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if an account/i);
+  });
+
+  it('should reject invalid token for magic link verify', async () => {
+    const res = await request.post('/auth/magic-link/verify').send({ token: 'badtoken' });
+    expect(res.status).toBe(400);
+  });
+
+  // --- Password reset ---
+
+  it('should request password reset without revealing if email exists', async () => {
+    const res = await request.post('/auth/password-reset/request').send({ email: 'nobody@test.com' });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if an account/i);
+  });
+
+  it('should reject invalid token for password reset confirm', async () => {
+    const res = await request.post('/auth/password-reset/confirm').send({ token: 'bad', newPassword: 'newpassword123' });
+    expect(res.status).toBe(400);
+  });
+
+  // --- Email verification ---
+
+  it('should reject invalid token for email verification', async () => {
+    const res = await request.post('/auth/verify-email').send({ token: 'badtoken' });
+    expect(res.status).toBe(400);
+  });
+
+  // --- Sign-out ---
+
+  it('should sign out and invalidate session', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    // Sign out
+    const signOutRes = await request
+      .post('/auth/signout')
+      .set('Cookie', `refresh_token=${token}`);
+    expect(signOutRes.status).toBe(200);
+
+    // Session should be invalid now
+    const meRes = await request
+      .get('/auth/me')
+      .set('Cookie', `refresh_token=${token}`);
+    expect(meRes.status).toBe(401);
+  });
+
+  // --- Get current user (/auth/me) ---
+
+  it('should return user profile for authenticated request', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123', 'Alice');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const meRes = await request.get('/auth/me').set('Cookie', `refresh_token=${token}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user.email).toBe('alice@test.com');
+    expect(meRes.body.user.displayName).toBe('Alice');
+  });
+
+  it('should return 401 for unauthenticated /auth/me', async () => {
+    const res = await request.get('/auth/me');
+    expect(res.status).toBe(401);
+  });
+
+  // --- Update profile ---
+
+  it('should update display name', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const updateRes = await request
+      .put('/auth/me')
+      .set('Cookie', `refresh_token=${token}`)
+      .send({ displayName: 'Alice Wonderland' });
+    expect(updateRes.status).toBe(200);
+
+    const meRes = await request.get('/auth/me').set('Cookie', `refresh_token=${token}`);
+    expect(meRes.body.user.displayName).toBe('Alice Wonderland');
+  });
+
+  // --- Change password ---
+
+  it('should change password with correct current password', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const res = await request
+      .put('/auth/password')
+      .set('Cookie', `refresh_token=${token}`)
+      .send({ currentPassword: 'password123', newPassword: 'newpassword456' });
+    expect(res.status).toBe(200);
+
+    // Old password should fail
+    const { res: oldRes } = await signIn('alice@test.com', 'password123');
+    expect(oldRes.status).toBe(401);
+
+    // New password should work
+    const { res: newRes } = await signIn('alice@test.com', 'newpassword456');
+    expect(newRes.status).toBe(200);
+  });
+
+  it('should reject change password with wrong current password', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const res = await request
+      .put('/auth/password')
+      .set('Cookie', `refresh_token=${token}`)
+      .send({ currentPassword: 'wrongpassword', newPassword: 'newpassword456' });
+    expect(res.status).toBe(401);
+  });
+
+  // --- Delete account ---
+
+  it('should reject account deletion with wrong password', async () => {
+    const { res: signUpRes } = await signUp('carol@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const res = await request
+      .delete('/auth/account')
+      .set('Cookie', `refresh_token=${token}`)
+      .send({ password: 'wrongpassword' });
+    expect(res.status).toBe(401);
+  });
+
+  it('should delete account with correct password', async () => {
+    const { res: signUpRes } = await signUp('dave@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const deleteRes = await request
+      .delete('/auth/account')
+      .set('Cookie', `refresh_token=${token}`)
+      .send({ password: 'password123' });
+    expect(deleteRes.status).toBe(200);
+
+    // Sign-in should fail
+    const { res: signInRes } = await signIn('dave@test.com', 'password123');
+    expect(signInRes.status).toBe(401);
+  });
+});
