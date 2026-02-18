@@ -5,6 +5,7 @@ import { getEditorExtensions } from './extensions';
 import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { SlashCommandExtension } from './SlashCommands';
+import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import './editor.css';
 
 interface MarkdownEditorProps {
@@ -64,12 +65,13 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     if (!editor) return;
 
     if (!rawMode) {
-      // Switching to raw: grab HTML and convert to a simplified Markdown-like view
-      setRawContent(editor.getHTML());
+      // Switching to raw: convert HTML to Markdown
+      setRawContent(htmlToMarkdown(editor.getHTML()));
     } else {
-      // Switching back to WYSIWYG: apply the edited raw content
-      editor.commands.setContent(DOMPurify.sanitize(rawContent));
-      onChange(rawContent);
+      // Switching back to WYSIWYG: convert Markdown to HTML and load
+      const html = DOMPurify.sanitize(markdownToHtml(rawContent));
+      editor.commands.setContent(html);
+      onChange(editor.getHTML());
     }
     setRawMode(!rawMode);
   }, [editor, rawMode, rawContent, onChange]);
