@@ -605,6 +605,77 @@ Registered a GitHub App for reading/writing .md files in user repos.
 - ✅ Migration applied to dev and test databases
 - ✅ Webhook proxy (smee.io) already configured in dev.sh
 
+### 3.5 Add Notebook Flow — COMPLETED ✅
+
+**Commits:** `255e227`, `bfc4f45` — Multi-source notebook UI shell + GitHub file integration
+
+**What was built:**
+
+1. **Source Type Icons** (`components/icons/Icons.tsx`, `components/notebook/SourceTypes.tsx`):
+   - GitHubIcon (Octocat), OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon
+   - `SourceIcon` component maps `sourceType` to colored icon
+   - `SOURCE_TYPES` registry with label, icon, color, and available flag
+
+2. **Notebook Type System** (`stores/localNotebookStore.ts`):
+   - `NotebookMeta` extended with `sourceType` and `sourceConfig` fields
+   - `createNotebook()` accepts `sourceType` and `sourceConfig` parameters
+   - Backward compatible — existing local notebooks default to `'local'`
+
+3. **Add Notebook Modal** (`components/notebook/AddNotebookModal.tsx`):
+   - Step 1: Select source type with icons (Local, GitHub, OneDrive, Google Drive, iCloud)
+   - Step 2a: GitHub config — pick installation → repository with live API data
+   - Step 2b: "Coming soon" placeholder for OneDrive, Google Drive, iCloud
+   - Step 3: Name the notebook
+   - Install app flow when no GitHub installations found
+
+4. **GitHub API Client** (`api/github.ts`):
+   - Typed wrappers for installations, repos, branches
+   - File CRUD (listGitHubFiles, readGitHubFile, writeGitHubFile, createGitHubFile, deleteGitHubFile)
+   - Branch management (create, list, publish)
+
+5. **GitHub File Tree Integration** (`hooks/useNotebookManager.ts`):
+   - Lazy loading: expanding a GitHub notebook fetches file list from API
+   - File filtering: only .md, .mdx, .markdown, .txt shown for GitHub notebooks
+   - `githubToFileEntries()` converts API response to `FileEntry` shape for tree
+
+6. **GitHub File Open/Save**:
+   - Open: fetches from API, decodes content, converts markdown → HTML, preserves SHA
+   - Save: writes back via API with SHA for conflict detection, auto-updates SHA
+   - Auto-save debounce: 1s local, 5s GitHub
+   - Manual save (Cmd+S) works for both
+
+7. **Notebook Tree Icons** (`components/notebook/NotebookTree.tsx`):
+   - Shows `SourceIcon` per notebook (Octocat for GitHub, Device for local)
+   - `onExpandNotebook` callback triggers lazy file loading for remote sources
+
+8. **Webhook Tests** (`tests/webhook.test.ts`):
+   - 8 tests for HMAC-SHA256 signature verification
+   - Exported `verifyWebhookSignature` from `routes/webhooks.ts` for testability
+
+**Files created:**
+| File | Purpose |
+|------|---------|
+| `apps/web/src/api/github.ts` | Frontend GitHub API client |
+| `apps/web/src/components/notebook/AddNotebookModal.tsx` | Multi-step add notebook flow |
+| `apps/web/src/components/notebook/SourceTypes.tsx` | Source type icons + registry |
+| `apps/api/src/tests/webhook.test.ts` | Webhook signature verification tests |
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `apps/web/src/App.tsx` | Added AddNotebookModal, onExpandNotebook wiring |
+| `apps/web/src/components/icons/Icons.tsx` | Added 6 new icons |
+| `apps/web/src/components/layout/NotebookPane.tsx` | Added onExpandNotebook prop passthrough |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | SourceIcon per notebook, onExpandNotebook on toggle |
+| `apps/web/src/hooks/useNotebookManager.ts` | GitHub file ops, lazy tree, SHA tracking, split save logic |
+| `apps/web/src/stores/localNotebookStore.ts` | sourceType + sourceConfig in NotebookMeta |
+| `apps/api/src/routes/webhooks.ts` | Exported verifyWebhookSignature |
+
+**Verified:**
+- ✅ All 95 tests pass (87 prior + 8 webhook)
+- ✅ Vite build succeeds
+- ✅ TypeScript compiles cleanly (no new errors)
+
 ---
 
 ## Open Questions

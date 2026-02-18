@@ -265,9 +265,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 3.5 Add Notebook Flow
 
-- [ ] "Add Notebook" UI: select source type → authenticate (if not linked) → browse/select folder or repo → name the notebook
-- [ ] Notebook tree: show all notebooks with source-type icons, expandable file trees
-- [ ] File type filtering in tree: only show `.md`, `.mdx`, `.markdown`, `.txt`, and supported media files
+- [x] "Add Notebook" UI: select source type → authenticate (if not linked) → browse/select folder or repo → name the notebook
+- [x] Notebook tree: show all notebooks with source-type icons, expandable file trees
+- [x] File type filtering in tree: only show `.md`, `.mdx`, `.markdown`, `.txt`, and supported media files
 - [ ] Context menus on tree items: new file, new folder, rename, delete, move, refresh
 
 ### 3.6 Phase 3 Validation
