@@ -13,8 +13,10 @@ import './editor.css';
 // Allow table-related attributes and elements that Tiptap generates
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['colgroup', 'col'],
-    ADD_ATTR: ['colspan', 'rowspan', 'style', 'data-type', 'data-checked'],
+    ADD_TAGS: ['colgroup', 'col', 'input'],
+    ADD_ATTR: ['colspan', 'rowspan', 'style', 'data-type', 'data-checked',
+               'data-callout', 'data-callout-type', 'contenteditable',
+               'disabled', 'type', 'checked'],
   }) as string;
 }
 

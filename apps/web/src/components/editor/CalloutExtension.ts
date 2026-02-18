@@ -46,7 +46,10 @@ export const Callout = Node.create<CalloutOptions>({
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-callout]' }];
+    return [{
+      tag: 'div[data-callout]',
+      contentElement: '.callout-content',
+    }];
   },
 
   renderHTML({ node, HTMLAttributes }) {

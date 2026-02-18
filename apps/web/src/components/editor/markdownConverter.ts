@@ -111,7 +111,7 @@ turndown.addRule('callout', {
     const contentEl = el.querySelector('.callout-content');
     const inner = contentEl ? turndown.turndown(contentEl.innerHTML).trim() : _content.trim();
     const lines = inner.split('\n').map((l: string) => `> ${l}`).join('\n');
-    return `\n> [!${label.toUpperCase()}]\n${lines}\n`;
+    return `\n> [!${label.toUpperCase()}]\n${lines}\n\n`;
   },
 });
 
@@ -131,10 +131,11 @@ const calloutExtension = {
     name: 'callout',
     level: 'block' as const,
     start(src: string) {
-      return src.match(/^>\s*\[!(NOTE|TIP|INFO|WARNING)\]/im)?.index;
+      return src.match(/^>\s*\[!(NOTE|TIP|INFO|WARNING)\]/m)?.index;
     },
     tokenizer(src: string) {
-      const match = src.match(/^(?:>\s*\[!(NOTE|TIP|INFO|WARNING)\]\s*\n)((?:>.*(?:\n|$))*)/im);
+      // ^ without m flag: must match at very start of remaining source
+      const match = src.match(/^(?:>\s*\[!(NOTE|TIP|INFO|WARNING)\]\s*\n)((?:>.*(?:\n|$))*)/);
       if (match) {
         const type = match[1].toLowerCase();
         const bodyLines = match[2]
@@ -163,9 +164,29 @@ marked.use(calloutExtension);
 
 /**
  * Convert Markdown to HTML for loading into Tiptap using marked (full GFM support).
+ * Post-processes to produce Tiptap-compatible HTML for task lists.
  */
 export function markdownToHtml(md: string): string {
-  return marked.parse(md, { async: false }) as string;
+  let html = marked.parse(md, { async: false }) as string;
+
+  // Convert GFM task list HTML to Tiptap-compatible format:
+  // <ul>\n<li><input disabled="" type="checkbox"> text</li>  →
+  // <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><div>text</div></li>
+  html = html.replace(
+    /<ul>\s*\n?((?:\s*<li><input[^>]*>.*?<\/li>\s*\n?)+)<\/ul>/gs,
+    (match, items) => {
+      const converted = items.replace(
+        /<li><input[^>]*?(checked)?[^>]*>\s*(.*?)<\/li>/gs,
+        (_m: string, checked: string | undefined, text: string) => {
+          const isChecked = checked ? 'true' : 'false';
+          return `<li data-type="taskItem" data-checked="${isChecked}"><div>${text.trim()}</div></li>`;
+        },
+      );
+      return `<ul data-type="taskList">${converted}</ul>`;
+    },
+  );
+
+  return html;
 }
 
 /**
