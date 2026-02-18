@@ -1011,7 +1011,7 @@ The slash command palette was largely pre-built (16 commands). Added 6 new comma
 
 2. **Smart quote auto-conversion** — Typography extension was converting `"` to `"` / `"` automatically. Disabled `openDoubleQuote`, `closeDoubleQuote`, `openSingleQuote`, `closeSingleQuote` in Typography config.
 
-3. **Image resize + floating toolbar** — Created `ImageView.tsx` custom NodeView:
+3. **Image floating toolbar (alt text, URL editing; resize removed — no MD syntax)** — Created `ImageView.tsx` custom NodeView:
    - Blue selection outline when image is selected
    - Drag handle on bottom-right corner for proportional resizing
    - Floating toolbar above image showing: dimensions (W×H), editable alt text, editable URL
