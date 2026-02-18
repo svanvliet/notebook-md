@@ -126,6 +126,7 @@ marked.setOptions({
 });
 
 // Custom marked extension for GitHub-style admonitions: > [!NOTE], > [!TIP], etc.
+// Supports both multi-line (> [!NOTE]\n> body) and single-line (> [!NOTE] body) formats.
 const calloutExtension = {
   extensions: [{
     name: 'callout',
@@ -134,21 +135,21 @@ const calloutExtension = {
       return src.match(/^>\s*\[!(NOTE|TIP|INFO|WARNING)\]/m)?.index;
     },
     tokenizer(src: string) {
-      // ^ without m flag: must match at very start of remaining source
-      const match = src.match(/^(?:>\s*\[!(NOTE|TIP|INFO|WARNING)\]\s*\n)((?:>.*(?:\n|$))*)/);
-      if (match) {
-        const type = match[1].toLowerCase();
-        const bodyLines = match[2]
+      // Multi-line: > [!TYPE]\n> body lines...
+      const multiMatch = src.match(/^(?:>\s*\[!(NOTE|TIP|INFO|WARNING)\]\s*\n)((?:>.*(?:\n|$))*)/);
+      if (multiMatch) {
+        const type = multiMatch[1].toLowerCase();
+        const bodyLines = multiMatch[2]
           .split('\n')
           .map((l: string) => l.replace(/^>\s?/, ''))
           .join('\n')
           .trim();
-        return {
-          type: 'callout',
-          raw: match[0],
-          calloutType: type,
-          body: bodyLines,
-        };
+        return { type: 'callout', raw: multiMatch[0], calloutType: type, body: bodyLines };
+      }
+      // Single-line: > [!TYPE] body text
+      const singleMatch = src.match(/^>\s*\[!(NOTE|TIP|INFO|WARNING)\]\s+(.+?)(?:\n|$)/);
+      if (singleMatch) {
+        return { type: 'callout', raw: singleMatch[0], calloutType: singleMatch[1].toLowerCase(), body: singleMatch[2].trim() };
       }
       return undefined;
     },
@@ -169,14 +170,14 @@ marked.use(calloutExtension);
 export function markdownToHtml(md: string): string {
   let html = marked.parse(md, { async: false }) as string;
 
-  // Convert GFM task list HTML to Tiptap-compatible format:
-  // <ul>\n<li><input disabled="" type="checkbox"> text</li>  →
-  // <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><div>text</div></li>
+  // Convert GFM task list HTML to Tiptap-compatible format.
+  // marked may output with or without <p> wrappers depending on spacing:
+  //   <li><input ...> text</li>  OR  <li><p><input ...> text</p>\n</li>
   html = html.replace(
-    /<ul>\s*\n?((?:\s*<li><input[^>]*>.*?<\/li>\s*\n?)+)<\/ul>/gs,
-    (match, items) => {
+    /<ul>\s*\n?((?:\s*<li>(?:<p>)?<input[^>]*>[\s\S]*?<\/li>\s*\n?)+)<\/ul>/gs,
+    (_match, items: string) => {
       const converted = items.replace(
-        /<li><input[^>]*?(checked)?[^>]*>\s*(.*?)<\/li>/gs,
+        /<li>(?:<p>)?<input[^>]*?(checked)?[^>]*>\s*([\s\S]*?)(?:<\/p>\s*)?<\/li>/gs,
         (_m: string, checked: string | undefined, text: string) => {
           const isChecked = checked ? 'true' : 'false';
           return `<li data-type="taskItem" data-checked="${isChecked}"><div>${text.trim()}</div></li>`;
