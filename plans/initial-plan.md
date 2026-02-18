@@ -219,19 +219,19 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 3.2 Microsoft OneDrive Integration
 
-- [ ] Register Microsoft Entra ID app (dev tenant or personal)
-- [ ] Implement OAuth flow for Microsoft (§2.1): personal + enterprise accounts
-- [ ] Request scope: `Files.ReadWrite` + `User.Read` + `offline_access`
-- [ ] Implement Microsoft Graph API proxy endpoints:
+- [x] Register Microsoft Entra ID app (dev tenant or personal)
+- [x] Implement OAuth flow for Microsoft (§2.1): personal + enterprise accounts
+- [x] Request scope: `Files.ReadWrite` + `User.Read` + `offline_access`
+- [x] Implement Microsoft Graph API proxy endpoints:
   - List folder contents (tree view)
   - Read file content
   - Write file content
   - Create file/folder
   - Delete file/folder
   - Rename/move file
-- [ ] OneDrive icon in notebook tree
-- [ ] Manual save to OneDrive (`Cmd/Ctrl+S`)
-- [ ] Auto-save with debounce (3s inactivity, 30s max)
+- [x] OneDrive icon in notebook tree
+- [x] Manual save to OneDrive (`Cmd/Ctrl+S`)
+- [x] Auto-save with debounce (3s inactivity, 30s max)
 
 ### 3.3 Google Drive Integration
 
@@ -240,7 +240,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Request scope: `drive` + `profile` + `email`
 - [x] Implement Google Drive API proxy endpoints (same operations as OneDrive)
 - [x] Google Drive icon in notebook tree
-- [ ] Manual and auto-save (same debounce as OneDrive)
+- [x] Manual and auto-save (same debounce as OneDrive)
 
 ### 3.4 GitHub Integration
 
@@ -252,7 +252,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - Create/update files (via Contents API to working branch)
   - Create working branch (`notebook-md/<random-uuid>`) from base branch
   - List branches, get branch status
-- [ ] GitHub Octocat icon in notebook tree
+- [x] GitHub Octocat icon in notebook tree
 - [x] Manual save: commit to working branch
 - [x] Auto-save: batch commits (30s inactivity threshold), squash on publish
 - [x] Publish flow: squash merge working branch → base branch (or open PR)
@@ -268,7 +268,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] "Add Notebook" UI: select source type → authenticate (if not linked) → browse/select folder or repo → name the notebook
 - [x] Notebook tree: show all notebooks with source-type icons, expandable file trees
 - [x] File type filtering in tree: only show `.md`, `.mdx`, `.markdown`, `.txt`, and supported media files
-- [ ] Context menus on tree items: new file, new folder, rename, delete, move, refresh
+- [x] Context menus on tree items: new file, new folder, rename, delete, move, refresh
 
 ### 3.6 Phase 3 Validation
 

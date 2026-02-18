@@ -830,10 +830,10 @@ Commit: `1ae920b`
 **Status:** Credentials stored in `.env`. Backend OAuth providers for both were already fully implemented in Phase 2. Ready for end-to-end testing of sign-in flows.
 
 **Verification needed:**
-- [ ] Test Microsoft sign-in: redirects → consent → callback → signed in
-- [ ] Test Google sign-in: redirects → consent → callback → signed in
-- [ ] Verify `identity_links` table populated for each provider
-- [ ] Test account linking (sign in with email, then link Microsoft/Google)
+- [x] Test Microsoft sign-in: redirects → consent → callback → signed in
+- [x] Test Google sign-in: redirects → consent → callback → signed in
+- [x] Verify `identity_links` table populated for each provider
+- [x] Test account linking (sign in with email, then link Microsoft/Google)
 
 ---
 
