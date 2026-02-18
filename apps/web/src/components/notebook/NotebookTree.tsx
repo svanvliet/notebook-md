@@ -31,8 +31,8 @@ function RefreshIcon() {
 
 function BlockedBadge() {
   return (
-    <span className="ml-auto shrink-0 flex items-center gap-1 text-red-600 dark:text-red-400">
-      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+    <span className="shrink-0 inline-flex items-center text-red-600 dark:text-red-400 ml-1">
+      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.343 4.343a8 8 0 0011.314 0L4.343 15.657a8 8 0 010-11.314z" clipRule="evenodd" />
       </svg>
     </span>
@@ -41,8 +41,8 @@ function BlockedBadge() {
 
 function CopyBadge() {
   return (
-    <span className="ml-auto shrink-0 flex items-center gap-1 text-green-600 dark:text-green-400">
-      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+    <span className="shrink-0 inline-flex items-center text-green-600 dark:text-green-400 ml-1">
+      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
       </svg>
     </span>
@@ -247,9 +247,7 @@ export function NotebookTree({
             e.stopPropagation();
             setDropTarget(fileKey);
             const style = crossDropStyle(file.notebookId);
-            if (style === 'blocked') {
-              e.dataTransfer.dropEffect = 'none';
-            } else if (style === 'copy') {
+            if (style === 'copy') {
               e.dataTransfer.dropEffect = 'copy';
             }
           }}
@@ -389,9 +387,7 @@ export function NotebookTree({
                 if (isFileMove) {
                   setDropTarget(`notebook:${nb.id}`);
                   const style = crossDropStyle(nb.id);
-                  if (style === 'blocked') {
-                    e.dataTransfer.dropEffect = 'none';
-                  } else if (style === 'copy') {
+                  if (style === 'copy') {
                     e.dataTransfer.dropEffect = 'copy';
                   }
                 }
