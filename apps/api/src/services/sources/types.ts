@@ -31,16 +31,16 @@ export interface SourceAdapter {
   readonly provider: string;
 
   /** List files/folders in a directory */
-  listFiles(accessToken: string, rootPath: string, dirPath: string): Promise<FileEntry[]>;
+  listFiles(accessToken: string, rootPath: string, dirPath: string, branch?: string): Promise<FileEntry[]>;
 
   /** Read a file's content */
-  readFile(accessToken: string, rootPath: string, filePath: string): Promise<FileContent>;
+  readFile(accessToken: string, rootPath: string, filePath: string, branch?: string): Promise<FileContent>;
 
   /** Write (update) an existing file */
-  writeFile(accessToken: string, rootPath: string, filePath: string, content: string, sha?: string): Promise<WriteResult>;
+  writeFile(accessToken: string, rootPath: string, filePath: string, content: string, sha?: string, branch?: string): Promise<WriteResult>;
 
   /** Create a new file */
-  createFile(accessToken: string, rootPath: string, filePath: string, content: string): Promise<WriteResult>;
+  createFile(accessToken: string, rootPath: string, filePath: string, content: string, branch?: string): Promise<WriteResult>;
 
   /** Delete a file or folder */
   deleteFile(accessToken: string, rootPath: string, filePath: string, sha?: string): Promise<void>;

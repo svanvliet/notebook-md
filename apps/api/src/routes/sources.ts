@@ -103,10 +103,11 @@ router.get('/:provider/files', async (req: Request, res: Response) => {
   const { adapter, accessToken } = resolved;
   const rootPath = (req.query.root as string) ?? '';
   const dirPath = (req.query.path as string) ?? '';
+  const branch = (req.query.branch as string) || undefined;
   const cb = getCircuitBreaker(req.params.provider as string);
 
   try {
-    const entries = await adapter!.listFiles(accessToken, rootPath, dirPath);
+    const entries = await adapter!.listFiles(accessToken, rootPath, dirPath, branch);
     cb.onSuccess();
     res.json({ entries: filterTreeEntries(entries) });
   } catch (err) {
@@ -125,10 +126,11 @@ router.get('/:provider/files/{*filePath}', validatePath, async (req: Request, re
   const { adapter, accessToken } = resolved;
   const rootPath = (req.query.root as string) ?? '';
   const filePath = (req as any).cleanPath;
+  const branch = (req.query.branch as string) || undefined;
   const cb = getCircuitBreaker(req.params.provider as string);
 
   try {
-    const file = await adapter!.readFile(accessToken, rootPath, filePath);
+    const file = await adapter!.readFile(accessToken, rootPath, filePath, branch);
     cb.onSuccess();
     res.json(file);
   } catch (err) {
@@ -147,7 +149,7 @@ router.put('/:provider/files/{*filePath}', validatePath, async (req: Request, re
   const { adapter, accessToken } = resolved;
   const rootPath = (req.query.root as string) ?? '';
   const filePath = (req as any).cleanPath;
-  const { content, sha } = req.body;
+  const { content, sha, branch } = req.body;
   const cb = getCircuitBreaker(req.params.provider as string);
 
   if (typeof content !== 'string') {
@@ -156,7 +158,7 @@ router.put('/:provider/files/{*filePath}', validatePath, async (req: Request, re
   }
 
   try {
-    const result = await adapter!.writeFile(accessToken, rootPath, filePath, content, sha);
+    const result = await adapter!.writeFile(accessToken, rootPath, filePath, content, sha, branch);
     cb.onSuccess();
     res.json(result);
   } catch (err) {
@@ -175,11 +177,11 @@ router.post('/:provider/files/{*filePath}', validatePath, async (req: Request, r
   const { adapter, accessToken } = resolved;
   const rootPath = (req.query.root as string) ?? '';
   const filePath = (req as any).cleanPath;
-  const { content } = req.body;
+  const { content, branch } = req.body;
   const cb = getCircuitBreaker(req.params.provider as string);
 
   try {
-    const result = await adapter!.createFile(accessToken, rootPath, filePath, content ?? '');
+    const result = await adapter!.createFile(accessToken, rootPath, filePath, content ?? '', branch);
     cb.onSuccess();
     res.status(201).json(result);
   } catch (err) {

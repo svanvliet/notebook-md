@@ -20,6 +20,8 @@ import {
   readGitHubFile,
   writeGitHubFile,
   createGitHubFile,
+  createWorkingBranch,
+  publishBranch,
   type GitHubFileEntry,
 } from '../api/github';
 
@@ -250,11 +252,12 @@ export function useNotebookManager(userId?: string | null) {
           }
           const nb = notebooks.find((n) => n.id === notebookId);
           if (nb?.sourceType === 'github') {
-            // Create file via GitHub API
+            // Create file via GitHub API on working branch
             const rootPath = nb.sourceConfig.rootPath as string;
             const filePath = parentPath ? `${parentPath}/${name}` : name;
             try {
-              await createGitHubFile(rootPath, filePath, '');
+              const branch = await ensureWorkingBranch(notebookId, nb);
+              await createGitHubFile(rootPath, filePath, '', branch);
               await refreshFiles(notebookId);
               flash(`Created ${type} "${name}"`);
             } catch (err) {
@@ -268,7 +271,7 @@ export function useNotebookManager(userId?: string | null) {
         },
       });
     },
-    [notebooks, refreshFiles, flash],
+    [notebooks, ensureWorkingBranch, refreshFiles, flash],
   );
 
   // Import a file from the user's device
@@ -469,20 +472,88 @@ export function useNotebookManager(userId?: string | null) {
 
   const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Working branch per notebook: notebookId → branch name
+  const workingBranches = useRef<Record<string, string>>({});
+  const branchCreating = useRef<Record<string, Promise<string>>>({});
+
+  /** Ensure a working branch exists for a GitHub notebook, create one if needed */
+  const ensureWorkingBranch = useCallback(
+    async (notebookId: string, nb: NotebookMeta): Promise<string> => {
+      // Already have a branch for this notebook
+      if (workingBranches.current[notebookId]) {
+        return workingBranches.current[notebookId];
+      }
+      // Already creating — await the same promise to avoid duplicate branches
+      if (branchCreating.current[notebookId]) {
+        return branchCreating.current[notebookId];
+      }
+
+      const owner = nb.sourceConfig.owner as string;
+      const repo = nb.sourceConfig.repo as string;
+      const promise = createWorkingBranch(owner, repo, 'main').then((result) => {
+        workingBranches.current[notebookId] = result.branch;
+        delete branchCreating.current[notebookId];
+        return result.branch;
+      });
+      branchCreating.current[notebookId] = promise;
+      return promise;
+    },
+    [],
+  );
+
   /** Save a tab's content to the appropriate backend */
   const saveTab = useCallback(
     async (tab: OpenTab): Promise<string | undefined> => {
       const nb = notebooks.find((n) => n.id === tab.notebookId);
       if (nb && nb.sourceType === 'github') {
         const rootPath = nb.sourceConfig.rootPath as string;
-        const result = await writeGitHubFile(rootPath, tab.path, tab.content, tab.sha);
+        const branch = await ensureWorkingBranch(tab.notebookId, nb);
+        const result = await writeGitHubFile(rootPath, tab.path, tab.content, tab.sha, branch);
         return result.sha ?? undefined;
       }
       // Local save
       await saveFileContent(tab.notebookId, tab.path, tab.content);
       return undefined;
     },
-    [notebooks],
+    [notebooks, ensureWorkingBranch],
+  );
+
+  /** Publish (squash-merge) a notebook's working branch to main */
+  const handlePublish = useCallback(
+    async (notebookId: string) => {
+      const nb = notebooks.find((n) => n.id === notebookId);
+      if (!nb || nb.sourceType !== 'github') return;
+
+      const branch = workingBranches.current[notebookId];
+      if (!branch) {
+        flash('No pending changes to publish');
+        return;
+      }
+
+      const owner = nb.sourceConfig.owner as string;
+      const repo = nb.sourceConfig.repo as string;
+
+      try {
+        await publishBranch(owner, repo, branch, 'main', `Notebook.md: update from ${branch}`, true);
+        delete workingBranches.current[notebookId];
+        // Refresh files from main to get updated SHAs
+        await refreshFiles(notebookId);
+        // Update SHA on open tabs for this notebook (they now point at main)
+        setTabs((prev) =>
+          prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
+        );
+        flash('Changes published to main');
+      } catch (err) {
+        flash(`Publish failed: ${(err as Error).message}`);
+      }
+    },
+    [notebooks, refreshFiles, flash],
+  );
+
+  /** Check if a notebook has a working branch with unpublished changes */
+  const hasWorkingBranch = useCallback(
+    (notebookId: string) => !!workingBranches.current[notebookId],
+    [],
   );
 
   const handleContentChange = useCallback(
@@ -615,6 +686,8 @@ export function useNotebookManager(userId?: string | null) {
     handleContentChange,
     handleSave,
     handleTabClose,
+    handlePublish,
+    hasWorkingBranch,
     refreshFiles,
   };
 }

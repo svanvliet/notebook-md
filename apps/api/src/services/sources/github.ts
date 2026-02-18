@@ -49,10 +49,11 @@ function joinPath(prefix: string, relative: string): string {
 class GitHubAdapter implements SourceAdapter {
   readonly provider = 'github';
 
-  async listFiles(accessToken: string, rootPath: string, dirPath: string): Promise<FileEntry[]> {
+  async listFiles(accessToken: string, rootPath: string, dirPath: string, branch?: string): Promise<FileEntry[]> {
     const { owner, repo, prefix } = parseRoot(rootPath);
     const fullPath = joinPath(prefix, dirPath);
-    const url = `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`;
+    let url = `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`;
+    if (branch) url += `?ref=${encodeURIComponent(branch)}`;
 
     const res = await fetch(url, { headers: headers(accessToken) });
     if (!res.ok) {
@@ -82,14 +83,14 @@ class GitHubAdapter implements SourceAdapter {
       }));
   }
 
-  async readFile(accessToken: string, rootPath: string, filePath: string): Promise<FileContent> {
+  async readFile(accessToken: string, rootPath: string, filePath: string, branch?: string): Promise<FileContent> {
     const { owner, repo, prefix } = parseRoot(rootPath);
     const fullPath = joinPath(prefix, filePath);
 
-    const res = await fetch(
-      `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`,
-      { headers: headers(accessToken) },
-    );
+    let url = `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`;
+    if (branch) url += `?ref=${encodeURIComponent(branch)}`;
+
+    const res = await fetch(url, { headers: headers(accessToken) });
 
     if (!res.ok) throw new Error(`GitHub Contents API: ${res.status}`);
 
@@ -122,6 +123,7 @@ class GitHubAdapter implements SourceAdapter {
     filePath: string,
     content: string,
     sha?: string,
+    branch?: string,
   ): Promise<WriteResult> {
     const { owner, repo, prefix } = parseRoot(rootPath);
     const fullPath = joinPath(prefix, filePath);
@@ -131,6 +133,7 @@ class GitHubAdapter implements SourceAdapter {
       content: Buffer.from(content, 'utf-8').toString('base64'),
     };
     if (sha) body.sha = sha;
+    if (branch) body.branch = branch;
 
     const res = await fetch(
       `${API_BASE}/repos/${owner}/${repo}/contents/${encodePath(fullPath)}`,
@@ -156,10 +159,11 @@ class GitHubAdapter implements SourceAdapter {
     rootPath: string,
     filePath: string,
     content: string,
+    branch?: string,
   ): Promise<WriteResult> {
     // GitHub Contents API uses PUT for both create and update.
     // Omitting `sha` means create (fails if file exists).
-    return this.writeFile(accessToken, rootPath, filePath, content);
+    return this.writeFile(accessToken, rootPath, filePath, content, undefined, branch);
   }
 
   async deleteFile(

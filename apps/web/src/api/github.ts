@@ -110,31 +110,33 @@ function encodePath(filePath: string): string {
   return filePath.split('/').map(encodeURIComponent).join('/');
 }
 
-export async function listGitHubFiles(rootPath: string, dirPath = ''): Promise<GitHubFileEntry[]> {
+export async function listGitHubFiles(rootPath: string, dirPath = '', branch?: string): Promise<GitHubFileEntry[]> {
   const params = new URLSearchParams({ root: rootPath });
   if (dirPath) params.set('path', dirPath);
+  if (branch) params.set('branch', branch);
   const data = await api<{ entries: GitHubFileEntry[] }>(`/api/sources/github/files?${params}`);
   return data.entries;
 }
 
-export async function readGitHubFile(rootPath: string, filePath: string): Promise<GitHubFileContent> {
+export async function readGitHubFile(rootPath: string, filePath: string, branch?: string): Promise<GitHubFileContent> {
   const params = new URLSearchParams({ root: rootPath });
+  if (branch) params.set('branch', branch);
   return api(`/api/sources/github/files/${encodePath(filePath)}?${params}`);
 }
 
-export async function writeGitHubFile(rootPath: string, filePath: string, content: string, sha?: string): Promise<{ path: string; sha?: string }> {
+export async function writeGitHubFile(rootPath: string, filePath: string, content: string, sha?: string, branch?: string): Promise<{ path: string; sha?: string }> {
   const params = new URLSearchParams({ root: rootPath });
   return api(`/api/sources/github/files/${encodePath(filePath)}?${params}`, {
     method: 'PUT',
-    body: JSON.stringify({ content, sha }),
+    body: JSON.stringify({ content, sha, branch }),
   });
 }
 
-export async function createGitHubFile(rootPath: string, filePath: string, content = ''): Promise<{ path: string; sha?: string }> {
+export async function createGitHubFile(rootPath: string, filePath: string, content = '', branch?: string): Promise<{ path: string; sha?: string }> {
   const params = new URLSearchParams({ root: rootPath });
   return api(`/api/sources/github/files/${encodePath(filePath)}?${params}`, {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, branch }),
   });
 }
 
