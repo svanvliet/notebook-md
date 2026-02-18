@@ -26,3 +26,4 @@ pgdata/
 
 # Logs
 *.log
+.dev-logs/
