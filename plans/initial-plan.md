@@ -291,9 +291,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 4.2 Split View
 
-- [ ] Implement split pane within a single document tab: raw Markdown (left) ↔ WYSIWYG preview (right)
-- [ ] Synchronized scrolling between panes
-- [ ] Toggle split view via toolbar button or keyboard shortcut
+- [x] Implement split pane within a single document tab: raw Markdown (left) ↔ WYSIWYG preview (right)
+- [x] Synchronized scrolling between panes
+- [x] Toggle split view via toolbar button or keyboard shortcut
 
 ### 4.3 Drag and Drop
 

@@ -27,10 +27,15 @@ interface MarkdownEditorProps {
 }
 
 export function MarkdownEditor({ content, onChange, onWordCountChange }: MarkdownEditorProps) {
-  const [rawMode, setRawMode] = useState(false);
+  // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
+  type ViewMode = 'wysiwyg' | 'source' | 'split';
+  const [viewMode, setViewMode] = useState<ViewMode>('wysiwyg');
   const [rawContent, setRawContent] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const wysiwygScrollRef = useRef<HTMLDivElement>(null);
+  const syncingScroll = useRef(false);
 
   const extensions = [...getEditorExtensions(), SlashCommandExtension];
 
@@ -45,6 +50,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       onChange(html);
+
+      // Keep raw content in sync during split view
+      if (viewMode === 'split') {
+        setRawContent(htmlToMarkdown(html));
+      }
 
       // Word/char counts
       const text = editor.state.doc.textContent;
@@ -63,14 +73,13 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
 
-  // Keyboard shortcut: Cmd/Ctrl+Shift+M for raw toggle
+  // Keyboard shortcut: Cmd/Ctrl+Shift+M for raw toggle, Cmd/Ctrl+Shift+S for split
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'm') {
         e.preventDefault();
-        toggleRawMode();
+        cycleViewMode();
       }
-      // Cmd/Ctrl+P for print (override browser default)
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'p') {
         e.preventDefault();
         window.print();
@@ -80,20 +89,68 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     return () => document.removeEventListener('keydown', handler);
   });
 
-  const toggleRawMode = useCallback(() => {
+  const cycleViewMode = useCallback(() => {
     if (!editor) return;
 
-    if (!rawMode) {
-      // Switching to raw: convert HTML to Markdown
-      setRawContent(htmlToMarkdown(editor.getHTML()));
-    } else {
-      // Switching back to WYSIWYG: convert Markdown to HTML and load
-      const html = sanitize(markdownToHtml(rawContent));
-      editor.commands.setContent(html);
-      onChange(editor.getHTML());
-    }
-    setRawMode(!rawMode);
-  }, [editor, rawMode, rawContent, onChange]);
+    setViewMode((prev) => {
+      if (prev === 'wysiwyg') {
+        // → source: convert HTML to Markdown
+        setRawContent(htmlToMarkdown(editor.getHTML()));
+        return 'source';
+      } else if (prev === 'source') {
+        // → split: apply any source edits to editor first
+        const html = sanitize(markdownToHtml(rawContent));
+        editor.commands.setContent(html);
+        onChange(editor.getHTML());
+        setRawContent(htmlToMarkdown(editor.getHTML()));
+        return 'split';
+      } else {
+        // split → wysiwyg
+        return 'wysiwyg';
+      }
+    });
+  }, [editor, rawContent, onChange]);
+
+  // Handle source edits in split view — debounced sync to WYSIWYG
+  const sourceChangeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const handleSourceChange = useCallback(
+    (value: string) => {
+      setRawContent(value);
+      if (viewMode === 'split' && editor) {
+        clearTimeout(sourceChangeTimer.current);
+        sourceChangeTimer.current = setTimeout(() => {
+          const html = sanitize(markdownToHtml(value));
+          const currentHtml = editor.getHTML();
+          if (html !== currentHtml) {
+            editor.commands.setContent(html);
+            onChange(editor.getHTML());
+          }
+        }, 500);
+      }
+    },
+    [viewMode, editor, onChange],
+  );
+
+  // Synchronized scrolling between panes
+  const handleSourceScroll = useCallback(() => {
+    if (syncingScroll.current || !sourceRef.current || !wysiwygScrollRef.current) return;
+    syncingScroll.current = true;
+    const src = sourceRef.current;
+    const pct = src.scrollTop / (src.scrollHeight - src.clientHeight || 1);
+    const target = wysiwygScrollRef.current;
+    target.scrollTop = pct * (target.scrollHeight - target.clientHeight);
+    requestAnimationFrame(() => { syncingScroll.current = false; });
+  }, []);
+
+  const handleWysiwygScroll = useCallback(() => {
+    if (syncingScroll.current || !sourceRef.current || !wysiwygScrollRef.current) return;
+    syncingScroll.current = true;
+    const target = wysiwygScrollRef.current;
+    const pct = target.scrollTop / (target.scrollHeight - target.clientHeight || 1);
+    const src = sourceRef.current;
+    src.scrollTop = pct * (src.scrollHeight - src.clientHeight);
+    requestAnimationFrame(() => { syncingScroll.current = false; });
+  }, []);
 
   // Update word count on initial load
   useEffect(() => {
@@ -141,36 +198,89 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
       {/* Toolbar */}
       <div data-print="hide" className="border-b border-gray-200 dark:border-gray-800 px-3 py-1.5 flex items-center justify-between bg-white dark:bg-gray-950 shrink-0">
         <EditorToolbar editor={editor} />
-        <button
-          onClick={toggleRawMode}
-          className={`ml-2 px-1.5 py-1 rounded transition-colors shrink-0 ${
-            rawMode
-              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-          title="Toggle raw Markdown (⌘⇧M)"
-        >
-          <svg className="w-5 h-3.5" viewBox="0 0 208 128" fill="currentColor">
-            <rect x="5" y="5" width="198" height="118" rx="15" fill="none" stroke="currentColor" strokeWidth="10"/>
-            <path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0-30-33h20V30h20v35h20z"/>
-          </svg>
-        </button>
+        <div className="flex items-center gap-1 ml-2 shrink-0">
+          {/* Source toggle */}
+          <button
+            onClick={() => {
+              if (!editor) return;
+              if (viewMode === 'wysiwyg') {
+                setRawContent(htmlToMarkdown(editor.getHTML()));
+                setViewMode('source');
+              } else if (viewMode === 'source') {
+                const html = sanitize(markdownToHtml(rawContent));
+                editor.commands.setContent(html);
+                onChange(editor.getHTML());
+                setViewMode('wysiwyg');
+              } else {
+                // split → wysiwyg
+                setViewMode('wysiwyg');
+              }
+            }}
+            className={`px-1.5 py-1 rounded transition-colors ${
+              viewMode === 'source'
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+            title="Toggle source view (⌘⇧M)"
+          >
+            <svg className="w-5 h-3.5" viewBox="0 0 208 128" fill="currentColor">
+              <rect x="5" y="5" width="198" height="118" rx="15" fill="none" stroke="currentColor" strokeWidth="10"/>
+              <path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0-30-33h20V30h20v35h20z"/>
+            </svg>
+          </button>
+          {/* Split view toggle */}
+          <button
+            onClick={() => {
+              if (!editor) return;
+              if (viewMode !== 'split') {
+                setRawContent(htmlToMarkdown(editor.getHTML()));
+                setViewMode('split');
+              } else {
+                setViewMode('wysiwyg');
+              }
+            }}
+            className={`px-1.5 py-1 rounded transition-colors ${
+              viewMode === 'split'
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+            title="Toggle split view"
+          >
+            <svg className="w-4 h-3.5" viewBox="0 0 16 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="0.75" y="0.75" width="14.5" height="12.5" rx="2" />
+              <line x1="8" y1="1" x2="8" y2="13" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Editor area */}
-      <div className="flex-1 overflow-auto">
-        {rawMode ? (
+      <div className="flex-1 overflow-hidden flex">
+        {/* Source pane — shown in source-only or split mode */}
+        {(viewMode === 'source' || viewMode === 'split') && (
           <textarea
+            ref={sourceRef}
             value={rawContent}
-            onChange={(e) => setRawContent(e.target.value)}
-            className="w-full h-full resize-none font-mono text-sm p-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none"
+            onChange={(e) => handleSourceChange(e.target.value)}
+            onScroll={viewMode === 'split' ? handleSourceScroll : undefined}
+            className={`resize-none font-mono text-sm p-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none border-r border-gray-200 dark:border-gray-800 ${
+              viewMode === 'split' ? 'w-1/2' : 'w-full h-full'
+            }`}
             spellCheck={false}
           />
-        ) : (
+        )}
+        {/* WYSIWYG pane — shown in wysiwyg-only or split mode */}
+        {(viewMode === 'wysiwyg' || viewMode === 'split') && (
           <div
-            ref={editorWrapperRef}
-            className="relative editor-wrapper"
+            ref={(el) => {
+              (editorWrapperRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+              (wysiwygScrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+            }}
+            className={`relative editor-wrapper overflow-auto ${
+              viewMode === 'split' ? 'w-1/2' : 'w-full'
+            }`}
             onContextMenu={handleContextMenu}
+            onScroll={viewMode === 'split' ? handleWysiwygScroll : undefined}
           >
             <EditorContent editor={editor} />
             <SlashCommandMenu editor={editor} />
