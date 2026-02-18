@@ -426,6 +426,62 @@ User tested Phase 2 deliverables before proceeding to Phase 3:
 
 ---
 
+## Phase 3 Prep: OAuth Provider Registration
+
+**Started:** 2026-02-18  
+**Plan:** `plans/auth-provider-plan.md`
+
+### 3-Prep.1 — GitHub OAuth App (Sign-In) — COMPLETED ✅
+
+Registered a GitHub OAuth App for "Sign in with GitHub" on the welcome screen.
+
+**What was done:**
+- Created GitHub OAuth App "Notebook.md (Dev)" at github.com/settings/developers
+  - Homepage: `http://localhost:5173`
+  - Callback: `http://localhost:3001/auth/oauth/github/callback`
+- Added `dotenv` to the API with explicit path resolution for monorepo workspace (`apps/api/` CWD doesn't find root `.env`)
+- Added `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` to `.env`
+- Verified GitHub appears in `/auth/oauth/providers` endpoint
+
+**Bugs found and fixed during integration testing:**
+1. **dotenv CWD issue:** `import 'dotenv/config'` loads `.env` from CWD, but `npx --workspace=apps/api` sets CWD to `apps/api/`, not the repo root. Fixed with explicit path: `dotenv.config({ path: resolve(__dirname, '../../../.env') })`.
+2. **OAuth error redirect (Vite proxy):** Error redirects to `/auth/error` were proxied to the API by Vite. Changed all OAuth error redirects to `/app/auth-error` to bypass proxy.
+3. **Duplicate email security:** When GitHub email matched an existing email+password account, code tried to create a new user → unique constraint violation. Fixed: now throws `ACCOUNT_EXISTS_EMAIL_PASSWORD`, redirects to `/app/auth-error?error=account_exists&provider=github`, and displays a friendly message telling the user to sign in with email/password then link GitHub from Account Settings.
+4. **OAuth error display race condition:** `auth.setError()` from a useEffect was being overwritten by the auth hook's `/auth/me` check (which sets `error: null` on 401). Fixed by using a `useState` initializer to capture the OAuth error synchronously before any effects run.
+5. **Persistent OAuth error:** The `oauthError` state was never cleared, so it persisted through sign-in form submissions. Fixed by: (a) making `oauthError` clearable via setter, (b) calling `onClearError` before sign-in/sign-up form submissions, (c) passing `oauthError ?? auth.error` to WelcomeScreen.
+6. **WelcomeScreen auto-redirect:** After OAuth error redirect, user landed on the "choose method" view, not the sign-in form. Fixed by initializing WelcomeScreen's `view` state to `'signin'` when an error is present.
+7. **Test database isolation:** `cleanDb()` in API tests was wiping the dev database. Created separate `notebookmd_test` database: vitest env sets `DB_NAME=notebookmd_test`, globalSetup runs migrations, `dev.sh` auto-creates + migrates the test DB on startup.
+8. **dev.sh variable bug:** Used `$DOCKER` (undefined) instead of `docker` in test DB creation commands.
+
+**Files changed:**
+- `apps/api/src/index.ts` — Added dotenv with explicit path
+- `apps/api/src/routes/oauth.ts` — Error redirects use `/app/auth-error`, handle `ACCOUNT_EXISTS_EMAIL_PASSWORD`
+- `apps/api/src/services/account-link.ts` — Throw specific error instead of falling through to INSERT
+- `apps/api/package.json` — Added dotenv dependency
+- `apps/web/src/App.tsx` — OAuth error via useState initializer, clearable
+- `apps/web/src/hooks/useAuth.ts` — Added `setError` method
+- `apps/web/src/components/welcome/WelcomeScreen.tsx` — Auto-switch to signin view on error, clear error on submit
+- `apps/api/vitest.config.ts` — DB_NAME=notebookmd_test, globalSetup
+- `apps/api/src/tests/globalSetup.ts` — New: runs migrations on test DB
+- `docker-compose.yml` — Mount initdb scripts for test DB creation
+- `docker/initdb/01-create-test-db.sql` — New: CREATE DATABASE notebookmd_test
+- `dev.sh` — Auto-create and migrate test DB
+- `.gitignore` — Added `docker/secrets/` and `*.pem`
+
+**Verified:**
+- ✅ GitHub OAuth sign-in works end-to-end (new user creation)
+- ✅ Duplicate email protection blocks account takeover (email+password ↔ OAuth)
+- ✅ Error message displays correctly and clears on form interaction
+- ✅ All 52 API tests pass (using isolated test database)
+- ✅ Dev database preserved after test runs
+- ✅ TypeScript compiles cleanly (API + Web)
+
+### 3-Prep.2 — GitHub App (Repo Access) — IN PROGRESS
+
+Next step per `plans/auth-provider-plan.md` §1b.
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
