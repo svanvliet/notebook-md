@@ -93,7 +93,7 @@ router.get('/install/callback', async (req: Request, res: Response) => {
       account: installData.account.login,
     });
 
-    res.redirect(`${APP_URL}/settings?github_installed=true&account=${installData.account.login}`);
+    res.redirect(`${APP_URL}/?source=github&github_installed=true&account=${installData.account.login}`);
   } catch (err) {
     logger.error('GitHub install callback failed', { error: (err as Error).message });
     res.redirect(`${APP_URL}/settings?error=github_install_failed`);
