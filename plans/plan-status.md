@@ -933,6 +933,54 @@ Commit: `ca2720a`
 
 ---
 
+### Phase 3.12: Google Drive Integration (Phase 3.3) — COMPLETED ✅
+
+**Backend:**
+- `apps/api/src/services/sources/googledrive.ts` — Full SourceAdapter using Google Drive API v3
+  - ID-based architecture: resolves relative paths to Google Drive file IDs by walking parent→child
+  - All CRUD operations: listFiles, readFile, writeFile (PATCH upload), createFile (multipart upload), deleteFile (trash), renameFile (with move support)
+  - Uses `resolvePathToId()` to bridge the path-based SourceAdapter interface with Google's ID-based API
+- `apps/api/src/routes/googledrive.ts` — Google Drive–specific endpoints:
+  - `GET /api/googledrive/status` — Check linked status; distinguishes "not linked" from "linked but insufficient scope"
+  - `GET /api/googledrive/folders` — Browse Drive folders by parent ID (for folder picker)
+- `apps/api/src/services/oauth/google.ts` — Updated scope: added `https://www.googleapis.com/auth/drive` (full read/write)
+- `apps/api/src/routes/sources.ts` — Source proxy maps `google-drive → google` for OAuth token lookup
+- Registered adapter and routes in `app.ts`
+
+**Frontend:**
+- `apps/web/src/api/googledrive.ts` — Client API wrapper (status, folders, list, read, write, create, delete)
+- `AddNotebookModal.tsx` — GoogleDriveConfig component:
+  - ID-based folder picker with breadcrumb navigation (green-themed)
+  - Distinguishes "not linked" vs "linked but needs re-auth for Drive scope"
+  - OAuth link flow with `returnTo=/?source=google-drive`
+- `SourceTypes.tsx` — Google Drive set to `available: true`
+- `useNotebookManager.ts` — Google Drive operations:
+  - `fetchGoogleDriveTreeRecursive()` for file tree loading
+  - Google Drive handling in `refreshFiles`, `handleCreateFile`, `handleOpenFile`, `saveTab`
+
+**Scope decision:** Used `https://www.googleapis.com/auth/drive` (full access) instead of `drive.file` because the app needs to browse and edit existing files in user-selected folders, not just files created by the app.
+
+**Tests: 13 new tests (152 total)**
+- `apps/api/src/tests/googledrive-routes.test.ts`:
+  - Status endpoint: linked/unlinked/expired token states (3 tests)
+  - Folder browsing: auth required (2 tests)
+  - Source proxy: auth required for list/read/write/create/delete (5 tests)
+  - Adapter registration: google-drive registered (1 test)
+  - OAuth provider mapping: google-drive → google (1 test)
+  - OAuth scope: auth URL includes drive scope (1 test)
+
+Commits: `4b91cbd`, `7f3b196`, `b63971e`
+
+**Verification completed:**
+- [x] Google OAuth consent with drive scope
+- [x] Add Google Drive notebook: browse folders → select → create
+- [ ] Open .md file from Google Drive
+- [ ] Edit and save changes
+- [ ] Create new file in Google Drive notebook
+- [ ] Verify changes on Google Drive web (drive.google.com)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

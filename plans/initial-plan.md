@@ -235,11 +235,11 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 3.3 Google Drive Integration
 
-- [ ] Register Google Cloud project + OAuth consent screen
-- [ ] Implement OAuth flow for Google (§2.1)
-- [ ] Request scope: `drive.file` + `profile` + `email`
-- [ ] Implement Google Drive API proxy endpoints (same operations as OneDrive)
-- [ ] Google Drive icon in notebook tree
+- [x] Register Google Cloud project + OAuth consent screen
+- [x] Implement OAuth flow for Google (§2.1)
+- [x] Request scope: `drive` + `profile` + `email`
+- [x] Implement Google Drive API proxy endpoints (same operations as OneDrive)
+- [x] Google Drive icon in notebook tree
 - [ ] Manual and auto-save (same debounce as OneDrive)
 
 ### 3.4 GitHub Integration
