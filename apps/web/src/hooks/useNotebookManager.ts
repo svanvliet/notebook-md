@@ -19,6 +19,7 @@ import {
   listGitHubFiles,
   readGitHubFile,
   writeGitHubFile,
+  createGitHubFile,
   type GitHubFileEntry,
 } from '../api/github';
 
@@ -227,13 +228,27 @@ export function useNotebookManager(userId?: string | null) {
           if (type === 'file' && !name.includes('.')) {
             name = `${name}.md`;
           }
-          await createFile(notebookId, parentPath, name, type);
-          await refreshFiles(notebookId);
-          flash(`Created ${type} "${name}"`);
+          const nb = notebooks.find((n) => n.id === notebookId);
+          if (nb?.sourceType === 'github') {
+            // Create file via GitHub API
+            const rootPath = nb.sourceConfig.rootPath as string;
+            const filePath = parentPath ? `${parentPath}/${name}` : name;
+            try {
+              await createGitHubFile(rootPath, filePath, '');
+              await refreshFiles(notebookId);
+              flash(`Created ${type} "${name}"`);
+            } catch (err) {
+              flash(`Failed to create file: ${(err as Error).message}`);
+            }
+          } else {
+            await createFile(notebookId, parentPath, name, type);
+            await refreshFiles(notebookId);
+            flash(`Created ${type} "${name}"`);
+          }
         },
       });
     },
-    [refreshFiles, flash],
+    [notebooks, refreshFiles, flash],
   );
 
   // Import a file from the user's device
