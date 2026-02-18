@@ -25,12 +25,20 @@ export interface OpenTab {
   lastSaved: number | null;
 }
 
+export interface ModalRequest {
+  title: string;
+  label: string;
+  placeholder?: string;
+  onSubmit: (value: string) => void;
+}
+
 export function useNotebookManager() {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [modalRequest, setModalRequest] = useState<ModalRequest | null>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Show a temporary status bar message
@@ -60,21 +68,19 @@ export function useNotebookManager() {
 
   // --- Notebook operations ---
 
-  const handleCreateNotebook = useCallback(async () => {
-    const name = prompt('Notebook name:');
-    if (!name?.trim()) return;
-
-    const nb = await createNotebook(name.trim());
-    setNotebooks((prev) => [...prev, nb]);
-    setFiles((prev) => ({ ...prev, [nb.id]: [] }));
-    flash(`Created notebook "${nb.name}"`);
-
-    // Show browser storage warning
-    alert(
-      'Local notebooks are stored in your browser\'s IndexedDB.\n\n' +
-      'Clearing your browser data will permanently delete this notebook\'s content.\n\n' +
-      'Consider backing up important files regularly.',
-    );
+  const handleCreateNotebook = useCallback(() => {
+    setModalRequest({
+      title: 'New Notebook',
+      label: 'Notebook name',
+      placeholder: 'My Notebook',
+      onSubmit: async (name: string) => {
+        setModalRequest(null);
+        const nb = await createNotebook(name);
+        setNotebooks((prev) => [...prev, nb]);
+        setFiles((prev) => ({ ...prev, [nb.id]: [] }));
+        flash(`Created notebook "${nb.name}"`);
+      },
+    });
   }, [flash]);
 
   const handleDeleteNotebook = useCallback(async (id: string) => {
@@ -110,20 +116,22 @@ export function useNotebookManager() {
   // --- File operations ---
 
   const handleCreateFile = useCallback(
-    async (notebookId: string, parentPath: string, type: 'file' | 'folder') => {
-      const label = type === 'folder' ? 'Folder name:' : 'File name:';
-      let name = prompt(label);
-      if (!name?.trim()) return;
-      name = name.trim();
-
-      // Auto-append .md if creating a file with no extension
-      if (type === 'file' && !name.includes('.')) {
-        name = `${name}.md`;
-      }
-
-      await createFile(notebookId, parentPath, name, type);
-      await refreshFiles(notebookId);
-      flash(`Created ${type} "${name}"`);
+    (notebookId: string, parentPath: string, type: 'file' | 'folder') => {
+      setModalRequest({
+        title: type === 'folder' ? 'New Folder' : 'New File',
+        label: type === 'folder' ? 'Folder name' : 'File name',
+        placeholder: type === 'folder' ? 'my-folder' : 'untitled.md',
+        onSubmit: async (rawName: string) => {
+          setModalRequest(null);
+          let name = rawName;
+          if (type === 'file' && !name.includes('.')) {
+            name = `${name}.md`;
+          }
+          await createFile(notebookId, parentPath, name, type);
+          await refreshFiles(notebookId);
+          flash(`Created ${type} "${name}"`);
+        },
+      });
     },
     [refreshFiles, flash],
   );
@@ -313,6 +321,8 @@ export function useNotebookManager() {
     activeTabId,
     activeTab,
     statusMessage,
+    modalRequest,
+    setModalRequest,
     setActiveTabId,
     handleCreateNotebook,
     handleDeleteNotebook,

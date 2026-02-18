@@ -5,6 +5,7 @@ import { DocumentPane } from './components/layout/DocumentPane';
 import type { Tab } from './components/layout/DocumentPane';
 import { StatusBar } from './components/layout/StatusBar';
 import { WelcomeScreen } from './components/welcome/WelcomeScreen';
+import { InputModal } from './components/common/InputModal';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
@@ -89,6 +90,17 @@ export default function App() {
         lastSaved={lastSaved}
         message={nb.statusMessage}
       />
+
+      {/* Input modal for notebook/file creation */}
+      {nb.modalRequest && (
+        <InputModal
+          title={nb.modalRequest.title}
+          label={nb.modalRequest.label}
+          placeholder={nb.modalRequest.placeholder}
+          onSubmit={nb.modalRequest.onSubmit}
+          onCancel={() => nb.setModalRequest(null)}
+        />
+      )}
     </div>
   );
 }
