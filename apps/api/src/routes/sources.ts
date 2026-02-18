@@ -57,8 +57,8 @@ async function resolveProvider(req: Request, res: Response): Promise<{ adapter: 
   // Get valid access token — GitHub uses installation tokens, others use OAuth tokens
   let accessToken: string | null = null;
 
-  // Map source adapter names to their OAuth provider (e.g., onedrive → microsoft)
-  const oauthProvider = provider === 'onedrive' ? 'microsoft' : provider;
+  // Map source adapter names to their OAuth provider (e.g., onedrive → microsoft, google-drive → google)
+  const oauthProvider = provider === 'onedrive' ? 'microsoft' : provider === 'google-drive' ? 'google' : provider;
 
   if (provider === 'github') {
     // Extract owner from rootPath query param (format: "owner/repo" or "owner/repo/subpath")

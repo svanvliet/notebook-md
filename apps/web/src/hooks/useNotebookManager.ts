@@ -30,6 +30,12 @@ import {
   writeOneDriveFile,
   createOneDriveFile,
 } from '../api/onedrive';
+import {
+  listGoogleDriveFiles,
+  readGoogleDriveFile,
+  writeGoogleDriveFile,
+  createGoogleDriveFile,
+} from '../api/googledrive';
 
 const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
 
@@ -171,6 +177,35 @@ export function useNotebookManager(userId?: string | null) {
     return results;
   }
 
+  /** Recursively fetch all Google Drive files/folders into a flat list */
+  async function fetchGoogleDriveTreeRecursive(
+    rootFolderId: string,
+    notebookId: string,
+    dirPath: string,
+    parentPath: string,
+  ): Promise<FileEntry[]> {
+    const entries = await listGoogleDriveFiles(rootFolderId, dirPath);
+    const fileEntries: FileEntry[] = entries.map((e) => ({
+      id: `${notebookId}:${e.path}`,
+      notebookId,
+      path: e.path,
+      name: e.name,
+      type: e.type,
+      parentPath,
+      content: '',
+      createdAt: Date.now(),
+      updatedAt: e.lastModified ? new Date(e.lastModified).getTime() : Date.now(),
+    }));
+    const results: FileEntry[] = [...fileEntries];
+    for (const entry of fileEntries) {
+      if (entry.type === 'folder') {
+        const children = await fetchGoogleDriveTreeRecursive(rootFolderId, notebookId, entry.path, entry.path);
+        results.push(...children);
+      }
+    }
+    return results;
+  }
+
   const refreshFiles = useCallback(async (notebookId: string) => {
     const nb = notebooks.find((n) => n.id === notebookId);
     if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
@@ -188,6 +223,14 @@ export function useNotebookManager(userId?: string | null) {
       try {
         const rootPath = nb.sourceConfig.rootPath as string;
         const allEntries = await fetchOneDriveTreeRecursive(rootPath, notebookId, '', '');
+        setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+      } catch (err) {
+        flash(`Failed to load files: ${(err as Error).message}`);
+      }
+    } else if (nb.sourceType === 'google-drive') {
+      try {
+        const rootFolderId = nb.sourceConfig.rootPath as string;
+        const allEntries = await fetchGoogleDriveTreeRecursive(rootFolderId, notebookId, '', '');
         setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
       } catch (err) {
         flash(`Failed to load files: ${(err as Error).message}`);
@@ -349,6 +392,16 @@ export function useNotebookManager(userId?: string | null) {
             const filePath = parentPath ? `${parentPath}/${name}` : name;
             try {
               await createOneDriveFile(rootPath, filePath, '');
+              await refreshFiles(notebookId);
+              flash(`Created ${type} "${name}"`);
+            } catch (err) {
+              flash(`Failed to create file: ${(err as Error).message}`);
+            }
+          } else if (nb?.sourceType === 'google-drive') {
+            const rootFolderId = nb.sourceConfig.rootPath as string;
+            const filePath = parentPath ? `${parentPath}/${name}` : name;
+            try {
+              await createGoogleDriveFile(rootFolderId, filePath, '');
               await refreshFiles(notebookId);
               flash(`Created ${type} "${name}"`);
             } catch (err) {
@@ -561,6 +614,35 @@ export function useNotebookManager(userId?: string | null) {
         return;
       }
 
+      if (nb && nb.sourceType === 'google-drive') {
+        // Fetch from Google Drive API
+        try {
+          const rootFolderId = nb.sourceConfig.rootPath as string;
+          const file = await readGoogleDriveFile(rootFolderId, path);
+          let content = file.content;
+          if (isMarkdownContent(content)) {
+            content = markdownToHtml(content);
+          }
+
+          const tab: OpenTab = {
+            id: tabId,
+            notebookId,
+            path,
+            name: file.name,
+            content,
+            savedContent: file.content,
+            hasUnsavedChanges: false,
+            lastSaved: Date.now(),
+            sha: file.sha,
+          };
+          setTabs((prev) => [...prev, tab]);
+          setActiveTabId(tabId);
+        } catch (err) {
+          flash(`Failed to open file: ${(err as Error).message}`);
+        }
+        return;
+      }
+
       // Local file
       const entry = await getFile(notebookId, path);
       if (!entry || entry.type === 'folder') return;
@@ -607,6 +689,11 @@ export function useNotebookManager(userId?: string | null) {
       if (nb && nb.sourceType === 'onedrive') {
         const rootPath = nb.sourceConfig.rootPath as string;
         const result = await writeOneDriveFile(rootPath, tab.path, markdown, tab.sha);
+        return result.sha ?? undefined;
+      }
+      if (nb && nb.sourceType === 'google-drive') {
+        const rootFolderId = nb.sourceConfig.rootPath as string;
+        const result = await writeGoogleDriveFile(rootFolderId, tab.path, markdown, tab.sha);
         return result.sha ?? undefined;
       }
       // Local save

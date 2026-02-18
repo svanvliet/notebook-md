@@ -32,7 +32,7 @@ export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
     label: 'Google Drive',
     icon: GoogleDriveIcon,
     color: 'text-green-500',
-    available: false,
+    available: true,
   },
   icloud: {
     label: 'iCloud',
