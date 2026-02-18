@@ -59,6 +59,7 @@ interface NotebookTreeProps {
   onDeleteFile: (notebookId: string, path: string) => void;
   onRenameFile: (notebookId: string, path: string, newName: string) => void;
   onOpenFile: (notebookId: string, path: string) => void;
+  onExpandNotebook?: (notebookId: string) => void;
   activeFilePath: string | null;
 }
 
@@ -73,6 +74,7 @@ export function NotebookTree({
   onDeleteFile,
   onRenameFile,
   onOpenFile,
+  onExpandNotebook,
   activeFilePath,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
@@ -104,10 +106,16 @@ export function NotebookTree({
   const toggleNotebook = useCallback((id: string) => {
     setExpandedNotebooks((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        // Notify parent to load files for remote notebooks
+        onExpandNotebook?.(id);
+      }
       return next;
     });
-  }, []);
+  }, [onExpandNotebook]);
 
   const toggleFolder = useCallback((key: string) => {
     setExpandedFolders((prev) => {

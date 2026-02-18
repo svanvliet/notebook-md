@@ -31,6 +31,7 @@ interface NotebookPaneProps {
   onDeleteFile: (notebookId: string, path: string) => void;
   onRenameFile: (notebookId: string, path: string, newName: string) => void;
   onOpenFile: (notebookId: string, path: string) => void;
+  onExpandNotebook?: (notebookId: string) => void;
   activeFilePath: string | null;
 }
 
@@ -49,6 +50,7 @@ export function NotebookPane({
   onDeleteFile,
   onRenameFile,
   onOpenFile,
+  onExpandNotebook,
   activeFilePath,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
@@ -155,6 +157,7 @@ export function NotebookPane({
             onDeleteFile={onDeleteFile}
             onRenameFile={onRenameFile}
             onOpenFile={onOpenFile}
+            onExpandNotebook={onExpandNotebook}
             activeFilePath={activeFilePath}
           />
         </div>

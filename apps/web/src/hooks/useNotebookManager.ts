@@ -15,6 +15,14 @@ import {
   type FileEntry,
 } from '../stores/localNotebookStore';
 import { markdownToHtml, isMarkdownContent } from '../components/editor/markdownConverter';
+import {
+  listGitHubFiles,
+  readGitHubFile,
+  writeGitHubFile,
+  type GitHubFileEntry,
+} from '../api/github';
+
+const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
 
 export interface OpenTab {
   id: string; // "notebookId:path"
@@ -25,6 +33,8 @@ export interface OpenTab {
   savedContent: string;
   hasUnsavedChanges: boolean;
   lastSaved: number | null;
+  /** Git blob SHA — needed for GitHub file updates */
+  sha?: string;
 }
 
 export interface ModalRequest {
@@ -65,7 +75,10 @@ export function useNotebookManager(userId?: string | null) {
       setNotebooks(nbs);
       const fileMap: Record<string, FileEntry[]> = {};
       for (const nb of nbs) {
-        fileMap[nb.id] = await listFiles(nb.id);
+        if (nb.sourceType === 'local' || !nb.sourceType) {
+          fileMap[nb.id] = await listFiles(nb.id);
+        }
+        // Remote notebooks load their tree on expand (lazy)
       }
       setFiles(fileMap);
       // Clear tabs when switching users
@@ -74,10 +87,47 @@ export function useNotebookManager(userId?: string | null) {
     })();
   }, [userId]);
 
+  /** Get a notebook by ID from current state */
+  const getNotebook = useCallback(
+    (id: string) => notebooks.find((n) => n.id === id),
+    [notebooks],
+  );
+
+  /** Convert GitHub API entries to local FileEntry shape for the tree */
+  function githubToFileEntries(notebookId: string, entries: GitHubFileEntry[], parentPath: string): FileEntry[] {
+    return entries
+      .filter((e) => {
+        if (e.type === 'folder') return true;
+        const ext = e.name.split('.').pop()?.toLowerCase() ?? '';
+        return EDITABLE_EXTS.has(ext);
+      })
+      .map((e) => ({
+        path: e.path,
+        notebookId,
+        name: e.name,
+        type: e.type,
+        parentPath,
+        content: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+  }
+
   const refreshFiles = useCallback(async (notebookId: string) => {
-    const entries = await listFiles(notebookId);
-    setFiles((prev) => ({ ...prev, [notebookId]: entries }));
-  }, []);
+    const nb = notebooks.find((n) => n.id === notebookId);
+    if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
+      const entries = await listFiles(notebookId);
+      setFiles((prev) => ({ ...prev, [notebookId]: entries }));
+    } else if (nb.sourceType === 'github') {
+      try {
+        const rootPath = nb.sourceConfig.rootPath as string;
+        const entries = await listGitHubFiles(rootPath);
+        setFiles((prev) => ({ ...prev, [notebookId]: githubToFileEntries(notebookId, entries, '') }));
+      } catch (err) {
+        flash(`Failed to load files: ${(err as Error).message}`);
+      }
+    }
+  }, [notebooks, flash]);
 
   // --- Notebook operations ---
 
@@ -322,6 +372,38 @@ export function useNotebookManager(userId?: string | null) {
         return;
       }
 
+      const nb = notebooks.find((n) => n.id === notebookId);
+
+      if (nb && nb.sourceType === 'github') {
+        // Fetch from GitHub API
+        try {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          const file = await readGitHubFile(rootPath, path);
+          let content = file.content;
+          if (isMarkdownContent(content)) {
+            content = markdownToHtml(content);
+          }
+
+          const tab: OpenTab = {
+            id: tabId,
+            notebookId,
+            path,
+            name: file.name,
+            content,
+            savedContent: file.content,
+            hasUnsavedChanges: false,
+            lastSaved: Date.now(),
+            sha: file.sha,
+          };
+          setTabs((prev) => [...prev, tab]);
+          setActiveTabId(tabId);
+        } catch (err) {
+          flash(`Failed to open file: ${(err as Error).message}`);
+        }
+        return;
+      }
+
+      // Local file
       const entry = await getFile(notebookId, path);
       if (!entry || entry.type === 'folder') return;
 
@@ -345,12 +427,28 @@ export function useNotebookManager(userId?: string | null) {
       setTabs((prev) => [...prev, tab]);
       setActiveTabId(tabId);
     },
-    [tabs],
+    [tabs, notebooks, flash],
   );
 
-  // --- Content change (auto-save for local notebooks) ---
+  // --- Content change (auto-save) ---
 
   const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  /** Save a tab's content to the appropriate backend */
+  const saveTab = useCallback(
+    async (tab: OpenTab): Promise<string | undefined> => {
+      const nb = notebooks.find((n) => n.id === tab.notebookId);
+      if (nb && nb.sourceType === 'github') {
+        const rootPath = nb.sourceConfig.rootPath as string;
+        const result = await writeGitHubFile(rootPath, tab.path, tab.content, tab.sha);
+        return result.sha ?? undefined;
+      }
+      // Local save
+      await saveFileContent(tab.notebookId, tab.path, tab.content);
+      return undefined;
+    },
+    [notebooks],
+  );
 
   const handleContentChange = useCallback(
     (tabId: string, html: string) => {
@@ -362,7 +460,13 @@ export function useNotebookManager(userId?: string | null) {
         ),
       );
 
-      // Auto-save with debounce (1 second)
+      // Auto-save with debounce (local: 1s, GitHub: 5s to avoid spamming)
+      const nb = notebooks.find((n) => {
+        const nbId = tabId.split(':')[0];
+        return n.id === nbId;
+      });
+      const delay = nb?.sourceType === 'github' ? 5000 : 1000;
+
       if (autoSaveTimers.current[tabId]) {
         clearTimeout(autoSaveTimers.current[tabId]);
       }
@@ -371,12 +475,12 @@ export function useNotebookManager(userId?: string | null) {
         setTabs((prev) => {
           const current = prev.find((t) => t.id === tabId);
           if (current && current.hasUnsavedChanges) {
-            saveFileContent(current.notebookId, current.path, current.content)
-              .then(() => {
+            saveTab(current)
+              .then((newSha) => {
                 setTabs((p) =>
                   p.map((t) =>
                     t.id === tabId
-                      ? { ...t, savedContent: t.content, hasUnsavedChanges: false, lastSaved: Date.now() }
+                      ? { ...t, savedContent: t.content, hasUnsavedChanges: false, lastSaved: Date.now(), sha: newSha ?? t.sha }
                       : t,
                   ),
                 );
@@ -385,9 +489,9 @@ export function useNotebookManager(userId?: string | null) {
           }
           return prev;
         });
-      }, 1000);
+      }, delay);
     },
-    [flash],
+    [flash, notebooks, saveTab],
   );
 
   // --- Manual save (Cmd+S) ---
@@ -403,11 +507,11 @@ export function useNotebookManager(userId?: string | null) {
     if (!tabToSave || !tabToSave.hasUnsavedChanges) return;
 
     try {
-      await saveFileContent(tabToSave.notebookId, tabToSave.path, tabToSave.content);
+      const newSha = await saveTab(tabToSave);
       setTabs((prev) =>
         prev.map((t) =>
           t.id === tabToSave!.id
-            ? { ...t, savedContent: t.content, hasUnsavedChanges: false, lastSaved: Date.now() }
+            ? { ...t, savedContent: t.content, hasUnsavedChanges: false, lastSaved: Date.now(), sha: newSha ?? t.sha }
             : t,
         ),
       );
@@ -415,7 +519,7 @@ export function useNotebookManager(userId?: string | null) {
     } catch {
       flash('Failed to save');
     }
-  }, [activeTabId, flash]);
+  }, [activeTabId, flash, saveTab]);
 
   // Register Cmd/Ctrl+S globally
   useEffect(() => {
@@ -476,5 +580,6 @@ export function useNotebookManager(userId?: string | null) {
     handleContentChange,
     handleSave,
     handleTabClose,
+    refreshFiles,
   };
 }

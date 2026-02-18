@@ -194,6 +194,16 @@ export default function App() {
           onDeleteFile={nb.handleDeleteFile}
           onRenameFile={nb.handleRenameFile}
           onOpenFile={nb.handleOpenFile}
+          onExpandNotebook={(notebookId: string) => {
+            // Lazy-load files for remote notebooks when expanded
+            const notebook = nb.notebooks.find((n) => n.id === notebookId);
+            if (notebook && notebook.sourceType !== 'local' && notebook.sourceType) {
+              // Only fetch if we don't already have files for this notebook
+              if (!nb.files[notebookId] || nb.files[notebookId].length === 0) {
+                nb.refreshFiles(notebookId);
+              }
+            }
+          }}
           activeFilePath={nb.activeTabId}
         />
         <DocumentPane
