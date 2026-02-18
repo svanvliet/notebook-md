@@ -28,11 +28,12 @@ import {
 interface AddNotebookModalProps {
   onAdd: (name: string, sourceType: SourceType, sourceConfig: Record<string, unknown>) => void;
   onCancel: () => void;
+  userId?: string;
 }
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, userId }: AddNotebookModalProps) {
   const [step, setStep] = useState<Step>('source');
   const [sourceType, setSourceType] = useState<SourceType | null>(null);
   const [sourceConfig, setSourceConfig] = useState<Record<string, unknown>>({});
@@ -102,7 +103,7 @@ export function AddNotebookModal({ onAdd, onCancel }: AddNotebookModalProps) {
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
           )}
           {step === 'configure' && sourceType === 'onedrive' && (
-            <OneDriveConfig onConfigured={handleConfigured} onBack={goBack} />
+            <OneDriveConfig onConfigured={handleConfigured} onBack={goBack} userId={userId} />
           )}
           {step === 'configure' && sourceType && sourceType !== 'github' && sourceType !== 'onedrive' && (
             <ComingSoon sourceType={sourceType} onBack={goBack} />
@@ -321,7 +322,13 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
 
 // ── Step 2b: OneDrive config ──────────────────────────────────────────────
 
-function OneDriveConfig({ onConfigured, onBack }: { onConfigured: (config: Record<string, unknown>, name: string) => void; onBack: () => void }) {
+interface OneDriveConfigProps {
+  onConfigured: (config: Record<string, unknown>, name: string) => void;
+  onBack: () => void;
+  userId?: string;
+}
+
+function OneDriveConfig({ onConfigured, onBack, userId }: OneDriveConfigProps) {
   const [loading, setLoading] = useState(true);
   const [linked, setLinked] = useState(false);
   const [folders, setFolders] = useState<OneDriveFolder[]>([]);
@@ -407,7 +414,13 @@ function OneDriveConfig({ onConfigured, onBack }: { onConfigured: (config: Recor
         </p>
         <div className="flex gap-2">
           <button onClick={onBack} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Back</button>
-          <button onClick={() => window.location.href = '/auth/oauth/microsoft'} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
+          <button onClick={() => {
+              const params = new URLSearchParams({
+                returnTo: '/?source=onedrive',
+                ...(userId ? { linkToUser: userId } : {}),
+              });
+              window.location.href = `/auth/oauth/microsoft?${params.toString()}`;
+            }} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
             <SourceIcon sourceType="onedrive" className="w-4 h-4" />
             Link Microsoft Account
           </button>

@@ -72,6 +72,14 @@ export default function App() {
     if (params.has('auth')) {
       params.delete('auth');
       params.delete('new');
+
+      // Auto-open Add Notebook modal if returning from provider linking
+      const source = params.get('source');
+      if (source) {
+        params.delete('source');
+        setShowAddNotebook(true);
+      }
+
       const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
@@ -288,6 +296,7 @@ export default function App() {
             nb.handleAddNotebook(name, sourceType, sourceConfig);
           }}
           onCancel={() => setShowAddNotebook(false)}
+          userId={auth.user?.id}
         />
       )}
     </div>
