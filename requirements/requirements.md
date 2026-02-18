@@ -357,6 +357,22 @@ When a user inserts an image or media file into a document (via toolbar, slash c
 - **Maximum upload size:** 10 MB per file
 - **Inline preview:** When a media file is referenced in a Markdown document, the WYSIWYG editor renders it inline as a preview (images displayed at natural size within the content flow; videos rendered as an embedded player)
 
+### 4.12 Print / Export PDF
+
+Users should be able to print or export the current document as a clean PDF:
+
+- **Trigger:** A "Print" button in the toolbar and standard keyboard shortcut (`Ctrl/Cmd + P`)
+- **Approach:** CSS `@media print` stylesheet + browser-native `window.print()`
+- **Print view removes all UI chrome:** toolbar, sidebar/notebook pane, tabs, status bar, and any modals or toasts are hidden; only the rendered document content is displayed
+- **Document fills full page width** with appropriate print margins
+- **Respects document margin settings:** the user's chosen margin preference (regular, wide, narrow) maps to corresponding print margins
+- **Clean typography:** print styles ensure readable font sizes, proper heading hierarchy, and page-break rules (avoid widows/orphans, don't break inside code blocks or tables)
+- **Links:** hyperlinks are preserved as clickable links in the PDF; optionally display the URL inline for reference
+- **Images:** inline images are included in the print output at appropriate sizes
+- **Code blocks:** syntax-highlighted code blocks render with a light background and monospace font suitable for print
+- **No additional dependencies:** uses the browser's built-in print-to-PDF capability, which produces selectable text and small file sizes
+- **Future enhancement:** if advanced features are needed (custom headers/footers, page numbers, watermarks), can upgrade to a client-side library without architectural changes
+
 ---
 
 ## 5. Application Layout

@@ -785,6 +785,22 @@ Registered a GitHub App for reading/writing .md files in user repos.
 
 ---
 
+### Phase 3.8: Print / Export PDF (Planned)
+
+**Requirement added:** Users can print or export the current document as a clean PDF.
+
+**Approach:** CSS `@media print` + `window.print()` — zero dependencies, browser-native.
+
+**Implementation tasks:**
+- [ ] Add `@media print` stylesheet that hides all UI chrome (toolbar, sidebar, tabs, status bar)
+- [ ] Style document content for print: full-width, clean typography, page-break rules
+- [ ] Map user margin preferences (regular/wide/narrow) to print margins
+- [ ] Add "Print" button to toolbar
+- [ ] Wire `Ctrl/Cmd + P` keyboard shortcut to trigger `window.print()`
+- [ ] Test print output across browsers (Chrome, Safari, Firefox)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
