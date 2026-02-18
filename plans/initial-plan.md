@@ -300,6 +300,12 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Block reordering: drag paragraphs, headings, lists to rearrange content within the editor
 - [x] Image drop: drag image files from desktop into the editor → upload to notebook `assets/` folder → insert Markdown reference
 - [x] File linking: drag a file from the notebook tree into the editor → insert relative Markdown link
+- [x] Fix: internal tree drags must not trigger app-level file import overlay
+- [x] File/folder move within notebook: drag files between folders in the same notebook
+- [x] File copy across notebooks: drag files between notebooks of the same source type (copy only)
+- [x] Cross-source-type drag prevention: show "no drop" cursor for incompatible notebook types
+- [x] Notebook reordering: drag notebooks to reorder in the pane; add `sortOrder` to NotebookMeta and persist
+- [x] Visual feedback: drop target folder highlights on dragover; invalid targets show "no drop" cursor
 
 ### 4.4 Media Handling
 

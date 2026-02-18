@@ -6,6 +6,8 @@ export interface NotebookMeta {
   sourceType: 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud';
   /** Source-specific config (e.g., { owner, repo, branch, rootPath } for GitHub) */
   sourceConfig: Record<string, unknown>;
+  /** Display order in the notebook pane (lower = higher) */
+  sortOrder: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -74,6 +76,7 @@ export async function createNotebook(
     name,
     sourceType,
     sourceConfig,
+    sortOrder: now,
     createdAt: now,
     updatedAt: now,
   };
@@ -83,7 +86,12 @@ export async function createNotebook(
 
 export async function listNotebooks(): Promise<NotebookMeta[]> {
   const db = await getDb();
-  return db.getAll(NOTEBOOKS_STORE);
+  const notebooks = await db.getAll(NOTEBOOKS_STORE);
+  // Migrate: assign sortOrder if missing
+  for (const nb of notebooks) {
+    if (nb.sortOrder == null) nb.sortOrder = nb.createdAt;
+  }
+  return notebooks.sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export async function renameNotebook(id: string, name: string): Promise<void> {
@@ -274,4 +282,21 @@ export async function moveFile(
   };
   await db.put(FILES_STORE, updated);
   return updated;
+}
+
+/**
+ * Persist notebook ordering. Accepts an array of notebook IDs in the desired order.
+ */
+export async function reorderNotebooks(orderedIds: string[]): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction(NOTEBOOKS_STORE, 'readwrite');
+  for (let i = 0; i < orderedIds.length; i++) {
+    const nb = await tx.store.get(orderedIds[i]);
+    if (nb) {
+      nb.sortOrder = i;
+      nb.updatedAt = Date.now();
+      await tx.store.put(nb);
+    }
+  }
+  await tx.done;
 }

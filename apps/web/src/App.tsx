@@ -111,6 +111,10 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    // Don't show import overlay for internal tree drags
+    if (e.dataTransfer.types.includes('text/notebook-file') || e.dataTransfer.types.includes('text/notebook-tree-item')) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setDragOver(true);
@@ -124,6 +128,8 @@ export default function App() {
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
+      // Ignore internal tree drags
+      if (e.dataTransfer.types.includes('text/notebook-tree-item')) return;
       e.preventDefault();
       e.stopPropagation();
       setDragOver(false);
@@ -220,6 +226,8 @@ export default function App() {
           onRefreshNotebook={(notebookId: string) => {
             nb.refreshFiles(notebookId);
           }}
+          onMoveFile={nb.handleMoveFile}
+          onReorderNotebooks={nb.handleReorderNotebooks}
           activeFilePath={nb.activeTabId}
         />
         <DocumentPane

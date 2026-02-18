@@ -181,6 +181,13 @@ A **Notebook** is a connection to a storage location on one of the supported sou
 - **Rename:** Renames a file or folder
 - **Delete:** Deletes a file or folder (with confirmation)
 - **Move:** Move files/folders within the Notebook via drag-and-drop or cut/paste
+- **Drag-and-drop in Notebook Tree:**
+  - Files and folders can be dragged within a Notebook to move them between folders
+  - Files can be dragged between Notebooks of the **same source type** (copy operation)
+  - Cross-source-type drag is not permitted (e.g., cannot drag from OneDrive to GitHub)
+  - Dragging files within the tree must **not** trigger the app-level file import overlay
+  - Visual feedback: drop target folder highlights; invalid targets show a "no drop" cursor
+- **Notebook Reordering:** Notebooks can be dragged to reorder them in the Notebook pane; order is persisted
 
 ### 3.5 File Type Behavior
 

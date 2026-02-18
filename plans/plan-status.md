@@ -1082,6 +1082,48 @@ Commits: `2287fc5`, `a5ab990`
 
 ---
 
+### Phase 4.3: Drag and Drop — COMPLETED ✅
+
+**Editor drag-and-drop (initial):**
+- DragHandle extension: 6-dot grip icon on block hover for reordering
+- Image drop: drag image files from desktop → inline base64 insertion
+- File linking: drag tree files into editor → insert Markdown link
+
+**Tree drag-and-drop (this session):**
+- **File/folder move:** Drag files/folders within same notebook between folders
+  - Drop targets (folders) highlight blue on dragover
+  - Prevents dropping on self or parent into child
+- **Notebook reordering:** Drag notebooks to reorder in pane
+  - Added `sortOrder: number` to NotebookMeta
+  - `reorderNotebooks()` persists order via IndexedDB
+  - `listNotebooks()` sorts by sortOrder; migrates old records without it
+- **Import overlay fix:** Internal tree drags (`text/notebook-tree-item` type) no longer trigger the app-level "Drop Markdown file to import" overlay
+- **Cross-source prevention:** Only same-notebook drops accepted (file moves)
+- **Visual feedback:** Drop target folders highlight with blue ring; notebooks show top border indicator
+
+**Requirements updated:** Added drag-and-drop tree requirements to `requirements/requirements.md` §3.4
+
+**Files created:**
+- `apps/web/src/components/editor/DragHandle.ts`
+- `apps/web/src/tests/localNotebookStore.test.ts` — 8 tests
+
+**Files modified:**
+- `apps/web/src/stores/localNotebookStore.ts` — `sortOrder` field, `reorderNotebooks()`, `listNotebooks()` sorting + migration
+- `apps/web/src/hooks/useNotebookManager.ts` — `handleMoveFile`, `handleReorderNotebooks`
+- `apps/web/src/components/notebook/NotebookTree.tsx` — tree item drag/drop, notebook drag/drop, drop target state
+- `apps/web/src/components/layout/NotebookPane.tsx` — thread `onMoveFile`, `onReorderNotebooks` props
+- `apps/web/src/App.tsx` — suppress import overlay for tree drags, wire new props
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — image drop handler, file link drop
+- `apps/web/src/components/editor/editor.css` — drag handle, drop cursor, drop zone styles
+- `requirements/requirements.md` — §3.4 drag-and-drop requirements
+
+**Tests: 8 new (37 web total, 189 overall)**
+- `reorderNotebooks`: persist order, single notebook (2 tests)
+- `moveFile`: to folder, to root, folder with children, not found (4 tests)
+- `sortOrder`: new notebooks have it, list returns sorted (2 tests)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

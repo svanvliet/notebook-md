@@ -9,6 +9,8 @@ import {
   saveFileContent,
   renameFile as renameF,
   deleteFile as deleteF,
+  moveFile as moveF,
+  reorderNotebooks as reorderNbs,
   getFile,
   setStorageScope,
   type NotebookMeta,
@@ -853,6 +855,27 @@ export function useNotebookManager(userId?: string | null) {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
+  const handleMoveFile = useCallback(async (notebookId: string, oldPath: string, newParentPath: string) => {
+    try {
+      await moveF(notebookId, oldPath, newParentPath);
+      // Reload files for this notebook
+      const updatedFiles = await listFiles(notebookId);
+      setFiles((prev) => ({ ...prev, [notebookId]: updatedFiles }));
+    } catch (err) {
+      console.error('Failed to move file:', err);
+    }
+  }, []);
+
+  const handleReorderNotebooks = useCallback(async (orderedIds: string[]) => {
+    try {
+      await reorderNbs(orderedIds);
+      const nbs = await listNotebooks();
+      setNotebooks(nbs);
+    } catch (err) {
+      console.error('Failed to reorder notebooks:', err);
+    }
+  }, []);
+
   return {
     notebooks,
     files,
@@ -881,5 +904,7 @@ export function useNotebookManager(userId?: string | null) {
     handlePublish,
     hasWorkingBranch,
     refreshFiles,
+    handleMoveFile,
+    handleReorderNotebooks,
   };
 }
