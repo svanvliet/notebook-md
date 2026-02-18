@@ -236,6 +236,40 @@ export function useNotebookManager(userId?: string | null) {
     setNotebooks((prev) => prev.map((n) => (n.id === id ? { ...n, name } : n)));
   }, []);
 
+  // --- Working branch state (must precede file ops that use ensureWorkingBranch) ---
+
+  // Working branch per notebook: notebookId → branch name
+  const workingBranches = useRef<Record<string, string>>({});
+  const branchCreating = useRef<Record<string, Promise<string>>>({});
+  // Reactive set of notebook IDs that have a working branch (for UI)
+  const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
+
+  /** Ensure a working branch exists for a GitHub notebook, create one if needed */
+  const ensureWorkingBranch = useCallback(
+    async (notebookId: string, nb: NotebookMeta): Promise<string> => {
+      // Already have a branch for this notebook
+      if (workingBranches.current[notebookId]) {
+        return workingBranches.current[notebookId];
+      }
+      // Already creating — await the same promise to avoid duplicate branches
+      if (branchCreating.current[notebookId]) {
+        return branchCreating.current[notebookId];
+      }
+
+      const owner = nb.sourceConfig.owner as string;
+      const repo = nb.sourceConfig.repo as string;
+      const promise = createWorkingBranch(owner, repo, 'main').then((result) => {
+        workingBranches.current[notebookId] = result.branch;
+        delete branchCreating.current[notebookId];
+        setPublishableNotebooks((prev) => new Set(prev).add(notebookId));
+        return result.branch;
+      });
+      branchCreating.current[notebookId] = promise;
+      return promise;
+    },
+    [],
+  );
+
   // --- File operations ---
 
   const handleCreateFile = useCallback(
@@ -471,38 +505,6 @@ export function useNotebookManager(userId?: string | null) {
   // --- Content change (auto-save) ---
 
   const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  // Working branch per notebook: notebookId → branch name
-  const workingBranches = useRef<Record<string, string>>({});
-  const branchCreating = useRef<Record<string, Promise<string>>>({});
-  // Reactive set of notebook IDs that have a working branch (for UI)
-  const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
-
-  /** Ensure a working branch exists for a GitHub notebook, create one if needed */
-  const ensureWorkingBranch = useCallback(
-    async (notebookId: string, nb: NotebookMeta): Promise<string> => {
-      // Already have a branch for this notebook
-      if (workingBranches.current[notebookId]) {
-        return workingBranches.current[notebookId];
-      }
-      // Already creating — await the same promise to avoid duplicate branches
-      if (branchCreating.current[notebookId]) {
-        return branchCreating.current[notebookId];
-      }
-
-      const owner = nb.sourceConfig.owner as string;
-      const repo = nb.sourceConfig.repo as string;
-      const promise = createWorkingBranch(owner, repo, 'main').then((result) => {
-        workingBranches.current[notebookId] = result.branch;
-        delete branchCreating.current[notebookId];
-        setPublishableNotebooks((prev) => new Set(prev).add(notebookId));
-        return result.branch;
-      });
-      branchCreating.current[notebookId] = promise;
-      return promise;
-    },
-    [],
-  );
 
   /** Save a tab's content to the appropriate backend */
   const saveTab = useCallback(
