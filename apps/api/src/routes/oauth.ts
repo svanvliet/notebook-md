@@ -6,6 +6,7 @@ import { createSession } from '../services/session.js';
 import { generateToken, hashToken } from '../lib/crypto.js';
 import { redis } from '../lib/redis.js';
 import { requireAuth } from '../middleware/auth.js';
+import { logger } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -111,6 +112,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
   }
   await redis.del(stateKey);
   const stateData = JSON.parse(stateDataRaw) as { returnTo: string; linkToUser: string | null };
+  logger.info('OAuth callback state', { provider: providerName, returnTo: stateData.returnTo, linkToUser: !!stateData.linkToUser });
 
   const provider = getProvider(providerName);
   if (!provider) {
@@ -130,7 +132,9 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
         userAgent: req.headers['user-agent'],
       });
       const returnTo = stateData.returnTo || `/settings?linked=${providerName}`;
-      res.redirect(`${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}linked=${providerName}`);
+      const redirectUrl = `${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}linked=${providerName}`;
+      logger.info('OAuth link redirect', { returnTo, redirectUrl, provider: providerName });
+      res.redirect(redirectUrl);
       return;
     }
 
