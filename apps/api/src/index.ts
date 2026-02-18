@@ -9,6 +9,8 @@ import { redis, redisHealthCheck } from './lib/redis.js';
 import { logger } from './lib/logger.js';
 import { seed } from './db/seed.js';
 import authRoutes from './routes/auth.js';
+import oauthRoutes from './routes/oauth.js';
+import { initializeOAuthProviders } from './services/oauth/index.js';
 
 const app = express();
 const port = process.env.PORT ?? 3001;
@@ -35,6 +37,7 @@ app.get('/api/health', async (_req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/auth/oauth', oauthRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
@@ -44,6 +47,8 @@ async function start() {
   try {
     await redis.connect();
     logger.info('Connected to Redis');
+
+    initializeOAuthProviders();
   } catch (err) {
     logger.warn('Redis connection failed, continuing without cache', { error: (err as Error).message });
   }
