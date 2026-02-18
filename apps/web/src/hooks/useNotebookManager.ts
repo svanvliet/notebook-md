@@ -14,7 +14,7 @@ import {
   type NotebookMeta,
   type FileEntry,
 } from '../stores/localNotebookStore';
-import { markdownToHtml, isMarkdownContent } from '../components/editor/markdownConverter';
+import { markdownToHtml, htmlToMarkdown, isMarkdownContent } from '../components/editor/markdownConverter';
 import {
   listGitHubFiles,
   readGitHubFile,
@@ -514,14 +514,16 @@ export function useNotebookManager(userId?: string | null) {
   const saveTab = useCallback(
     async (tab: OpenTab): Promise<string | undefined> => {
       const nb = notebooks.find((n) => n.id === tab.notebookId);
+      // Convert HTML from the WYSIWYG editor back to Markdown for storage
+      const markdown = htmlToMarkdown(tab.content);
       if (nb && nb.sourceType === 'github') {
         const rootPath = nb.sourceConfig.rootPath as string;
         const branch = await ensureWorkingBranch(tab.notebookId, nb);
-        const result = await writeGitHubFile(rootPath, tab.path, tab.content, tab.sha, branch);
+        const result = await writeGitHubFile(rootPath, tab.path, markdown, tab.sha, branch);
         return result.sha ?? undefined;
       }
       // Local save
-      await saveFileContent(tab.notebookId, tab.path, tab.content);
+      await saveFileContent(tab.notebookId, tab.path, markdown);
       return undefined;
     },
     [notebooks, ensureWorkingBranch],
