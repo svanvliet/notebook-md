@@ -74,7 +74,8 @@ export function NotebookPane({
 
   return (
     <div
-      className="relative shrink-0 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex flex-col select-none"
+      data-print="hide"
+      className="notebook-pane relative shrink-0 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex flex-col select-none"
       style={{ width }}
     >
       {/* Header */}

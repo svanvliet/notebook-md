@@ -35,10 +35,10 @@ export function DocumentPane({
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   return (
-    <div className="flex-1 flex flex-col min-w-0">
+    <div className="document-pane flex-1 flex flex-col min-w-0">
       {/* Tab bar */}
       {tabs.length > 0 && (
-        <div className="h-9 flex items-end border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-1 gap-0.5 shrink-0">
+        <div className="document-tabs h-9 flex items-end border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-1 gap-0.5 shrink-0">
           <div className="flex items-end overflow-x-auto gap-0.5 flex-1 min-w-0">
             {tabs.map((tab) => (
               <div

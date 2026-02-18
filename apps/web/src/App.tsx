@@ -166,6 +166,7 @@ export default function App() {
   return (
     <div
       className="h-full flex flex-col"
+      data-print-margins={settings.margins}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

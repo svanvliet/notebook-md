@@ -7,3 +7,131 @@
     @apply h-full w-full m-0 p-0;
   }
 }
+
+/* ── Print / Export PDF ────────────────────────────────────────────── */
+@media print {
+  /* Hide all UI chrome */
+  header,
+  [data-print="hide"],
+  #toolbar-portal,
+  .statusbar,
+  .notebook-pane {
+    display: none !important;
+  }
+
+  /* Reset layout to fill page */
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #root > div {
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* Document pane fills full width */
+  .document-pane {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: none !important;
+    display: block !important;
+  }
+
+  /* Hide tab bar in print */
+  .document-tabs {
+    display: none !important;
+  }
+
+  /* Editor content: clean typography */
+  .ProseMirror {
+    padding: 0 !important;
+    min-height: auto !important;
+    font-size: 12pt !important;
+    line-height: 1.6 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  /* Headings */
+  .ProseMirror h1 { font-size: 22pt !important; margin-top: 18pt !important; }
+  .ProseMirror h2 { font-size: 18pt !important; margin-top: 16pt !important; }
+  .ProseMirror h3 { font-size: 14pt !important; margin-top: 14pt !important; }
+  .ProseMirror h4, .ProseMirror h5, .ProseMirror h6 { font-size: 12pt !important; margin-top: 12pt !important; }
+
+  /* Avoid breaking inside elements */
+  .ProseMirror pre,
+  .ProseMirror blockquote,
+  .ProseMirror table,
+  .ProseMirror img {
+    break-inside: avoid;
+  }
+
+  /* Avoid widows and orphans */
+  .ProseMirror p, .ProseMirror li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Headings stay with next content */
+  .ProseMirror h1, .ProseMirror h2, .ProseMirror h3,
+  .ProseMirror h4, .ProseMirror h5, .ProseMirror h6 {
+    break-after: avoid;
+  }
+
+  /* Code blocks: light background for print */
+  .ProseMirror pre {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+    padding: 8pt !important;
+    font-size: 10pt !important;
+  }
+
+  .ProseMirror code {
+    background: #f0f0f0 !important;
+    color: #000 !important;
+    font-size: 10pt !important;
+  }
+
+  /* Tables: visible borders */
+  .ProseMirror table {
+    border-collapse: collapse !important;
+  }
+  .ProseMirror th, .ProseMirror td {
+    border: 1px solid #999 !important;
+    padding: 4pt 8pt !important;
+    color: #000 !important;
+  }
+  .ProseMirror th {
+    background: #eee !important;
+    font-weight: bold !important;
+  }
+
+  /* Images: fit page */
+  .ProseMirror img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Links: show URL */
+  .ProseMirror a {
+    color: #000 !important;
+    text-decoration: underline !important;
+  }
+  .ProseMirror a::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #555;
+  }
+
+  /* Margin preferences — applied via data attribute on root */
+  [data-print-margins="narrow"] { margin: 0.5in !important; }
+  [data-print-margins="regular"] { margin: 0.75in 1in !important; }
+  [data-print-margins="wide"] { margin: 1in 1.5in !important; }
+
+  @page {
+    size: auto;
+    margin: 0.75in 1in;
+  }
+}

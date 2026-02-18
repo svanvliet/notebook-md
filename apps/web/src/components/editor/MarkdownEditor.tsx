@@ -68,6 +68,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
         e.preventDefault();
         toggleRawMode();
       }
+      // Cmd/Ctrl+P for print (override browser default)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        window.print();
+      }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);

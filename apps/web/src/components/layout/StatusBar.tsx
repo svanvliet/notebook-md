@@ -11,7 +11,7 @@ export function StatusBar({ wordCount, charCount, lastSaved, message }: StatusBa
   const { t } = useTranslation();
 
   return (
-    <footer className="h-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex items-center px-3 text-xs text-gray-500 dark:text-gray-400 shrink-0 select-none">
+    <footer data-print="hide" className="statusbar h-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex items-center px-3 text-xs text-gray-500 dark:text-gray-400 shrink-0 select-none">
       {message ? (
         <span className="text-blue-600 dark:text-blue-400">{message}</span>
       ) : (
