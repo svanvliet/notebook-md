@@ -210,12 +210,12 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 3.1 Source System Proxy Architecture
 
-- [ ] Implement backend proxy layer (§8.2): all source system API calls routed through the API server
-- [ ] OAuth token storage: encrypt tokens at rest with envelope encryption (AES-256 + a local dev key; KMS integration deferred to Phase 6)
-- [ ] Token refresh logic: auto-refresh expired access tokens using stored refresh tokens
-- [ ] Path validation middleware (§9.3 security): canonicalize paths, reject `..` traversal, validate paths are within notebook root
-- [ ] Per-user rate limiting on file proxy endpoints (Redis-backed)
-- [ ] Circuit breaker per source system (prevent cascading failures)
+- [x] Implement backend proxy layer (§8.2): all source system API calls routed through the API server
+- [x] OAuth token storage: encrypt tokens at rest with envelope encryption (AES-256 + a local dev key; KMS integration deferred to Phase 6)
+- [x] Token refresh logic: auto-refresh expired access tokens using stored refresh tokens
+- [x] Path validation middleware (§9.3 security): canonicalize paths, reject `..` traversal, validate paths are within notebook root
+- [x] Per-user rate limiting on file proxy endpoints (Redis-backed)
+- [x] Circuit breaker per source system (prevent cascading failures)
 
 ### 3.2 Microsoft OneDrive Integration
 

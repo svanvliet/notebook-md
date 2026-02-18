@@ -498,7 +498,35 @@ Registered a GitHub App for reading/writing .md files in user repos.
 - Added smee to `dev.sh stop/status`, log tailing, and URL display
 - Updated README.md with webhook proxy setup instructions
 
-### 3-Prep.3 — Microsoft Entra ID App — NEXT
+### 3-Prep.3 — Microsoft Entra ID App — DEFERRED (pivoted to Phase 3 implementation)
+
+---
+
+## Phase 3: Source System Integrations — IN PROGRESS
+
+### 3.1 Source System Proxy Architecture — COMPLETED ✅
+
+**Completed:** 2026-02-18
+
+**New files:**
+| File | Purpose |
+|------|---------|
+| `lib/encryption.ts` | AES-256-GCM envelope encryption: `encrypt`, `decrypt`, `encryptOptional`, `decryptOptional`. Gracefully handles pre-encryption plaintext tokens. |
+| `services/sources/types.ts` | `SourceAdapter` interface (listFiles, readFile, writeFile, createFile, deleteFile, renameFile) + provider registry |
+| `routes/sources.ts` | REST proxy: `GET/PUT/POST/DELETE /api/sources/:provider/files/{*filePath}` with auth, rate limiting, circuit breaker, path validation |
+| `middleware/path-validation.ts` | Path canonicalization, directory traversal rejection, null byte protection, file extension filtering |
+| `lib/circuit-breaker.ts` | Per-provider circuit breaker: closed→open→half-open, 5 failures/60s trips, 30s cooldown |
+| `services/token-refresh.ts` | `getValidAccessToken()`: checks expiry (5-min buffer), auto-refreshes Microsoft/Google tokens, GitHub tokens don't expire |
+
+**Files modified:**
+- `services/account-link.ts` — All 5 token INSERT/UPDATE queries now encrypt with `encryptOptional()`
+- `app.ts` — Registered `/api/sources` router
+
+**Technical notes:**
+- Express 5 uses `path-to-regexp` v8: wildcards must use `{*name}` syntax (not `*`)
+- `express-rate-limit` v8: `keyGenerator` must not reference `req.ip` without `ipKeyGenerator` helper; source routes use `req.userId` only (auth required)
+- `rate-limit-redis` installed for Redis-backed rate limiting on source endpoints
+- `decryptOptional()` falls back to returning raw value if decryption fails — handles migration from plaintext tokens gracefully
 
 ---
 
