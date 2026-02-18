@@ -285,6 +285,52 @@
   color: #6b7280;
 }
 
+/* Drag handle */
+.drag-handle {
+  position: absolute;
+  z-index: 20;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  border-radius: 4px;
+  color: #9ca3af;
+  transition: color 0.15s, background 0.15s;
+}
+
+.drag-handle:hover {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.dark .drag-handle:hover {
+  color: #9ca3af;
+  background: #374151;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drop cursor */
+.ProseMirror-dropcursor {
+  color: #3b82f6 !important;
+}
+
+/* Image drop zone highlight */
+.editor-wrapper.drag-over::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px dashed #3b82f6;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.05);
+  pointer-events: none;
+  z-index: 10;
+}
+
 /* Callout blocks */
 .tiptap .callout {
   display: flex;

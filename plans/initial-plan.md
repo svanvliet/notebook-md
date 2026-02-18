@@ -297,9 +297,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 4.3 Drag and Drop
 
-- [ ] Block reordering: drag paragraphs, headings, lists to rearrange content within the editor
-- [ ] Image drop: drag image files from desktop into the editor → upload to notebook `assets/` folder → insert Markdown reference
-- [ ] File linking: drag a file from the notebook tree into the editor → insert relative Markdown link
+- [x] Block reordering: drag paragraphs, headings, lists to rearrange content within the editor
+- [x] Image drop: drag image files from desktop into the editor → upload to notebook `assets/` folder → insert Markdown reference
+- [x] File linking: drag a file from the notebook tree into the editor → insert relative Markdown link
 
 ### 4.4 Media Handling
 

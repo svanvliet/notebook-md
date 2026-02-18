@@ -2,6 +2,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { getEditorExtensions } from './extensions';
+import { DragHandle } from './DragHandle';
 import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { SlashCommandExtension } from './SlashCommands';
@@ -38,7 +39,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
   const syncingScroll = useRef(false);
   const syncingFromSource = useRef(false);
 
-  const extensions = [...getEditorExtensions(), SlashCommandExtension];
+  const extensions = [...getEditorExtensions(), SlashCommandExtension, DragHandle];
 
   const editor = useEditor({
     extensions,
@@ -196,6 +197,67 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     };
   }, [contextMenu]);
 
+  // Handle image files dropped into the editor
+  const handleEditorDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!editor) return;
+
+      // Check for files (images from desktop)
+      const files = Array.from(e.dataTransfer.files);
+      const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        editorWrapperRef.current?.classList.remove('drag-over');
+
+        imageFiles.forEach((file) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result as string;
+            editor.chain().focus().setImage({ src: base64, alt: file.name }).run();
+          };
+          reader.readAsDataURL(file);
+        });
+        return;
+      }
+
+      // Check for notebook file link (dragged from tree)
+      const filePath = e.dataTransfer.getData('text/notebook-file');
+      if (filePath) {
+        e.preventDefault();
+        e.stopPropagation();
+        editorWrapperRef.current?.classList.remove('drag-over');
+
+        const fileName = filePath.split('/').pop() || filePath;
+        const isImage = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(fileName);
+        if (isImage) {
+          editor.chain().focus().setImage({ src: filePath, alt: fileName }).run();
+        } else {
+          editor.chain().focus().insertContent(`[${fileName}](${filePath})`).run();
+        }
+        return;
+      }
+    },
+    [editor],
+  );
+
+  const handleEditorDragOver = useCallback((e: React.DragEvent) => {
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    const hasFileLink = e.dataTransfer.types.includes('text/notebook-file');
+    if (hasFiles || hasFileLink) {
+      e.preventDefault();
+      editorWrapperRef.current?.classList.add('drag-over');
+    }
+  }, []);
+
+  const handleEditorDragLeave = useCallback((e: React.DragEvent) => {
+    // Only remove if leaving the wrapper entirely
+    const related = e.relatedTarget as HTMLElement;
+    if (!editorWrapperRef.current?.contains(related)) {
+      editorWrapperRef.current?.classList.remove('drag-over');
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -284,6 +346,9 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
             }`}
             onContextMenu={handleContextMenu}
             onScroll={viewMode === 'split' ? handleWysiwygScroll : undefined}
+            onDrop={handleEditorDrop}
+            onDragOver={handleEditorDragOver}
+            onDragLeave={handleEditorDragLeave}
           >
             <EditorContent editor={editor} />
             <SlashCommandMenu editor={editor} />

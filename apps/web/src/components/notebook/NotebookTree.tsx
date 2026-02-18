@@ -179,6 +179,12 @@ export function NotebookTree({
               : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
           }`}
           style={{ paddingLeft: `${depth * 16 + 4}px` }}
+          draggable={!isFolder}
+          onDragStart={(e) => {
+            if (isFolder) return;
+            e.dataTransfer.setData('text/notebook-file', file.path);
+            e.dataTransfer.effectAllowed = 'link';
+          }}
           onClick={() => {
             if (isFolder) toggleFolder(fileKey);
             else if (canOpen) onOpenFile(file.notebookId, file.path);
