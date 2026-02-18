@@ -7,9 +7,14 @@
 
 import jwt from 'jsonwebtoken';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from './logger.js';
 import { redis } from './redis.js';
+
+// Monorepo root: github-app.ts → lib/ → src/ → api/ → apps/ → root
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const MONOREPO_ROOT = resolve(__dirname, '../../../../');
 
 let _privateKey: string | null = null;
 
@@ -24,7 +29,8 @@ function getPrivateKey(): string {
   const keyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
   if (!keyPath) throw new Error('GITHUB_APP_PRIVATE_KEY_PATH not set');
 
-  const absPath = resolve(process.cwd(), keyPath);
+  // Resolve relative to monorepo root (where .env lives)
+  const absPath = resolve(MONOREPO_ROOT, keyPath);
   _privateKey = readFileSync(absPath, 'utf8');
   return _privateKey;
 }
