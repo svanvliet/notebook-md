@@ -156,6 +156,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
     const returnTo = stateData.returnTo || '/';
     res.redirect(`${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}auth=success&new=${result.isNewUser}`);
   } catch (err) {
+    logger.error('OAuth callback error', { provider: providerName, error: (err as Error).message, stack: (err as Error).stack });
     const code = (err as any)?.code;
     if (code === 'ACCOUNT_EXISTS_EMAIL_PASSWORD') {
       res.redirect(`${APP_URL}/app/auth-error?error=account_exists&provider=${providerName}`);

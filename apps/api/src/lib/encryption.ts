@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { logger } from './logger.js';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -18,7 +18,6 @@ function getKey(): Buffer {
     return Buffer.from(raw, 'utf8');
   }
   // Hash longer/shorter keys to get exactly 32 bytes
-  const { createHash } = require('crypto');
   return createHash('sha256').update(raw).digest();
 }
 
