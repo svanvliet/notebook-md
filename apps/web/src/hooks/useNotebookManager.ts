@@ -114,6 +114,26 @@ export function useNotebookManager(userId?: string | null) {
       }));
   }
 
+  /** Recursively fetch all GitHub files/folders into a flat list */
+  async function fetchGitHubTreeRecursive(
+    rootPath: string,
+    notebookId: string,
+    dirPath: string,
+    parentPath: string,
+  ): Promise<FileEntry[]> {
+    const entries = await listGitHubFiles(rootPath, dirPath);
+    const fileEntries = githubToFileEntries(notebookId, entries, parentPath);
+    const results: FileEntry[] = [...fileEntries];
+    // Recurse into folders
+    for (const entry of fileEntries) {
+      if (entry.type === 'folder') {
+        const children = await fetchGitHubTreeRecursive(rootPath, notebookId, entry.path, entry.path);
+        results.push(...children);
+      }
+    }
+    return results;
+  }
+
   const refreshFiles = useCallback(async (notebookId: string) => {
     const nb = notebooks.find((n) => n.id === notebookId);
     if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
@@ -122,8 +142,8 @@ export function useNotebookManager(userId?: string | null) {
     } else if (nb.sourceType === 'github') {
       try {
         const rootPath = nb.sourceConfig.rootPath as string;
-        const entries = await listGitHubFiles(rootPath);
-        setFiles((prev) => ({ ...prev, [notebookId]: githubToFileEntries(notebookId, entries, '') }));
+        const allEntries = await fetchGitHubTreeRecursive(rootPath, notebookId, '', '');
+        setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
       } catch (err) {
         flash(`Failed to load files: ${(err as Error).message}`);
       }
