@@ -57,6 +57,9 @@ async function resolveProvider(req: Request, res: Response): Promise<{ adapter: 
   // Get valid access token — GitHub uses installation tokens, others use OAuth tokens
   let accessToken: string | null = null;
 
+  // Map source adapter names to their OAuth provider (e.g., onedrive → microsoft)
+  const oauthProvider = provider === 'onedrive' ? 'microsoft' : provider;
+
   if (provider === 'github') {
     // Extract owner from rootPath query param (format: "owner/repo" or "owner/repo/subpath")
     const rootPath = (req.query.root as string) ?? '';
@@ -80,14 +83,14 @@ async function resolveProvider(req: Request, res: Response): Promise<{ adapter: 
 
     // Fallback to user OAuth token if no installation found
     if (!accessToken) {
-      accessToken = await getValidAccessToken(req.userId!, provider);
+      accessToken = await getValidAccessToken(req.userId!, oauthProvider);
     }
   } else {
-    accessToken = await getValidAccessToken(req.userId!, provider);
+    accessToken = await getValidAccessToken(req.userId!, oauthProvider);
   }
 
   if (!accessToken) {
-    res.status(401).json({ error: `No valid ${provider} credentials. Please re-link your ${provider} account.` });
+    res.status(401).json({ error: `No valid ${oauthProvider} credentials. Please re-link your ${oauthProvider} account.` });
     return null;
   }
 
