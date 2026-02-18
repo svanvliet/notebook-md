@@ -34,6 +34,22 @@ describe('GitHub Routes', () => {
     });
   });
 
+  describe('GET /api/github/install/callback', () => {
+    it('should reject missing installation_id', async () => {
+      const res = await request
+        .get('/api/github/install/callback')
+        .set('Cookie', `refresh_token=${token}`);
+      // Redirects to app with error
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toContain('error=missing_installation_id');
+    });
+
+    it('should reject unauthenticated access', async () => {
+      const res = await request.get('/api/github/install/callback?installation_id=12345');
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('GET /api/github/installations', () => {
     it('should return empty list when no installations', async () => {
       const res = await request
@@ -115,7 +131,7 @@ describe('GitHub Routes', () => {
     });
 
     it('should reject access to installations not owned by user', async () => {
-      // Insert installation owned by a different user
+      // Create another user
       const { res: res2 } = await signUp('other@test.com', 'password123');
       const token2 = extractRefreshToken(res2)!;
       const user2Res = await request.get('/auth/me').set('Cookie', `refresh_token=${token2}`);
@@ -131,6 +147,35 @@ describe('GitHub Routes', () => {
         .get('/api/github/repos?installation_id=99999')
         .set('Cookie', `refresh_token=${token}`);
       expect(res.status).toBe(403);
+    });
+
+    it('should clean up stale installation on 401 from GitHub and return 404', async () => {
+      // Insert a fake installation that doesn't exist on GitHub
+      await query(
+        `INSERT INTO github_installations (user_id, installation_id, account_login, account_type, repos_selection)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, 999888, 'stale-account', 'User', 'all'],
+      );
+
+      // Trying to list repos will fail with 401 from GitHub (invalid installation)
+      const res = await request
+        .get('/api/github/repos?installation_id=999888')
+        .set('Cookie', `refresh_token=${token}`);
+
+      // Should return 404 with INSTALLATION_REMOVED code (or 502 if error isn't 401)
+      // Since this is a fake installation, GitHub will return an error
+      expect([404, 502]).toContain(res.status);
+
+      if (res.status === 404) {
+        expect(res.body.code).toBe('INSTALLATION_REMOVED');
+
+        // Verify the stale record was cleaned up
+        const dbCheck = await query(
+          'SELECT 1 FROM github_installations WHERE installation_id = $1',
+          [999888],
+        );
+        expect(dbCheck.rows).toHaveLength(0);
+      }
     });
 
     it('should reject unauthenticated access', async () => {

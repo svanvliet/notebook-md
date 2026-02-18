@@ -68,7 +68,7 @@ describe('OneDrive Routes', () => {
         .get('/api/sources/onedrive/files?root=TestFolder')
         .set('Cookie', `refresh_token=${token}`);
       expect(res.status).toBe(401);
-      expect(res.body.error).toContain('onedrive');
+      expect(res.body.error).toContain('microsoft');
     });
 
     it('should return 401 for file read without credentials', async () => {
@@ -115,6 +115,25 @@ describe('OneDrive Routes', () => {
         .get('/api/sources/dropbox/files?root=test')
         .set('Cookie', `refresh_token=${token}`);
       expect(unknownRes.status).toBe(404);
+    });
+  });
+
+  describe('Source proxy OAuth provider mapping', () => {
+    it('should map onedrive source to microsoft OAuth provider in error message', async () => {
+      const res = await request
+        .get('/api/sources/onedrive/files?root=TestFolder')
+        .set('Cookie', `refresh_token=${token}`);
+      expect(res.status).toBe(401);
+      // Error should reference "microsoft" (OAuth provider), not "onedrive" (source adapter)
+      expect(res.body.error).toContain('microsoft');
+    });
+
+    it('should return 404 for unknown source providers', async () => {
+      const res = await request
+        .get('/api/sources/dropbox/files?root=test')
+        .set('Cookie', `refresh_token=${token}`);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toContain('Unknown source provider');
     });
   });
 

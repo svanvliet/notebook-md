@@ -86,4 +86,25 @@ describe('Encryption', () => {
       expect(result).toBe('gho_plaintext_token_from_before_encryption');
     });
   });
+
+  describe('key derivation', () => {
+    it('should work with keys shorter than 32 bytes (hashed via createHash)', () => {
+      // The test key is 31 bytes, triggering the SHA-256 hash path
+      const plaintext = 'test-with-short-key';
+      const encrypted = encrypt(plaintext);
+      expect(decrypt(encrypted)).toBe(plaintext);
+    });
+
+    it('should work with keys longer than 32 bytes (hashed via createHash)', () => {
+      const origKey = process.env.ENCRYPTION_KEY;
+      process.env.ENCRYPTION_KEY = 'this-is-a-very-long-encryption-key-that-exceeds-32-bytes!!!';
+      try {
+        const plaintext = 'test-with-long-key';
+        const encrypted = encrypt(plaintext);
+        expect(decrypt(encrypted)).toBe(plaintext);
+      } finally {
+        process.env.ENCRYPTION_KEY = origKey;
+      }
+    });
+  });
 });
