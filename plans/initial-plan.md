@@ -77,10 +77,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Fenced code blocks with syntax highlighting (language selector)
 - [x] GFM tables with alignment
 - [x] Horizontal rules
-- [ ] Footnotes extension
-- [ ] KaTeX math extension (inline `$...$` and block `$$...$$`)
-- [ ] Emoji shortcodes
-- [ ] YAML front matter (collapsible metadata block)
+- [ ] Footnotes extension *(deferred to Phase 4)*
+- [ ] KaTeX math extension (inline `$...$` and block `$$...$$`) *(deferred to Phase 4)*
+- [ ] Emoji shortcodes *(deferred to Phase 4)*
+- [ ] YAML front matter (collapsible metadata block) *(deferred to Phase 4)*
 - [x] Toolbar (§4.4): heading selector, formatting buttons, insert controls, undo/redo — contextual state
 - [x] Markdown sanitization: integrate DOMPurify; strip dangerous HTML, `javascript:` URIs, event handlers
 - [x] Raw Markdown toggle (`Cmd/Ctrl+Shift+M`) — switch between WYSIWYG and source view
@@ -94,7 +94,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Notebook tree view in the sidebar with expand/collapse, selection, context menus
 - [x] Device icon for Local notebooks in the tree
 - [x] Open `.md` / `.mdx` / `.markdown` files in the editor; `.txt` files as plaintext
-- [ ] Image/video preview for media files in the tree
+- [ ] Image/video preview for media files in the tree *(deferred to Phase 4)*
 - [x] Tabbed documents: open multiple files, switch between tabs, close tabs, unsaved-changes indicator
 - [x] Manual save to IndexedDB (`Cmd/Ctrl+S`)
 - [x] Auto-save for Local notebooks (immediate write on every change)

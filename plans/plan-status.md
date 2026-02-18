@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-02-18
 
 ---
 
@@ -95,10 +95,6 @@
 - Vite production build succeeds (259KB JS, 13.5KB CSS gzip)
 - All i18n strings use existing translation keys (no new keys needed)
 
----
-
-## Iteration Notes
-
 #### 1.3 WYSIWYG Markdown Editor
 - **Status:** Complete (core features; footnotes, KaTeX, emoji, front matter deferred to Phase 4)
 - **Started:** 2026-02-17
@@ -113,10 +109,10 @@
 - **`components/editor/EditorToolbar.tsx`**: Full toolbar with heading selector (H1–H6 + paragraph), formatting (bold/italic/underline/strikethrough/code/highlight), lists (bullet/ordered/task), block elements (blockquote/code block/hr/table), link input modal, undo/redo — all with active state tracking and keyboard shortcut hints
 - **`components/editor/SlashCommands.ts`**: ProseMirror plugin that detects "/" at cursor, tracks query text, and exposes state via a PluginKey. 15 commands: H1–H3, bullet/ordered/task list, blockquote, code block, table, hr, bold, italic, strikethrough, inline code, highlight
 - **`components/editor/SlashCommandMenu.tsx`**: React component that reads slash command state, renders a floating command palette with fuzzy filtering, keyboard navigation (↑↓ Enter Escape), and executes commands by deleting the slash text then applying the action
-- **`components/editor/MarkdownEditor.tsx`**: Main editor component composing toolbar + Tiptap EditorContent + slash command menu. Supports raw HTML toggle (⌘⇧M), word/char count reporting, content sync from props via DOMPurify
+- **`components/editor/MarkdownEditor.tsx`**: Main editor component composing toolbar + Tiptap EditorContent + slash command menu. Supports raw Markdown toggle (⌘⇧M), word/char count reporting, content sync from props via DOMPurify
+- **`components/editor/markdownConverter.ts`**: HTML↔Markdown conversion using `turndown` + `turndown-plugin-gfm`. Custom rules for task lists and highlight marks. `htmlToMarkdown()` and `markdownToHtml()` functions.
 - **`components/editor/editor.css`**: Custom styles for placeholder text, task list checkboxes, code blocks with syntax token colors (light+dark), tables with selection/resize handles, blockquotes, horizontal rules, links, inline code, highlights, images, slash command active text
 - Updated `DocumentPane` to render `MarkdownEditor` in active tab, with `content` and `onContentChange` props
-- Updated `App.tsx` with demo content ("Welcome.md" tab) showcasing headings, bold/italic/strikethrough/code, task lists, code blocks, and blockquotes. Word count and char count now flow to StatusBar.
 
 **Deferred to Phase 4 (Editor Polish):**
 - Footnotes extension
@@ -127,10 +123,6 @@
 **Verified:**
 - TypeScript compiles cleanly
 - Vite build succeeds (827KB JS — expected for Tiptap+ProseMirror+highlight.js; will code-split in Phase 7)
-
-## Iteration Notes
-
-- **1.3 follow-up:** User noticed raw Markdown toggle was showing HTML instead of Markdown. Added `turndown` + `turndown-plugin-gfm` for proper HTML→Markdown conversion with custom task list and highlight rules. Fixed and committed separately.
 
 #### 1.4 Local Notebook Storage
 - **Status:** Complete (media preview deferred to Phase 4)
@@ -166,12 +158,18 @@
 - Updated **i18n translations** with new keys: localWarning, newFile, newFolder, rename, delete
 - Browser storage warning alert shown on first notebook creation
 
-**Deferred:**
-- Image/video preview for media files in tree (Phase 4)
+**Deferred to Phase 4:**
+- Image/video preview for media files in tree
 
 **Verified:**
 - TypeScript compiles cleanly
 - Vite build succeeds (858KB JS)
+
+---
+
+## Iteration Notes
+
+- **1.3 follow-up:** User noticed raw Markdown toggle was showing HTML instead of Markdown. Added `turndown` + `turndown-plugin-gfm` for proper HTML→Markdown conversion with custom task list and highlight rules. Fixed and committed separately.
 
 ---
 
