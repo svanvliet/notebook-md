@@ -141,6 +141,25 @@ export function SettingsModal({ settings, onUpdate, displayMode, onDisplayModeCh
               <option value={8}>8 spaces</option>
             </select>
           </div>
+
+          {/* Idle Timeout */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Idle Timeout</label>
+            <select
+              value={settings.idleTimeoutMinutes ?? 0}
+              onChange={e => onUpdate({ idleTimeoutMinutes: Number(e.target.value) || null })}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+            >
+              <option value={0}>Off</option>
+              <option value={15}>15 minutes</option>
+              <option value={30}>30 minutes</option>
+              <option value={60}>1 hour</option>
+              <option value={120}>2 hours</option>
+            </select>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Require re-authentication after inactivity
+            </p>
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end">

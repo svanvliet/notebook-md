@@ -27,9 +27,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  // Check if user is suspended
-  const userResult = await query<{ is_suspended: boolean }>(
-    'SELECT is_suspended FROM users WHERE id = $1',
+  // Check if user is suspended + fetch idle timeout setting
+  const userResult = await query<{ is_suspended: boolean; idle_timeout_minutes: number | null }>(
+    `SELECT u.is_suspended, us.idle_timeout_minutes
+     FROM users u LEFT JOIN user_settings us ON u.id = us.user_id
+     WHERE u.id = $1`,
     [session.userId],
   );
   if (userResult.rows.length === 0 || userResult.rows[0].is_suspended) {
@@ -38,8 +40,23 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
+  // Check idle timeout if configured
+  const idleTimeout = userResult.rows[0].idle_timeout_minutes;
+  if (idleTimeout && session.lastActiveAt) {
+    const idleMs = Date.now() - new Date(session.lastActiveAt).getTime();
+    if (idleMs > idleTimeout * 60 * 1000) {
+      res.clearCookie('refresh_token');
+      res.status(401).json({ error: 'Session timed out due to inactivity' });
+      return;
+    }
+  }
+
   req.userId = session.userId;
   req.sessionId = session.id;
+
+  // Update last_active_at (fire-and-forget, don't block the request)
+  query('UPDATE sessions SET last_active_at = now() WHERE id = $1', [session.id]).catch(() => {});
+
   next();
 }
 

@@ -537,13 +537,13 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 5.3b Session Hardening (§2.6)
 
-- [ ] "Remember Me" checkbox on sign-in: default 24hr session, 30-day with "Remember Me"
+- [x] "Remember Me" checkbox on sign-in: default 24hr session, 30-day with "Remember Me"
   - Set `expires_at` on sessions table based on checkbox
   - Auth middleware checks `expires_at` and rejects expired sessions
-- [ ] Refresh token rotation: each use of a refresh token issues a new one and invalidates the old
+- [x] Refresh token rotation: each use of a refresh token issues a new one and invalidates the old
   - Add `token_family` column to sessions for reuse detection
   - If a revoked refresh token is reused (theft indicator), invalidate all sessions in that token family
-- [ ] Idle timeout (optional, configurable in settings): after N minutes of inactivity, require re-authentication
+- [x] Idle timeout (optional, configurable in settings): after N minutes of inactivity, require re-authentication
   - Track `last_active_at` on session; middleware checks against idle threshold
   - Default: off (user can enable in Settings)
 

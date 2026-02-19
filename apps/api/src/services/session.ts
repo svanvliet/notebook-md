@@ -124,12 +124,12 @@ export async function revokeAllUserSessions(userId: string): Promise<void> {
 /** Get active session by refresh token hash */
 export async function getSessionByRefreshToken(
   refreshToken: string,
-): Promise<{ id: string; userId: string; expiresAt: Date } | null> {
+): Promise<{ id: string; userId: string; expiresAt: Date; lastActiveAt: Date } | null> {
   const hash = hashToken(refreshToken);
-  const result = await query<{ id: string; user_id: string; expires_at: Date }>(
-    'SELECT id, user_id, expires_at FROM sessions WHERE refresh_token_hash = $1 AND revoked_at IS NULL AND expires_at > now()',
+  const result = await query<{ id: string; user_id: string; expires_at: Date; last_active_at: Date }>(
+    'SELECT id, user_id, expires_at, last_active_at FROM sessions WHERE refresh_token_hash = $1 AND revoked_at IS NULL AND expires_at > now()',
     [hash],
   );
   if (result.rows.length === 0) return null;
-  return { id: result.rows[0].id, userId: result.rows[0].user_id, expiresAt: result.rows[0].expires_at };
+  return { id: result.rows[0].id, userId: result.rows[0].user_id, expiresAt: result.rows[0].expires_at, lastActiveAt: result.rows[0].last_active_at };
 }

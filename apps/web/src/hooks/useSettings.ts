@@ -11,6 +11,7 @@ export interface AppSettings {
   spellCheck: boolean;
   lineNumbers: boolean;
   tabSize: number;
+  idleTimeoutMinutes: number | null;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   spellCheck: true,
   lineNumbers: false,
   tabSize: 2,
+  idleTimeoutMinutes: null,
 };
 
 export function useSettings(isSignedIn: boolean) {

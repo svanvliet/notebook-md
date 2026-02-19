@@ -1902,6 +1902,33 @@ Migrated all API callers to `apiFetch`: `github.ts`, `onedrive.ts`, `googledrive
 
 ---
 
+## Phase 5.3 Completion — Security Hardening ✅
+
+**Completed:** 2026-02-19
+**Commit:** `35ff175`
+
+### What was implemented
+
+| Control | Details |
+|---------|---------|
+| **CSP** | Helmet with restrictive directives: `default-src 'self'`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'` (Tailwind), `img-src` allows cloud storage domains, `frame-src 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` |
+| **CORS** | Dev: `localhost:*` via regex. Production: explicit `notebookmd.io` + `admin.notebookmd.io` via `CORS_ORIGIN`/`ADMIN_ORIGIN` env vars |
+| **CSRF** | Content-Type validation on POST/PUT/PATCH/DELETE — requires `application/json` or `text/*`. Bodyless requests (cookie-only like `/auth/refresh`) and webhooks exempted |
+| **HSTS** | 1 year `max-age`, `includeSubDomains`, `preload`-ready |
+| **DOMPurify** | Added `FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form']` and `FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur']` |
+| **Data leak audit** | Confirmed: `password_hash`, `totp_secret_enc`, tokens never sent to client. Error handler masks 500 details to generic message. Stack traces logged server-side only |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/api/src/app.ts` | Helmet CSP config, CORS regex matching, CSRF middleware, HSTS |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | DOMPurify FORBID_TAGS/FORBID_ATTR |
+| `plans/initial-plan.md` | Phase 5.3 checkboxes marked complete |
+
+**Next:** Phase 5.3b — Session Hardening
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
