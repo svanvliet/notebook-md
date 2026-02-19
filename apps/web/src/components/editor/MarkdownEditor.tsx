@@ -113,12 +113,10 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const [mediaModal, setMediaModal] = useState<{ type: 'image' | 'video' } | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
-  const mirrorRef = useRef<HTMLDivElement>(null);
-  const gutterRef = useRef<HTMLDivElement>(null);
+  const lineNumRef = useRef<HTMLTextAreaElement>(null);
   const wysiwygScrollRef = useRef<HTMLDivElement>(null);
   const syncingScroll = useRef(false);
   const syncingFromSource = useRef(false);
-  const [lineHeights, setLineHeights] = useState<number[]>([]);
 
   const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
 
@@ -166,47 +164,15 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     el.setAttribute('spellcheck', spellCheckProp === false ? 'false' : 'true');
   }, [editor, spellCheckProp]);
 
-  // Measure line heights for word-wrap-aware line numbers
-  useEffect(() => {
-    if (!lineNumbers || !wordWrap) return;
-    if (viewMode !== 'source' && viewMode !== 'split') return;
-    const mirror = mirrorRef.current;
-    if (!mirror) return;
+  // Build line number text: each logical line gets its number, wrapped continuation lines get blank
+  const lineNumText = rawContent.split('\n').map((_, i) => String(i + 1)).join('\n');
 
-    const lines = rawContent.split('\n');
-    const heights: number[] = [];
-    // Clear mirror and populate with line spans
-    mirror.innerHTML = '';
-    for (const line of lines) {
-      const div = document.createElement('div');
-      // Use zero-width space for empty lines so they get measured correctly
-      div.textContent = line || '\u200b';
-      mirror.appendChild(div);
+  // Sync scroll between line number textarea and source textarea
+  const syncLineNumScroll = () => {
+    if (lineNumRef.current && sourceRef.current) {
+      lineNumRef.current.scrollTop = sourceRef.current.scrollTop;
     }
-    // Read heights
-    for (let i = 0; i < mirror.children.length; i++) {
-      heights.push((mirror.children[i] as HTMLElement).offsetHeight);
-    }
-    setLineHeights(heights);
-  }, [rawContent, lineNumbers, wordWrap, viewMode]);
-
-  // Re-measure line heights on resize (word wrap changes column width)
-  useEffect(() => {
-    if (!lineNumbers || !wordWrap) return;
-    if (viewMode !== 'source' && viewMode !== 'split') return;
-    const mirror = mirrorRef.current;
-    if (!mirror) return;
-
-    const observer = new ResizeObserver(() => {
-      const heights: number[] = [];
-      for (let i = 0; i < mirror.children.length; i++) {
-        heights.push((mirror.children[i] as HTMLElement).offsetHeight);
-      }
-      if (heights.length > 0) setLineHeights(heights);
-    });
-    observer.observe(mirror);
-    return () => observer.disconnect();
-  }, [lineNumbers, wordWrap, viewMode]);
+  };
 
   // Keyboard shortcut: Cmd/Ctrl+Shift+M for raw toggle, Cmd/Ctrl+Shift+S for split
   useEffect(() => {
@@ -487,53 +453,38 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       <div className="flex-1 overflow-hidden flex">
         {/* Source pane — shown in source-only or split mode */}
         {(viewMode === 'source' || viewMode === 'split') && (
-          <div className={`source-pane relative flex border-r border-gray-200 dark:border-gray-800 overflow-auto ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}
-            onScroll={(e) => {
-              const target = e.currentTarget;
-              const gutter = gutterRef.current;
-              if (gutter) gutter.style.transform = `translateY(${-target.scrollTop}px)`;
-              if (viewMode === 'split') handleSourceScroll(e as any);
-            }}
-          >
+          <div className={`source-pane relative border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}>
             {lineNumbers && (
-              <div className="sticky left-0 shrink-0 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-10 overflow-hidden"
-                style={{ width: `${Math.max(3, String(rawContent.split('\n').length).length) * 0.6 + 1.5}rem` }}
+              <div
+                className="absolute top-0 left-0 bottom-0 z-10 overflow-hidden bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
+                style={{ width: `${Math.max(3, String(rawContent.split('\n').length).length) * 0.65 + 1.2}rem` }}
               >
-                <div ref={gutterRef} className="select-none text-right pr-3 pl-2 pt-6 font-mono text-xs text-gray-400 dark:text-gray-600"
+                <textarea
+                  ref={lineNumRef}
+                  readOnly
+                  tabIndex={-1}
+                  value={lineNumText}
+                  wrap="off"
+                  className="resize-none w-full h-full font-mono text-sm py-6 pr-3 pl-2 text-right bg-transparent text-gray-400 dark:text-gray-600 select-none focus:outline-none cursor-default overflow-hidden border-none outline-none"
                   aria-hidden="true"
-                >
-                  {rawContent.split('\n').map((_, i) => (
-                    <div key={i} style={wordWrap && lineHeights[i] ? { height: `${lineHeights[i]}px` } : undefined}
-                      className={wordWrap ? 'flex items-start' : ''}
-                    >
-                      <span className={wordWrap ? '' : 'leading-[1.3125rem]'}>{i + 1}</span>
-                    </div>
-                  ))}
-                </div>
+                />
               </div>
             )}
-            <div className="flex-1 min-w-0 relative">
-              {/* Hidden mirror div for measuring wrapped line heights */}
-              {lineNumbers && wordWrap && (
-                <div
-                  ref={mirrorRef}
-                  aria-hidden="true"
-                  className="absolute top-0 left-0 right-0 invisible font-mono text-sm py-6 whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
-                  style={{ paddingLeft: '0.5rem', paddingRight: '1.5rem' }}
-                />
-              )}
-              <textarea
-                ref={sourceRef}
-                value={rawContent}
-                onChange={(e) => handleSourceChange(e.target.value)}
-                className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none w-full h-full ${
-                  wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'
-                } ${lineNumbers ? 'pl-2 pr-6' : 'px-6'}`}
-                wrap={wordWrap ? 'soft' : 'off'}
-                style={!wordWrap ? { lineHeight: '1.3125rem' } : undefined}
-                spellCheck={spellCheckProp !== false}
-              />
-            </div>
+            <textarea
+              ref={sourceRef}
+              value={rawContent}
+              onChange={(e) => handleSourceChange(e.target.value)}
+              onScroll={(e) => {
+                syncLineNumScroll();
+                if (viewMode === 'split') handleSourceScroll(e);
+              }}
+              className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none w-full h-full ${
+                wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'
+              } ${lineNumbers ? 'pr-6' : 'px-6'}`}
+              style={lineNumbers ? { paddingLeft: `${Math.max(3, String(rawContent.split('\n').length).length) * 0.65 + 1.6}rem` } : undefined}
+              wrap={wordWrap ? 'soft' : 'off'}
+              spellCheck={spellCheckProp !== false}
+            />
             {/* Word wrap toggle */}
             <button
               onClick={() => setWordWrap((w) => !w)}
