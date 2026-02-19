@@ -1585,6 +1585,109 @@ Phase 4 is complete. All editor features verified, 282 tests passing (105 web + 
 
 ---
 
+### Phase 5.1: Two-Factor Authentication ✅
+
+**Completed:** 2026-02-19  
+**Commits:** `5c2b538`, `32a6341`, `26e213a`
+
+**What was built:**
+
+**Backend — 2FA Service (`services/two-factor.ts`):**
+- TOTP support via `otpauth` library (RFC 6238, SHA1, 6-digit, 30s period)
+- TOTP secrets encrypted with AES-256-GCM (same envelope encryption as OAuth tokens)
+- Email-based 2FA codes: 6-digit numeric codes stored in Redis with 5-min TTL
+- Recovery codes: 10 hex codes (`xxxx-xxxx` format), bcrypt-hashed (normalized), one-time use
+- JWT challenge tokens: short-lived (5 min) tokens issued after password verification when 2FA is enabled; full session created only after 2FA verification
+- Method detection: if `totp_secret_enc` is set → TOTP; if null with `totp_enabled = true` → email
+
+**Backend — 2FA Routes (`routes/two-factor.ts`):**
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/auth/2fa/status` | Session | Get 2FA enabled/method |
+| POST | `/auth/2fa/setup` | Session | Start TOTP setup, returns secret + otpauth URI |
+| POST | `/auth/2fa/enable` | Session | Verify first TOTP code or enable email method; returns recovery codes |
+| POST | `/auth/2fa/disable` | Session | Verify code (TOTP/email/recovery) then disable |
+| POST | `/auth/2fa/verify` | Challenge token | Verify 2FA during sign-in, creates session |
+| POST | `/auth/2fa/send-code` | Challenge token | Send email 2FA code during sign-in |
+| POST | `/auth/2fa/send-disable-code` | Session | Send email code for disabling |
+
+**Backend — Sign-in flow changes:**
+- `POST /auth/signin`: after password verification, checks `totp_enabled`; if true, returns `{ requires2fa: true, challengeToken, method }` instead of creating a session
+- All user-returning endpoints (signin, signup, magic-link/verify, 2fa/verify) now include `hasPassword`, `twoFactorEnabled`, `twoFactorMethod` fields
+- Email template added for 2FA verification codes (`lib/email.ts`)
+
+**Frontend — Account Settings (`TwoFactorSetup.tsx`):**
+- New "Two-Factor Authentication" section in AccountModal between Password and Linked Accounts
+- Enable flow: choose method (TOTP/email) → QR code scan with manual key fallback → verify → recovery codes display with copy button
+- Disable flow: enter verification code (TOTP, email, or recovery code)
+- Shows current status: "Enabled (Authenticator app)" or "Enabled (Email codes)"
+
+**Frontend — Sign-in flow (`WelcomeScreen.tsx`):**
+- 2FA verification view with lock icon, shown after password verification
+- Defaults to user's configured method (not always TOTP)
+- For email method: auto-sends code when 2FA screen appears
+- Supports switching between TOTP ↔ email code ↔ recovery code
+- "Cancel and sign in with a different account" option
+
+**Frontend — Post-signup onboarding (`OnboardingTwoFactor.tsx`):**
+- "Secure your account" screen shown after creating a new account
+- Choose method (TOTP or email) or "Skip for now"
+- Full setup flow with QR scan, verification, and recovery codes
+- "Continue to Notebook.md" button after setup
+
+**Frontend — useAuth hook updates:**
+- New state: `twoFactorChallenge` (challengeToken + method)
+- New methods: `verify2fa`, `send2faEmailCode`, `cancel2fa`, `setup2fa`, `enable2fa`, `disable2fa`, `sendDisable2faCode`
+- User interface extended with `twoFactorEnabled` and `twoFactorMethod`
+
+**Bug fixes during 2FA implementation:**
+- Email 2FA sign-in showed authenticator screen instead of email code screen (fixed: `twoFaMode` defaults to `twoFactorChallenge.method`, auto-sends email code)
+- AccountModal showed "Enable 2FA" after sign-in even when enabled (fixed: all user-returning API responses now include 2FA fields)
+- Recovery code verification failed (fixed: normalized codes during both hashing and comparison)
+
+**Dependencies added:**
+- API: `otpauth` (TOTP generation/verification)
+- Web: `qrcode`, `@types/qrcode` (QR code rendering for TOTP setup)
+
+**Tests:** 13 new API tests in `two-factor.test.ts`
+
+**Updated test inventory:**
+
+| Suite | File | Tests |
+|-------|------|-------|
+| Web | markdownConverter.test.ts | 30 |
+| Web | localNotebookStore.test.ts | 22 |
+| Web | useAuth.test.ts | 13 |
+| Web | accountModal.test.tsx | 10 |
+| Web | appSettings.test.ts | 8 |
+| Web | useToast.test.tsx | 8 |
+| Web | useSettings.test.ts | 8 |
+| Web | notebookManager.test.ts | 7 |
+| API | auth.test.ts | 33 |
+| API | github-routes.test.ts | 23 |
+| API | provider-revocation.test.ts | 22 |
+| API | path-validation.test.ts | 19 |
+| API | onedrive-routes.test.ts | 20 |
+| API | googledrive-routes.test.ts | 20 |
+| API | encryption.test.ts | 14 |
+| API | two-factor.test.ts | 13 |
+| API | notebooks.test.ts | 13 |
+| API | oauth.test.ts | 10 |
+| API | sessions.test.ts | 8 |
+| API | webhook.test.ts | 8 |
+| API | circuit-breaker.test.ts | 8 |
+| API | settings.test.ts | 7 |
+| **Total** | **22 files** | **295** |
+
+**Phase 5 plan updates:**
+- Added **5.3b Session Hardening** — Remember Me (24hr/30d), refresh token rotation with reuse detection, optional idle timeout
+- Updated **5.4** — PostHog integration deferred to Phase 7; consent banner just prepares the hook
+- Added deferral note — Accessibility (WCAG 2.1 AA) deferred to future version
+
+**Next:** Phase 5.2 — Admin Console
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
