@@ -47,10 +47,21 @@ export default function App() {
       if (error === 'account_exists') {
         return `An account with this email already exists. Sign in with your email and password, then link ${provider ?? 'this provider'} from Account Settings.`;
       }
+      if (error === 'provider_already_linked') {
+        return `This ${provider ?? 'provider'} account is already linked to another Notebook.md account. Unlink it from the other account first, or use a different ${provider ?? 'provider'} account.`;
+      }
       return `Authentication failed: ${error ?? 'Unknown error'}`;
     }
     return null;
   });
+
+  // Show OAuth error as toast when user is already signed in (WelcomeScreen won't show)
+  useEffect(() => {
+    if (oauthError && auth.isSignedIn) {
+      addToast(oauthError, 'error');
+      setOauthError(null);
+    }
+  }, [oauthError, auth.isSignedIn, addToast]);
 
   // Handle magic link and email verification from URL
   useEffect(() => {

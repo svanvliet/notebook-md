@@ -371,9 +371,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Client: close tabs, remove notebooks from IndexedDB and state on unlink
 - [x] Client: clear working branch refs for GitHub notebooks on unlink
 - [x] Server: revoke OAuth tokens with provider on unlink (best-effort)
-  - [x] GitHub: `DELETE /applications/{client_id}/token` + `DELETE /app/installations/{id}`
+  - [x] GitHub: `DELETE /applications/{client_id}/grant` (full authorization revocation)
   - [x] Google: `POST https://oauth2.googleapis.com/revoke`
   - [x] Microsoft: `POST /oauth2/v2.0/revoke` with refresh token
+- [x] Error handling: show toast when linking a provider already linked to another account
 
 #### Settings — Editor Font & Size
 - [x] Thread `settings` (fontFamily, fontSize) from App → DocumentPane → MarkdownEditor

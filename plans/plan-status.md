@@ -1445,6 +1445,28 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Provider Link Conflict Error Handling
+
+**Completed:** 2026-02-19
+
+**Problem:** When User B tries to link a provider (e.g., Microsoft) that is already linked to User A, `linkProviderToUser` throws an error. The OAuth callback redirects to `/app/auth-error`, but since the user is already signed in, the WelcomeScreen (which displays errors) is skipped — error is silently swallowed.
+
+**Fixes:**
+1. **API**: `linkProviderToUser` now throws with `code: 'PROVIDER_ALREADY_LINKED'` for structured error handling
+2. **API**: OAuth callback routes this code to `/app/auth-error?error=provider_already_linked&provider=...`
+3. **Frontend**: App.tsx parses `provider_already_linked` error with clear user message
+4. **Frontend**: New `useEffect` shows `oauthError` as toast when user is already signed in (instead of only on WelcomeScreen)
+
+**Files modified:**
+- `apps/api/src/services/account-link.ts` — Error code on duplicate provider link
+- `apps/api/src/routes/oauth.ts` — Handle `PROVIDER_ALREADY_LINKED` error code
+- `apps/web/src/App.tsx` — Toast for signed-in OAuth errors, `provider_already_linked` message
+- `apps/api/src/tests/oauth.test.ts` — 1 new test for duplicate link rejection
+
+**Tests: 1 new API test (171 API total)**
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

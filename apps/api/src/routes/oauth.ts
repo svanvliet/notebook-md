@@ -162,6 +162,10 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
       res.redirect(`${APP_URL}/app/auth-error?error=account_exists&provider=${providerName}`);
       return;
     }
+    if (code === 'PROVIDER_ALREADY_LINKED') {
+      res.redirect(`${APP_URL}/app/auth-error?error=provider_already_linked&provider=${providerName}`);
+      return;
+    }
     const message = err instanceof Error ? err.message : 'OAuth authentication failed';
     res.redirect(`${APP_URL}/app/auth-error?error=${encodeURIComponent(message)}`);
   }

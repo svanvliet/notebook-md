@@ -149,18 +149,51 @@ describe('Provider Unlink Cleanup', () => {
   });
 
   it('should refuse to unlink the only sign-in method', async () => {
-    // Sign up with password, then link GitHub, then try to unlink
-    // This test verifies via the HTTP endpoint; can't easily create password-less users via API
     const { res: signUpRes } = await signUp('sole@test.com', 'password123');
     const token = extractRefreshToken(signUpRes)!;
     const cookie = `refresh_token=${token}`;
-
-    // Trying to unlink a provider that isn't linked should fail (400)
     const res = await request.delete('/auth/oauth/github').set('Cookie', cookie);
-    // Not linked, so the delete call on identity_links will match 0 rows.
-    // The service checks before deletion if removing would leave no sign-in methods.
-    // Since user has a password, they can unlink — but there's nothing to unlink, so it succeeds vacuously.
-    // The real guard is tested in the service unit tests; here we just verify the endpoint works.
     expect([200, 400]).toContain(res.status);
+  });
+
+  it('should reject linking a provider already linked to another user', async () => {
+    const { query } = await import('../db/pool.js');
+
+    // Create User A with a Microsoft link
+    const { res: resA } = await signUp('userA@test.com', 'password123');
+    const tokenA = extractRefreshToken(resA)!;
+    const meA = await request.get('/auth/me').set('Cookie', `refresh_token=${tokenA}`);
+    const userIdA = meA.body.user.id;
+
+    await query(
+      `INSERT INTO identity_links (user_id, provider, provider_user_id, provider_email)
+       VALUES ($1, 'microsoft', 'ms-shared-id', 'shared@outlook.com')`,
+      [userIdA],
+    );
+
+    // Create User B
+    const { res: resB } = await signUp('userB@test.com', 'password123');
+    const tokenB = extractRefreshToken(resB)!;
+    const meB = await request.get('/auth/me').set('Cookie', `refresh_token=${tokenB}`);
+    const userIdB = meB.body.user.id;
+
+    // Try to link the same Microsoft provider_user_id to User B
+    const { linkProviderToUser } = await import('../services/account-link.js');
+    try {
+      await linkProviderToUser(userIdB, 'microsoft', {
+        providerId: 'ms-shared-id',
+        email: 'shared@outlook.com',
+        name: 'Shared User',
+      }, {
+        accessToken: 'fake-token',
+        refreshToken: null,
+        expiresAt: null,
+        scopes: null,
+      });
+      expect.fail('Should have thrown');
+    } catch (err: any) {
+      expect(err.code).toBe('PROVIDER_ALREADY_LINKED');
+      expect(err.message).toContain('already linked to another user');
+    }
   });
 });

@@ -205,7 +205,7 @@ export async function linkProviderToUser(
       );
       return;
     }
-    throw new Error('This provider account is already linked to another user');
+    throw Object.assign(new Error('This provider account is already linked to another user'), { code: 'PROVIDER_ALREADY_LINKED' });
   }
 
   await query(
