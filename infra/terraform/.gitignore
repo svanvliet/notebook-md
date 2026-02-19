@@ -1,0 +1,10 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+crash.log
+
+# Sensitive values — use TF_VAR_ env vars instead
+terraform.tfvars
+*.auto.tfvars

@@ -1,0 +1,170 @@
+# ──────────────────────────────────────────────
+# Azure Front Door (Standard tier)
+# ──────────────────────────────────────────────
+
+resource "azurerm_cdn_frontdoor_profile" "main" {
+  name                = "fd-${var.project}-${var.environment}"
+  resource_group_name = azurerm_resource_group.main.name
+  sku_name            = "Standard_AzureFrontDoor"
+
+  tags = local.tags
+}
+
+# ── Endpoints ──
+
+resource "azurerm_cdn_frontdoor_endpoint" "web" {
+  name                     = "${var.project}-web"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+}
+
+resource "azurerm_cdn_frontdoor_endpoint" "api" {
+  name                     = "${var.project}-api"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+}
+
+resource "azurerm_cdn_frontdoor_endpoint" "admin" {
+  name                     = "${var.project}-admin"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+}
+
+# ── Origin Groups ──
+
+resource "azurerm_cdn_frontdoor_origin_group" "web" {
+  name                     = "og-web"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  session_affinity_enabled = false
+
+  health_probe {
+    interval_in_seconds = 60
+    path                = "/"
+    protocol            = "Https"
+    request_type        = "HEAD"
+  }
+
+  load_balancing {}
+}
+
+resource "azurerm_cdn_frontdoor_origin_group" "api" {
+  name                     = "og-api"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  session_affinity_enabled = false
+
+  health_probe {
+    interval_in_seconds = 30
+    path                = "/api/health"
+    protocol            = "Https"
+    request_type        = "GET"
+  }
+
+  load_balancing {}
+}
+
+resource "azurerm_cdn_frontdoor_origin_group" "admin" {
+  name                     = "og-admin"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  session_affinity_enabled = false
+
+  health_probe {
+    interval_in_seconds = 60
+    path                = "/"
+    protocol            = "Https"
+    request_type        = "HEAD"
+  }
+
+  load_balancing {}
+}
+
+# ── Origins ──
+
+resource "azurerm_cdn_frontdoor_origin" "web" {
+  name                          = "origin-web"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.web.id
+  enabled                       = true
+  host_name                     = azurerm_container_app.web.ingress[0].fqdn
+  origin_host_header            = azurerm_container_app.web.ingress[0].fqdn
+  http_port                     = 80
+  https_port                    = 443
+  certificate_name_check_enabled = true
+}
+
+resource "azurerm_cdn_frontdoor_origin" "api" {
+  name                          = "origin-api"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
+  enabled                       = true
+  host_name                     = azurerm_container_app.api.ingress[0].fqdn
+  origin_host_header            = azurerm_container_app.api.ingress[0].fqdn
+  http_port                     = 80
+  https_port                    = 443
+  certificate_name_check_enabled = true
+}
+
+resource "azurerm_cdn_frontdoor_origin" "admin" {
+  name                          = "origin-admin"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.admin.id
+  enabled                       = true
+  host_name                     = azurerm_container_app.admin.ingress[0].fqdn
+  origin_host_header            = azurerm_container_app.admin.ingress[0].fqdn
+  http_port                     = 80
+  https_port                    = 443
+  certificate_name_check_enabled = true
+}
+
+# ── Routes ──
+
+resource "azurerm_cdn_frontdoor_route" "web" {
+  name                          = "route-web"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.web.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.web.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.web.id]
+  patterns_to_match             = ["/*"]
+  supported_protocols           = ["Http", "Https"]
+  https_redirect_enabled        = true
+  forwarding_protocol           = "HttpsOnly"
+}
+
+resource "azurerm_cdn_frontdoor_route" "api" {
+  name                          = "route-api"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.api.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.api.id]
+  patterns_to_match             = ["/*"]
+  supported_protocols           = ["Http", "Https"]
+  https_redirect_enabled        = true
+  forwarding_protocol           = "HttpsOnly"
+}
+
+resource "azurerm_cdn_frontdoor_route" "admin" {
+  name                          = "route-admin"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.admin.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.admin.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.admin.id]
+  patterns_to_match             = ["/*"]
+  supported_protocols           = ["Http", "Https"]
+  https_redirect_enabled        = true
+  forwarding_protocol           = "HttpsOnly"
+}
+
+# ── Custom Domains (configured after DNS records are set) ──
+# These require CNAME/TXT records pointing to the Front Door endpoint.
+# Uncomment and apply after DNS is configured in Phase 6.5.
+
+# resource "azurerm_cdn_frontdoor_custom_domain" "web" {
+#   name                     = "domain-web"
+#   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+#   host_name                = var.domain
+#   tls { certificate_type = "ManagedCertificate" }
+# }
+
+# resource "azurerm_cdn_frontdoor_custom_domain" "api" {
+#   name                     = "domain-api"
+#   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+#   host_name                = "api.${var.domain}"
+#   tls { certificate_type = "ManagedCertificate" }
+# }
+
+# resource "azurerm_cdn_frontdoor_custom_domain" "admin" {
+#   name                     = "domain-admin"
+#   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+#   host_name                = "admin.${var.domain}"
+#   tls { certificate_type = "ManagedCertificate" }
+# }
