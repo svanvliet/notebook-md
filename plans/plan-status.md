@@ -1688,6 +1688,117 @@ Phase 4 is complete. All editor features verified, 282 tests passing (105 web + 
 
 ---
 
+## Phase 5.2 Completion — Admin Console ✅
+
+**Completed:** 2026-02-19
+**Commits:** `ba3fe62`, `f862b46`, `26efb23`
+
+### What was built
+
+**Backend — Admin API (14 endpoints):**
+- `GET /admin/health` — System health (API uptime, DB latency, Redis latency)
+- `GET /admin/metrics` — Platform metrics (users, 2FA, sessions, notebooks, providers)
+- `GET /admin/users` — Paginated user list with search
+- `GET /admin/users/:id` — User detail (notebooks, sessions, identity links)
+- `PATCH /admin/users/:id` — Suspend/unsuspend user
+- `DELETE /admin/users/:id` — Delete user (with self-modification guard)
+- `GET /admin/audit-log` — Paginated, filterable audit log
+- `GET/POST /admin/feature-flags` — List and upsert feature flags
+- `GET/POST/PUT/DELETE /admin/announcements` — Full CRUD
+
+**Admin Middleware (`middleware/admin.ts`):**
+- Verifies `is_admin = true` on every request
+- MFA enforcement (V1): requires 2FA enabled OR at least one OAuth provider linked
+- Email/password-only admins without 2FA are rejected with actionable error message
+
+**CLI Tool (`cli/promote-admin.js`):**
+- Usage: `node cli/promote-admin.js user@example.com`
+- Also accessible via: `./dev.sh promote-admin user@example.com`
+- Admin status can ONLY be set via CLI — no API endpoint can grant admin
+
+**Frontend — Admin SPA (`apps/admin/`):**
+- React 19 + Vite 6 + Tailwind 3.4.17 (matches web app stack)
+- Runs on port 5174 in development
+- Sidebar navigation + 5 pages:
+  - **Dashboard** — System health cards (API/DB/Redis) + platform metrics grid
+  - **Users** — Search, paginated table, view detail modal, suspend/unsuspend, delete
+  - **Audit Log** — Paginated table with action type filter dropdown
+  - **Feature Flags** — Create, list, toggle enabled/disabled
+  - **Announcements** — Full CRUD with inline editing, activate/deactivate
+
+**Auth flow for admin app:**
+- Shares session cookie with main web app (same `localhost` domain)
+- Calls `/auth/me` to check authentication and `isAdmin` status
+- Shows error screen with link to main app if not admin
+
+### Bug fixes during 5.2
+
+1. **`/auth/me` missing `isAdmin`/`isSuspended`** — Admin hook checked `user.isAdmin` but the endpoint didn't return it. Added `is_admin` and `is_suspended` to the query and response.
+2. **Admin error page redirect loop** — "Go to Notebook.md" link pointed to `/` (admin app root) instead of `http://localhost:5173` (web app).
+3. **`cleanDb()` missing tables** — Test helper didn't clean `feature_flags` or `announcements`, causing upsert test flake.
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `apps/api/src/middleware/admin.ts` | Admin auth middleware with MFA enforcement |
+| `apps/api/src/routes/admin.ts` | 14 admin API endpoints |
+| `apps/api/src/tests/admin.test.ts` | 17 admin API tests |
+| `apps/api/cli/promote-admin.js` | CLI script to promote users to admin |
+| `apps/admin/src/App.tsx` | Admin SPA root with React Router |
+| `apps/admin/src/hooks/useAdmin.ts` | Admin API client hook |
+| `apps/admin/src/components/Layout.tsx` | Sidebar + outlet layout |
+| `apps/admin/src/pages/DashboardPage.tsx` | Health + metrics dashboard |
+| `apps/admin/src/pages/UsersPage.tsx` | User management with search/detail |
+| `apps/admin/src/pages/AuditLogPage.tsx` | Filterable audit log viewer |
+| `apps/admin/src/pages/FeatureFlagsPage.tsx` | Feature flag management |
+| `apps/admin/src/pages/AnnouncementsPage.tsx` | Announcement CRUD |
+| `apps/admin/vite.config.ts` | Vite config (port 5174, API proxy) |
+| + config files | `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`, `index.html`, `main.tsx`, `index.css` |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/api/src/app.ts` | Registered admin routes under `/admin` |
+| `apps/api/src/routes/auth.ts` | Added `isAdmin`/`isSuspended` to `/auth/me` response |
+| `apps/api/src/tests/helpers.ts` | Added `announcements`/`feature_flags` to `cleanDb()` |
+| `apps/admin/package.json` | Updated from placeholder to full React/Vite/Tailwind |
+| `dev.sh` | Added admin dev server (step 5/6), `promote-admin` command |
+| `plans/initial-plan.md` | Phase 5.2 checkboxes marked complete |
+
+### Test inventory
+
+| Package | File | Tests |
+|---------|------|-------|
+| Web | welcomeScreen.test.tsx | 14 |
+| Web | appRouting.test.tsx | 12 |
+| Web | statusBar.test.tsx | 11 |
+| Web | accountModal.test.tsx | 9 |
+| Web | toolbar.test.tsx | 8 |
+| Web | useSettings.test.ts | 8 |
+| Web | slashCommands.test.tsx | 25 |
+| Web | notebookManager.test.ts | 7 |
+| Web | sourceManager.test.ts | 11 |
+| API | auth.test.ts | 33 |
+| API | github-routes.test.ts | 23 |
+| API | provider-revocation.test.ts | 22 |
+| API | path-validation.test.ts | 19 |
+| API | onedrive-routes.test.ts | 20 |
+| API | googledrive-routes.test.ts | 20 |
+| API | encryption.test.ts | 14 |
+| API | two-factor.test.ts | 13 |
+| API | admin.test.ts | 17 |
+| API | notebooks.test.ts | 13 |
+| API | oauth.test.ts | 10 |
+| API | sessions.test.ts | 8 |
+| API | webhook.test.ts | 8 |
+| API | circuit-breaker.test.ts | 8 |
+| API | settings.test.ts | 7 |
+| **Total** | **24 files** | **312** |
+
+**Next:** Phase 5.3 — Security Hardening
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
