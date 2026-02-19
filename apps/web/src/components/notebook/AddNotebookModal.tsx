@@ -275,6 +275,9 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
             Install GitHub App
           </button>
         </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          If the app is already installed on your GitHub account, click <strong>Install GitHub App</strong> above and select your account to re-authorize it for this Notebook.md account.
+        </p>
       </div>
     );
   }

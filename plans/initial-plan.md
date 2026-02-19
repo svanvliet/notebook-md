@@ -375,6 +375,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - [x] Google: `POST https://oauth2.googleapis.com/revoke`
   - [x] Microsoft: `POST /oauth2/v2.0/revoke` with refresh token
 - [x] Error handling: show toast when linking a provider already linked to another account
+- [x] UX: helpful note on GitHub install screen for re-authorization of existing installations
 
 #### Settings — Editor Font & Size
 - [x] Thread `settings` (fontFamily, fontSize) from App → DocumentPane → MarkdownEditor
