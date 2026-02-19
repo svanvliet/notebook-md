@@ -47,6 +47,22 @@ export function useAuth() {
     })();
   }, []);
 
+  // Periodic session validation — catches suspensions, revocations, etc.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!state.user) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+        if (!res.ok) {
+          setState({ user: null, loading: false, error: 'Your session has ended.' });
+        }
+      } catch {
+        // Network error — don't log out, they may be temporarily offline
+      }
+    }, 30_000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [state.user]);
+
   const signUp = useCallback(async (email: string, password: string, displayName?: string, rememberMe?: boolean) => {
     setState(s => ({ ...s, error: null }));
     try {
