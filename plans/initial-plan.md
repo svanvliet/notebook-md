@@ -616,7 +616,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - **Rollback** (manual trigger): shift traffic to previous revision
 - [x] GitHub Environment `production` with protection rules (manual approval) — configured in deploy + rollback workflows
 - [x] Environment-scoped secrets for Azure credentials (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID)
-- [x] Branch protection on `main`: require PR reviews, no direct pushes, all CI checks must pass (to be enabled in GitHub Settings)
+- [x] Branch protection on `main`: deferred — requires GitHub Team plan for private repos; revisit when repo goes public
 - [x] Dependabot configuration for npm, Docker base images, and GitHub Actions
 
 ### 6.4 E2E Smoke Tests (Playwright Setup)

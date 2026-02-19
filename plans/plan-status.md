@@ -2307,8 +2307,8 @@ The app used manual `window.history.pushState` for navigation. This caused:
 ### Manual Setup Required
 After pushing these workflows, configure in GitHub Settings:
 1. **Repository → Environments:** Create `production` environment with required reviewers
-2. **Repository → Secrets:** Add `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
-3. **Repository → Branch protection:** Enable for `main` — require PR, status checks, no force push
+2. **Repository → Secrets:** Add `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (deferred to Phase 6.9)
+3. **Branch protection:** Deferred — requires GitHub Team plan for private repos. Revisit when repo goes public or plan is upgraded.
 
 ### Files created
 | File | Purpose |
