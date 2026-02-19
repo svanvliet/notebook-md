@@ -30,6 +30,8 @@ interface MarkdownEditorProps {
   fontFamily?: string;
   fontSize?: number;
   spellCheck?: boolean;
+  margins?: 'narrow' | 'regular' | 'wide';
+  lineNumbers?: boolean;
 }
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -100,7 +102,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamily, fontSize, spellCheck: spellCheckProp }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers }: MarkdownEditorProps) {
   const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
@@ -114,6 +116,8 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const syncingScroll = useRef(false);
   const syncingFromSource = useRef(false);
 
+  const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
+
   const extensions = [...getEditorExtensions(), SlashCommandExtension, DragHandle];
 
   const editor = useEditor({
@@ -121,7 +125,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     content: sanitize(content),
     editorProps: {
       attributes: {
-        class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-8 py-6',
+        class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] py-6',
         spellcheck: spellCheckProp === false ? 'false' : 'true',
       },
     },
@@ -369,6 +373,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const editorStyle = {
     '--editor-font-family': fontFamily || 'inherit',
     '--editor-font-size': fontSize ? `${fontSize}px` : '16px',
+    '--editor-margin': marginPx,
   } as React.CSSProperties;
 
   return (
@@ -436,16 +441,27 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       <div className="flex-1 overflow-hidden flex">
         {/* Source pane — shown in source-only or split mode */}
         {(viewMode === 'source' || viewMode === 'split') && (
-          <textarea
-            ref={sourceRef}
-            value={rawContent}
-            onChange={(e) => handleSourceChange(e.target.value)}
-            onScroll={viewMode === 'split' ? handleSourceScroll : undefined}
-            className={`resize-none font-mono text-sm p-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none border-r border-gray-200 dark:border-gray-800 ${
-              viewMode === 'split' ? 'w-1/2' : 'w-full h-full'
-            }`}
-            spellCheck={spellCheckProp !== false}
-          />
+          <div className={`flex border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}>
+            {lineNumbers && (
+              <div className="select-none text-right pr-3 pl-3 pt-6 font-mono text-xs text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 leading-[1.625rem] shrink-0 overflow-hidden"
+                aria-hidden="true"
+              >
+                {rawContent.split('\n').map((_, i) => (
+                  <div key={i}>{i + 1}</div>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={sourceRef}
+              value={rawContent}
+              onChange={(e) => handleSourceChange(e.target.value)}
+              onScroll={viewMode === 'split' ? handleSourceScroll : undefined}
+              className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none flex-1 ${
+                lineNumbers ? 'pl-2 pr-6' : 'px-6'
+              }`}
+              spellCheck={spellCheckProp !== false}
+            />
+          </div>
         )}
         {/* WYSIWYG pane — shown in wysiwyg-only or split mode */}
         {(viewMode === 'wysiwyg' || viewMode === 'split') && (

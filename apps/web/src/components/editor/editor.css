@@ -1,9 +1,11 @@
 /* Tiptap editor styles */
 
-/* Editor font from settings */
+/* Editor font and margins from settings */
 .tiptap {
   font-family: var(--editor-font-family, inherit);
   font-size: var(--editor-font-size, 16px);
+  padding-left: var(--editor-margin, 2rem);
+  padding-right: var(--editor-margin, 2rem);
 }
 
 /* Placeholder */

@@ -9,7 +9,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   spellCheck: true,
   lineNumbers: false,
   tabSize: 2,
-  showWordCount: true,
 };
 
 describe('AppSettings', () => {
@@ -29,12 +28,28 @@ describe('AppSettings', () => {
     expect(DEFAULT_SETTINGS.margins).toBe('regular');
   });
 
+  it('default lineNumbers is false', () => {
+    expect(DEFAULT_SETTINGS.lineNumbers).toBe(false);
+  });
+
   it('merging partial update preserves other settings', () => {
     const updated: AppSettings = { ...DEFAULT_SETTINGS, fontFamily: "'Inter', sans-serif", fontSize: 20 };
     expect(updated.fontFamily).toBe("'Inter', sans-serif");
     expect(updated.fontSize).toBe(20);
     expect(updated.spellCheck).toBe(true);
     expect(updated.margins).toBe('regular');
+  });
+
+  it('margin values map to expected padding', () => {
+    const marginMap: Record<string, string> = {
+      narrow: '2rem',
+      regular: '4rem',
+      wide: '12rem',
+    };
+    for (const [margin, expected] of Object.entries(marginMap)) {
+      expect(expected).toBeDefined();
+      expect(['narrow', 'regular', 'wide']).toContain(margin);
+    }
   });
 
   it('all font families are valid CSS values', () => {

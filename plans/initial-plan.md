@@ -390,8 +390,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Sync spellcheck on setting change via useEffect
 
 #### Settings — Remaining Toggles
+- [x] Wire `settings.margins` to editor padding via CSS variable `--editor-margin`
+- [x] Wire `settings.lineNumbers` to source view — line number gutter alongside textarea
+- [x] Remove `showWordCount` setting — word count always shows in status bar
 - [ ] Wire `settings.tabSize` to code block indentation (future)
-- [ ] Wire `settings.lineNumbers` to source view display (future)
 
 ### 4.8 Tier 2: Web Unit Tests (§8.15)
 

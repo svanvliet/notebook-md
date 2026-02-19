@@ -259,6 +259,8 @@ export default function App() {
           fontFamily={settings.fontFamily}
           fontSize={settings.fontSize}
           spellCheck={settings.spellCheck}
+          margins={settings.margins}
+          lineNumbers={settings.lineNumbers}
         />
       </div>
       <StatusBar

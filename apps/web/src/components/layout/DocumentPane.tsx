@@ -23,6 +23,8 @@ interface DocumentPaneProps {
   fontFamily?: string;
   fontSize?: number;
   spellCheck?: boolean;
+  margins?: 'narrow' | 'regular' | 'wide';
+  lineNumbers?: boolean;
 }
 
 export function DocumentPane({
@@ -37,6 +39,8 @@ export function DocumentPane({
   fontFamily,
   fontSize,
   spellCheck,
+  margins,
+  lineNumbers,
 }: DocumentPaneProps) {
   const { t } = useTranslation();
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -100,6 +104,8 @@ export function DocumentPane({
             fontFamily={fontFamily}
             fontSize={fontSize}
             spellCheck={spellCheck}
+            margins={margins}
+            lineNumbers={lineNumbers}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-600">

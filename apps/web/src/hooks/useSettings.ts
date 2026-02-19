@@ -11,7 +11,6 @@ export interface AppSettings {
   spellCheck: boolean;
   lineNumbers: boolean;
   tabSize: number;
-  showWordCount: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -22,7 +21,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   spellCheck: true,
   lineNumbers: false,
   tabSize: 2,
-  showWordCount: true,
 };
 
 export function useSettings(isSignedIn: boolean) {

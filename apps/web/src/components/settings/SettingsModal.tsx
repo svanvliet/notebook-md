@@ -111,7 +111,6 @@ export function SettingsModal({ settings, onUpdate, displayMode, onDisplayModeCh
               { key: 'autoSave' as const, label: 'Auto-Save' },
               { key: 'spellCheck' as const, label: 'Spell Check' },
               { key: 'lineNumbers' as const, label: 'Line Numbers (source view)' },
-              { key: 'showWordCount' as const, label: 'Show Word Count' },
             ]).map(({ key, label }) => (
               <label key={key} className="flex items-center justify-between">
                 <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>

@@ -1445,6 +1445,28 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Settings Wiring Fixes (Margins, Line Numbers, Word Count)
+
+**Completed:** 2026-02-19
+
+**Bugs fixed:**
+1. **Margins** had no effect — now applied via CSS variable `--editor-margin` on `.tiptap` padding (narrow=2rem, regular=4rem, wide=12rem)
+2. **Line numbers** toggle did nothing — now renders a line number gutter alongside the source view textarea when enabled
+3. **Show Word Count** setting was a toggle that didn't work — removed it entirely (word count always shows in status bar, which is the correct behavior)
+
+**Files modified:**
+- `apps/web/src/hooks/useSettings.ts` — Removed `showWordCount` from AppSettings
+- `apps/web/src/components/settings/SettingsModal.tsx` — Removed Show Word Count toggle
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — Added `margins` and `lineNumbers` props; margins mapped to `--editor-margin` CSS variable; line number gutter div rendered alongside source textarea
+- `apps/web/src/components/editor/editor.css` — `.tiptap` now uses `--editor-margin` for horizontal padding
+- `apps/web/src/components/layout/DocumentPane.tsx` — Thread `margins` and `lineNumbers` props
+- `apps/web/src/App.tsx` — Pass `settings.margins` and `settings.lineNumbers` to DocumentPane
+- `apps/web/src/tests/appSettings.test.ts` — Updated: removed showWordCount, added lineNumbers and margin mapping tests
+
+**Tests: 67 web total (2 new, 1 removed)**
+
+---
+
 ### Provider Link Conflict Error Handling
 
 **Completed:** 2026-02-19
