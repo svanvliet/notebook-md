@@ -13,12 +13,15 @@
     "lint": "npm -w packages/shared run lint && npm -w apps/web run lint && npm -w apps/api run lint",
     "typecheck": "npm -w packages/shared run typecheck && npm -w apps/web run typecheck && npm -w apps/api run typecheck",
     "test": "npm -w apps/api run test",
-    "test:api": "npm -w apps/api run test"
+    "test:api": "npm -w apps/api run test",
+    "test:web": "npm -w apps/web run test",
+    "test:e2e": "npx playwright test"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.58.2",
     "smee-client": "^5.0.0"
   }
 }

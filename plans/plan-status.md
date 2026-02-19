@@ -2322,6 +2322,48 @@ After pushing these workflows, configure in GitHub Settings:
 
 ---
 
+## Phase 6.4 Completion — E2E Smoke Tests ✅
+
+**Completed:** 2026-02-19
+
+### Setup
+- **Playwright 1.58.2** installed at repo root (Chromium only for smoke tests)
+- **`playwright.config.ts`** at repo root — targets `http://localhost:8080` (docker-compose.prod.yml web container)
+- **`test:e2e`** script added to root `package.json`
+- **E2E smoke job** added to `ci.yml` — runs on PRs only, after Docker images build
+
+### Smoke Test Suite (`e2e/smoke.spec.ts`)
+
+| Test | What it validates |
+|------|-------------------|
+| Welcome screen loads | Notebook.md title, email/password fields, sign-up button |
+| Sign-up with email+password | Form submission → lands in app (sign-up form disappears) |
+| Sign-out | Account menu → sign out → returns to welcome screen |
+| Sign-in with existing account | API-created account → UI sign-in → lands in app |
+| Terms page accessible | `/terms` loads with Terms of Service + Van Vliet Ventures |
+| Privacy page accessible | `/privacy` loads with Privacy Policy + Van Vliet Ventures |
+| Cookie consent banner | New visitor (cleared cookies) sees consent banner with Accept button |
+
+### Nginx API Proxy Fix
+- Created `docker/nginx/web.conf` — adds reverse proxy for `/api/`, `/auth/`, `/webhooks/` to `http://api:3001`
+- Web Dockerfile now uses `web.conf` instead of `spa.conf`
+- Admin Dockerfile still uses `spa.conf` (no API proxy needed)
+- Docker DNS resolver (`127.0.0.11`) configured for upstream resolution
+
+### Files created/modified
+| File | Purpose |
+|------|---------|
+| `playwright.config.ts` | Playwright configuration |
+| `e2e/smoke.spec.ts` | 7 smoke tests |
+| `docker/nginx/web.conf` | Web Nginx config with API proxy |
+| `.github/workflows/ci.yml` | Added e2e-smoke job (PR only) |
+| `package.json` | Added test:e2e, test:web scripts |
+| `.gitignore` | Added playwright-report/, test-results/ |
+
+**Next:** Phase 6.5 — DNS & SSL
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

@@ -621,16 +621,16 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.4 E2E Smoke Tests (Playwright Setup)
 
-- [ ] Install Playwright in the repo root (shared across apps)
-- [ ] Configure `playwright.config.ts` with `webServer` pointing to Docker Compose stack
-- [ ] Smoke test suite (minimal set to validate deployment):
-  - [ ] Welcome screen loads, sign-up form visible
-  - [ ] Sign-up with email + password → lands in app
-  - [ ] Sign-in with existing account → sees app
-  - [ ] Sign-out → returns to welcome screen
-  - [ ] Legal pages accessible at `/terms` and `/privacy`
-  - [ ] Cookie consent banner appears for new visitors
-- [ ] Add `test:e2e` script to root `package.json`
+- [x] Install Playwright in the repo root (shared across apps)
+- [x] Configure `playwright.config.ts` with `webServer` pointing to Docker Compose stack
+- [x] Smoke test suite (minimal set to validate deployment):
+  - [x] Welcome screen loads, sign-up form visible
+  - [x] Sign-up with email + password → lands in app
+  - [x] Sign-in with existing account → sees app
+  - [x] Sign-out → returns to welcome screen
+  - [x] Legal pages accessible at `/terms` and `/privacy`
+  - [x] Cookie consent banner appears for new visitors
+- [x] Add `test:e2e` script to root `package.json`
 
 > **Full E2E suite** (editor, notebook management, settings, data isolation, multi-browser) is deferred to Phase 7.4.
 
