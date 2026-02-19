@@ -113,16 +113,22 @@ export function GitHubIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 export function OneDriveIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M10.082 5.609a6.036 6.036 0 0 1 8.457 1.604 4.478 4.478 0 0 1 2.276-.616c2.35 0 4.261 1.81 4.476 4.114A3.705 3.705 0 0 1 24 14.25a3.752 3.752 0 0 1-3.75 3.75H5.25A5.256 5.256 0 0 1 0 12.75a5.232 5.232 0 0 1 3.626-4.994 6.015 6.015 0 0 1 6.456-2.147z" />
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <path d="M6.5 18h12a4.5 4.5 0 0 0 .82-8.92A6 6 0 0 0 8.18 6.44 5 5 0 0 0 1 11.5 5 5 0 0 0 6.5 18z" fill="#0078D4" />
+      <path d="M9.5 18h9a3.5 3.5 0 0 0 .64-6.93A5 5 0 0 0 9.84 8.2 4 4 0 0 0 5 12a4 4 0 0 0 4.5 6z" fill="#1490DF" />
     </svg>
   );
 }
 
 export function GoogleDriveIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8.267 14.68l-1.6 2.768H22.4l1.6-2.768zM7.973 13.267L2.24 3.332h5.453l5.733 9.935zm8.56 0L10.8 3.332h5.453l5.733 9.935z" />
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <path d="M8.58 14.4L2.4 14.4L6.18 8H12.36L8.58 14.4Z" fill="#0066DA" />
+      <path d="M15.42 14.4H21.6L17.82 8H11.64L15.42 14.4Z" fill="#EA4335" />
+      <path d="M8.58 14.4L11.64 8L14.88 14.4L12 19.2L8.58 14.4Z" fill="#00AC47" />
+      <path d="M15.42 14.4L12 19.2H21.6L15.42 14.4Z" fill="#FFBA00" />
+      <path d="M8.58 14.4L12 19.2H2.4L8.58 14.4Z" fill="#00832D" />
+      <path d="M12.36 8H17.82L14.88 14.4H8.58L12.36 8Z" fill="#2684FC" />
     </svg>
   );
 }
