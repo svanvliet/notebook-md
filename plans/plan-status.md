@@ -1129,13 +1129,18 @@ Commits: `2287fc5`, `a5ab990`
 
 **Cross-notebook file copy:**
 - Dragging a file between local notebooks copies it to the target (not move)
-- Visual indicators: green highlight + copy cursor on cross-notebook drag targets (vs blue for same-notebook move)
+- Visual indicators with three states:
+  - **Blue** highlight: same-notebook move (default)
+  - **Green** highlight + ⊕ badge (right-aligned): local-to-local copy allowed
+  - **Red** highlight + 🚫 badge (right-aligned): blocked cross-type drop (e.g., local → remote)
+- `crossDropStyle()` helper returns `'copy'` | `'blocked'` | `null` based on source/target notebook `sourceType`
 - `dragSourceNotebookId` state tracks origin notebook during drag for cursor/highlight logic
-- `effectAllowed = 'copyMove'` and `dropEffect = 'copy'` provide native OS copy cursor
+- `effectAllowed = 'copyMove'` and `dropEffect = 'copy'` provide native OS copy cursor on valid targets
+- Badges use stroke-based SVG outlines (circle+plus for copy, circle+line for blocked)
 - Recursive folder copy (copies folder and all children)
 - Cross-notebook copy restricted to local-to-local only
 - New `handleCopyFile` in useNotebookManager with `onCopyFile` prop threading
-- 2 new tests: single file copy, folder with children copy (39 web total, 191 overall)
+- 3 new tests: single file copy, folder with children copy, copy to subfolder (40 web total, 192 overall)
 
 ---
 

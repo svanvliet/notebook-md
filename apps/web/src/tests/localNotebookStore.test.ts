@@ -133,6 +133,24 @@ describe('localNotebookStore', () => {
       expect(tgtFiles.find((f) => f.name === 'intro.md')?.content).toBe('# Intro');
       expect(tgtFiles.find((f) => f.name === 'guide.md')?.content).toBe('# Guide');
     });
+
+    it('copies a file into a subfolder of another notebook', async () => {
+      const src = await createNotebook('Source', 'local');
+      const tgt = await createNotebook('Target', 'local');
+      await createFile(src.id, '', 'notes.md', 'file', '# Notes');
+      await createFile(tgt.id, '', 'archive', 'folder');
+
+      const sourceFile = await getFile(src.id, 'notes.md');
+      expect(sourceFile).toBeDefined();
+      await createFile(tgt.id, 'archive', sourceFile!.name, sourceFile!.type, sourceFile!.content ?? '');
+
+      const tgtFiles = await listFiles(tgt.id);
+      const copied = tgtFiles.find((f) => f.name === 'notes.md');
+      expect(copied).toBeDefined();
+      expect(copied!.path).toBe('archive/notes.md');
+      expect(copied!.parentPath).toBe('archive');
+      expect(copied!.content).toBe('# Notes');
+    });
   });
 
   describe('notebook sortOrder', () => {
