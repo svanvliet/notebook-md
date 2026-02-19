@@ -8,6 +8,7 @@ import {
   listFiles,
   getFile,
   moveFile,
+  ensureAssetsFolder,
   setStorageScope,
 } from '../stores/localNotebookStore';
 
@@ -170,6 +171,40 @@ describe('localNotebookStore', () => {
       const nbs = await listNotebooks();
       expect(nbs[0].id).toBe(nb2.id);
       expect(nbs[1].id).toBe(nb1.id);
+    });
+  });
+
+  describe('ensureAssetsFolder', () => {
+    it('creates assets folder at root if it does not exist', async () => {
+      const nb = await createNotebook('Test', 'local');
+      const assetsPath = await ensureAssetsFolder(nb.id, '');
+      expect(assetsPath).toBe('assets');
+
+      const files = await listFiles(nb.id);
+      const folder = files.find((f) => f.path === 'assets');
+      expect(folder).toBeDefined();
+      expect(folder!.type).toBe('folder');
+    });
+
+    it('does not duplicate if assets folder already exists', async () => {
+      const nb = await createNotebook('Test', 'local');
+      await ensureAssetsFolder(nb.id, '');
+      await ensureAssetsFolder(nb.id, '');
+
+      const files = await listFiles(nb.id);
+      const folders = files.filter((f) => f.path === 'assets');
+      expect(folders).toHaveLength(1);
+    });
+
+    it('creates assets folder under a parent path', async () => {
+      const nb = await createNotebook('Test', 'local');
+      await createFile(nb.id, '', 'docs', 'folder');
+      const assetsPath = await ensureAssetsFolder(nb.id, 'docs');
+      expect(assetsPath).toBe('docs/assets');
+
+      const folder = await getFile(nb.id, 'docs/assets');
+      expect(folder).toBeDefined();
+      expect(folder!.type).toBe('folder');
     });
   });
 });

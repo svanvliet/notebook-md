@@ -14,10 +14,11 @@ import './editor.css';
 // Allow table-related attributes and elements that Tiptap generates
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['colgroup', 'col', 'input'],
+    ADD_TAGS: ['colgroup', 'col', 'input', 'video'],
     ADD_ATTR: ['colspan', 'rowspan', 'style', 'data-type', 'data-checked',
                'data-callout', 'data-callout-type', 'contenteditable',
-               'disabled', 'type', 'checked'],
+               'disabled', 'type', 'checked', 'controls', 'autoplay',
+               'loop', 'muted', 'poster'],
   }) as string;
 }
 
@@ -202,19 +203,29 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     (e: React.DragEvent) => {
       if (!editor) return;
 
-      // Check for files (images from desktop)
+      // Check for files (images/videos from desktop)
       const files = Array.from(e.dataTransfer.files);
-      const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-      if (imageFiles.length > 0) {
+      const mediaFiles = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+      if (mediaFiles.length > 0) {
         e.preventDefault();
         e.stopPropagation();
         editorWrapperRef.current?.classList.remove('drag-over');
 
-        imageFiles.forEach((file) => {
+        mediaFiles.forEach((file) => {
+          if (file.size > 10 * 1024 * 1024) {
+            alert(`File "${file.name}" is too large. Maximum size is 10 MB.`);
+            return;
+          }
           const reader = new FileReader();
           reader.onload = () => {
             const base64 = reader.result as string;
-            editor.chain().focus().setImage({ src: base64, alt: file.name }).run();
+            if (file.type.startsWith('video/')) {
+              editor.chain().focus().insertContent(
+                `<video src="${base64}" controls style="max-width:100%"></video>`,
+              ).run();
+            } else {
+              editor.chain().focus().setImage({ src: base64, alt: file.name }).run();
+            }
           };
           reader.readAsDataURL(file);
         });
@@ -230,8 +241,13 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
 
         const fileName = filePath.split('/').pop() || filePath;
         const isImage = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(fileName);
+        const isVideo = /\.(mp4|webm)$/i.test(fileName);
         if (isImage) {
           editor.chain().focus().setImage({ src: filePath, alt: fileName }).run();
+        } else if (isVideo) {
+          editor.chain().focus().insertContent(
+            `<video src="${filePath}" controls style="max-width:100%"></video>`,
+          ).run();
         } else {
           editor.chain().focus().insertContent(`[${fileName}](${filePath})`).run();
         }

@@ -62,6 +62,14 @@ function PrintIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
 }
 
+function ImageIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
+}
+
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
+const SUPPORTED_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'svg', 'gif', 'webp']);
+const SUPPORTED_VIDEO_EXTS = new Set(['mp4', 'webm']);
+
 // Heading level selector
 function HeadingSelector({ editor }: { editor: Editor }) {
   const { t } = useTranslation();
@@ -188,9 +196,114 @@ function LinkModal({
   );
 }
 
+// Media insertion dropdown (URL or file upload)
+function MediaInsertMenu({
+  onInsertUrl,
+  onUploadFile,
+  onCancel,
+}: {
+  onInsertUrl: (url: string, alt: string) => void;
+  onUploadFile: (file: File) => void;
+  onCancel: () => void;
+}) {
+  const [mode, setMode] = useState<'choose' | 'url'>('choose');
+  const [url, setUrl] = useState('');
+  const [alt, setAlt] = useState('');
+
+  if (mode === 'url') {
+    return (
+      <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 z-50 w-72">
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Image/Video URL</label>
+            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..."
+              className="w-full h-8 px-2.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus onKeyDown={(e) => { if (e.key === 'Enter' && url) onInsertUrl(url, alt); if (e.key === 'Escape') onCancel(); }} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Alt text (optional)</label>
+            <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Description"
+              className="w-full h-8 px-2.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onKeyDown={(e) => { if (e.key === 'Enter' && url) onInsertUrl(url, alt); if (e.key === 'Escape') onCancel(); }} />
+          </div>
+          <div className="flex justify-end gap-1.5 pt-1">
+            <button onClick={onCancel} className="h-7 px-3 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400">Cancel</button>
+            <button onClick={() => url && onInsertUrl(url, alt)} disabled={!url} className="h-7 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">Insert</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 w-48">
+      <button onClick={() => setMode('url')}
+        className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
+        From URL…
+      </button>
+      <button onClick={() => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = [...SUPPORTED_IMAGE_EXTS, ...SUPPORTED_VIDEO_EXTS].map((e) => `.${e}`).join(',');
+          input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            if (file.size > MAX_UPLOAD_SIZE) {
+              alert(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+              return;
+            }
+            onUploadFile(file);
+          };
+          input.click();
+        }}
+        className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
+        Upload file…
+      </button>
+    </div>
+  );
+}
+
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const { t } = useTranslation();
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [showMediaMenu, setShowMediaMenu] = useState(false);
+
+  const insertMedia = useCallback(
+    (url: string, alt: string) => {
+      if (!editor) return;
+      const ext = url.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
+      if (SUPPORTED_VIDEO_EXTS.has(ext)) {
+        editor.chain().focus().insertContent(
+          `<video src="${url}" controls style="max-width:100%"></video>`,
+        ).run();
+      } else {
+        editor.chain().focus().setImage({ src: url, alt: alt || undefined }).run();
+      }
+      setShowMediaMenu(false);
+    },
+    [editor],
+  );
+
+  const uploadMedia = useCallback(
+    (file: File) => {
+      if (!editor) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        if (SUPPORTED_VIDEO_EXTS.has(ext)) {
+          editor.chain().focus().insertContent(
+            `<video src="${base64}" controls style="max-width:100%"></video>`,
+          ).run();
+        } else {
+          editor.chain().focus().setImage({ src: base64, alt: file.name }).run();
+        }
+      };
+      reader.readAsDataURL(file);
+      setShowMediaMenu(false);
+    },
+    [editor],
+  );
 
   const setLink = useCallback(
     (url: string, text: string) => {
@@ -372,9 +485,24 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         )}
       </div>
 
-      <Divider />
+      {/* Media insert */}
+      <div className="relative">
+        <ToolbarButton
+          onClick={() => setShowMediaMenu(!showMediaMenu)}
+          title={t('editor.toolbar.insertMedia', 'Insert image/video')}
+        >
+          <ImageIcon />
+        </ToolbarButton>
+        {showMediaMenu && (
+          <MediaInsertMenu
+            onInsertUrl={insertMedia}
+            onUploadFile={uploadMedia}
+            onCancel={() => setShowMediaMenu(false)}
+          />
+        )}
+      </div>
 
-      {/* Undo / Redo */}
+      <Divider />
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
         disabled={!editor.can().undo()}

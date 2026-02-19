@@ -163,6 +163,17 @@ export async function listChildren(notebookId: string, parentPath: string): Prom
   return db.getAllFromIndex(FILES_STORE, 'byParent', [notebookId, parentPath]);
 }
 
+/** Ensure an assets/ folder exists under the given parent path, creating it if needed. */
+export async function ensureAssetsFolder(notebookId: string, parentPath: string): Promise<string> {
+  const assetsPath = parentPath ? `${parentPath}/assets` : 'assets';
+  const db = await getDb();
+  const existing = await db.get(FILES_STORE, [notebookId, assetsPath]);
+  if (!existing) {
+    await createFile(notebookId, parentPath, 'assets', 'folder');
+  }
+  return assetsPath;
+}
+
 export async function saveFileContent(
   notebookId: string,
   path: string,

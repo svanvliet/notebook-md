@@ -1203,6 +1203,56 @@ These will need backend API additions for each source type's file management ope
 
 ---
 
+### Phase 4.4: Media Handling — COMPLETED ✅
+
+**Toolbar media insert button:**
+- New Image icon (🖼) in toolbar between Link and Undo/Redo sections
+- Dropdown menu with two options: "From URL…" and "Upload file…"
+- URL mode: modal with URL + alt text fields, supports both image and video URLs
+- Upload mode: file picker filtered to supported formats, 10 MB size limit with alert
+- Video URLs detected by extension (.mp4, .webm) → inserted as `<video>` with controls
+- Image URLs → inserted via `setImage()`
+
+**Slash commands updated:**
+- Image command: now offers URL or "upload" option, with 10 MB limit on uploads
+- New Video command (🎬): same URL/upload pattern for .mp4/.webm files
+- Total slash commands: 24
+
+**Drag-and-drop updated:**
+- Desktop drops now accept both image and video files
+- 10 MB per-file limit enforced with user-friendly alert
+- Video files inserted as `<video controls>` element
+- Tree file drags also handle video extensions
+
+**DOMPurify updated:**
+- Added `video` to ADD_TAGS
+- Added `controls`, `autoplay`, `loop`, `muted`, `poster` to ADD_ATTR
+
+**Video styling:**
+- `.tiptap video` CSS: max-width 100%, auto height, rounded corners, vertical margin
+
+**Assets folder auto-creation:**
+- `ensureAssetsFolder(notebookId, parentPath)` in localNotebookStore
+- Creates `assets/` folder under given parent if it doesn't exist (idempotent)
+- Returns the assets path for use by callers
+
+**Supported formats:**
+- Images: `.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.webp`
+- Videos: `.mp4`, `.webm`
+- Max upload size: 10 MB
+
+**Files modified:**
+- `apps/web/src/components/editor/EditorToolbar.tsx` — ImageIcon, MediaInsertMenu, insertMedia/uploadMedia handlers, toolbar button
+- `apps/web/src/components/editor/SlashCommands.ts` — Updated Image command, added Video command
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — Video in drag-drop, DOMPurify video allowlist
+- `apps/web/src/components/editor/editor.css` — Video styles
+- `apps/web/src/stores/localNotebookStore.ts` — `ensureAssetsFolder()`
+
+**Tests: 3 new (43 web total, 195 overall)**
+- `ensureAssetsFolder`: creates at root, idempotent (no duplicate), creates under parent path
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
