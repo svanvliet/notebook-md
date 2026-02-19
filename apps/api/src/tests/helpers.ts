@@ -1,6 +1,7 @@
 import supertest from 'supertest';
 import app from '../app.js';
 import { pool, query } from '../db/pool.js';
+import { createSession } from '../services/session.js';
 
 export const request = supertest(app);
 
@@ -87,4 +88,15 @@ export function extractRefreshToken(res: supertest.Response): string | null {
     if (match) return match[1];
   }
   return null;
+}
+
+/** Create an OAuth-only user (no password) with a valid session. Returns refreshToken for cookie. */
+export async function createOAuthUser(email: string, displayName = 'OAuth User') {
+  const result = await query<{ id: string }>(
+    "INSERT INTO users (id, email, display_name, email_verified) VALUES (gen_random_uuid(), $1, $2, true) RETURNING id",
+    [email, displayName],
+  );
+  const userId = result.rows[0].id;
+  const session = await createSession(userId, {});
+  return { userId, refreshToken: session.refreshToken };
 }

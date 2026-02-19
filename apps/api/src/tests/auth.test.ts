@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { request, cleanDb, closeDb, signUp, signIn, extractRefreshToken, clearMailpit, getMailpitMessages, getMailpitMessageBody } from './helpers.js';
+import { request, cleanDb, closeDb, signUp, signIn, extractRefreshToken, clearMailpit, getMailpitMessages, getMailpitMessageBody, createOAuthUser } from './helpers.js';
 
 afterAll(async () => { await closeDb(); });
 
@@ -271,5 +271,77 @@ describe('Auth Flows', () => {
     // Sign-in should fail
     const { res: signInRes } = await signIn('dave@test.com', 'password123');
     expect(signInRes.status).toBe(401);
+  });
+
+  // --- hasPassword flag ---
+
+  it('should return hasPassword: true for email/password accounts', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const res = await request.get('/auth/me').set('Cookie', `refresh_token=${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.user.hasPassword).toBe(true);
+  });
+
+  it('should return hasPassword: false for OAuth-only accounts', async () => {
+    const { refreshToken } = await createOAuthUser('oauth@test.com');
+
+    const res = await request.get('/auth/me').set('Cookie', `refresh_token=${refreshToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.user.hasPassword).toBe(false);
+  });
+
+  // --- Add password (OAuth-only account) ---
+
+  it('should allow adding password without current password for OAuth-only accounts', async () => {
+    const { refreshToken } = await createOAuthUser('oauth2@test.com');
+
+    const res = await request
+      .put('/auth/password')
+      .set('Cookie', `refresh_token=${refreshToken}`)
+      .send({ currentPassword: '', newPassword: 'newpassword123', confirmPassword: 'newpassword123' });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('added');
+
+    // Should be able to sign in with new password
+    const { res: signInRes } = await signIn('oauth2@test.com', 'newpassword123');
+    expect(signInRes.status).toBe(200);
+  });
+
+  // --- Confirm password mismatch ---
+
+  it('should reject password change when confirmPassword does not match', async () => {
+    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const token = extractRefreshToken(signUpRes)!;
+
+    const res = await request
+      .put('/auth/password')
+      .set('Cookie', `refresh_token=${token}`)
+      .send({ currentPassword: 'password123', newPassword: 'newpassword456', confirmPassword: 'different789' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('match');
+  });
+
+  // --- Delete OAuth-only account with typed confirmation ---
+
+  it('should delete OAuth-only account with DELETE confirmation', async () => {
+    const { refreshToken } = await createOAuthUser('oauth3@test.com');
+
+    const res = await request
+      .delete('/auth/account')
+      .set('Cookie', `refresh_token=${refreshToken}`)
+      .send({ confirmation: 'DELETE' });
+    expect(res.status).toBe(200);
+  });
+
+  it('should reject OAuth-only account deletion without correct confirmation', async () => {
+    const { refreshToken } = await createOAuthUser('oauth4@test.com');
+
+    const res = await request
+      .delete('/auth/account')
+      .set('Cookie', `refresh_token=${refreshToken}`)
+      .send({ confirmation: 'wrong' });
+    expect(res.status).toBe(400);
   });
 });

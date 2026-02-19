@@ -1490,6 +1490,47 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Password Management for OAuth-Only Accounts
+
+**Completed:** 2026-02-19
+
+**Problem:** OAuth-only accounts (created via GitHub/Google/Microsoft sign-in) had no password set, but the Account Settings UI still showed "Change password" (which required current password) and "Delete Account" (which required password confirmation). Both were unusable for OAuth-only accounts.
+
+**Changes:**
+1. **API: `/auth/me`** — Now returns `hasPassword: boolean` so the frontend knows the account state
+2. **API: `PUT /auth/password`** — If user has no existing password, allows setting one without `currentPassword` (enables OAuth-only accounts to add email/password login). Requires `confirmPassword` field; returns 400 if mismatch
+3. **API: `DELETE /auth/account`** — If user has no password, requires `confirmation: 'DELETE'` typed text instead of password
+4. **Frontend: User interface** — Added `hasPassword?: boolean` field
+5. **Frontend: AccountModal** — Password section shows "Add a password" vs "Change password" based on `hasPassword`; hides current password field when adding; always shows confirm password field; shared validation (min 8, max 128, must match)
+6. **Frontend: AccountModal** — Delete account shows password input for password accounts, "type DELETE" for OAuth-only accounts; delete button disabled until valid confirmation provided
+
+**Files modified:**
+- `apps/api/src/routes/auth.ts` — `GET /auth/me` returns hasPassword; `PUT /auth/password` allows add without current; `DELETE /auth/account` supports typed confirmation
+- `apps/web/src/hooks/useAuth.ts` — User interface + `changePassword`/`deleteAccount` signature updates
+- `apps/web/src/components/account/AccountModal.tsx` — Full UI rework for password/delete sections
+- `apps/api/src/tests/helpers.ts` — Added `createOAuthUser()` helper
+- `apps/api/src/tests/auth.test.ts` — 6 new tests: hasPassword flag (2), add password for OAuth (1), confirm mismatch (1), delete OAuth with confirmation (2)
+
+**Tests: 177 API total (6 new), 67 web total**
+
+---
+
+### UI Polish: Tree Icons, Table Styling, Code Block Selector
+
+**Completed:** 2026-02-19
+
+**Changes:**
+1. **Tree view file icons** — Replaced generic file icon with Heroicons: document-arrow-down (md, blue), document (txt, gray), photo (images, green), film (video, purple)
+2. **Tree view folder icons** — Heroicons folder (closed) / folder-open (expanded), dark grey in light mode / light grey in dark mode
+3. **Table styling** — Changed from `width: 100%` to `width: auto` (standard markdown behavior); added shaded header background (#f6f8fa light / #161b22 dark); stripped paragraph margins inside cells
+4. **Code block language selector** — Increased font size from 11px to 13px with slightly larger padding
+
+**Files modified:**
+- `apps/web/src/components/notebook/NotebookTree.tsx` — FileIcon rework with per-type Heroicons; folder-open for expanded folders
+- `apps/web/src/components/editor/editor.css` — Table auto width, header bg, cell margin reset, code-block-lang font size
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

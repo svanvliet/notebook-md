@@ -396,6 +396,22 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Remove `showWordCount` setting — word count always shows in status bar
 - [ ] Wire `settings.tabSize` to code block indentation (future)
 
+#### Password Management for OAuth-Only Accounts
+- [x] API: `/auth/me` returns `hasPassword` boolean
+- [x] API: `PUT /auth/password` allows setting password without current password for OAuth-only accounts
+- [x] API: `PUT /auth/password` requires `confirmPassword` field with match validation
+- [x] API: `DELETE /auth/account` uses typed "DELETE" confirmation for OAuth-only accounts
+- [x] Frontend: Show "Add a password" vs "Change password" based on `hasPassword`
+- [x] Frontend: Confirm password field always shown
+- [x] Frontend: Delete account uses password or "type DELETE" based on account type
+- [x] Frontend: Delete button disabled until valid confirmation provided
+- [x] Tests: 6 new API tests (hasPassword flag, add password, confirm mismatch, OAuth delete)
+
+#### UI Polish
+- [x] Tree view: Heroicons for file types (md, txt, image, video) and folders (open/closed)
+- [x] Tables: auto width, shaded headers, tighter cell margins
+- [x] Code block language selector: larger font size
+
 ### 4.8 Tier 2: Web Unit Tests (§8.15)
 
 - [ ] Install Vitest + React Testing Library + jsdom + fake-indexeddb + msw in `apps/web`
