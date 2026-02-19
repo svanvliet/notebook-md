@@ -2117,9 +2117,42 @@ The app used manual `window.history.pushState` for navigation. This caused:
 | `apps/web/src/tests/routing.test.tsx` | 2 new background location pattern tests |
 | `requirements/requirements.md` | Updated §5.7 with background location and modal history details |
 
-**Test inventory:** 337 tests across 29 files (207 API + 130 web)
+**Test inventory:** 339 tests across 27 files (207 API + 132 web)
 
 **Next:** Phase 5.6 — Phase 5 Validation
+
+---
+
+## Phase 5.6 Validation ✅
+
+**Completed:** 2026-02-19
+
+### Full Test Suite Results
+
+| Suite | Tests | Files | Status |
+|-------|-------|-------|--------|
+| API | 207 | 15 | ✅ All passing |
+| Web | 132 | 12 | ✅ All passing |
+| **Total** | **339** | **27** | ✅ |
+
+- TypeScript: Clean across all 3 apps (web, api, admin)
+- No regressions from navigation refactor or security hardening
+
+### Phase 5 Summary
+
+| Sub-phase | Description | Commit |
+|-----------|-------------|--------|
+| 5.1 | Two-Factor Authentication (TOTP + Email) | Previous session |
+| 5.2 | Admin Console (dashboard, users, audit, flags, announcements) | `ba3fe62` |
+| 5.2 polish | Auth fixes, dashboard types, user detail, session revocation, event-driven validation | `f862b46`–`1b093b1` |
+| 5.3 | Security Hardening (CSP, CORS, CSRF, HSTS, DOMPurify) | `35ff175` |
+| 5.3b | Session Hardening (idle timeout, last_active_at) | `52bff26` |
+| 5.4 | Cookie Consent Banner (Accept/Reject/Manage, DNT respect) | `96d3d32` |
+| 5.5 | Legal Pages (Terms, Privacy, sign-up links, footer links) | `96d3d32` |
+| 5.5+ | React Router + background location + modal history | `3759d7b`, `6a5429e` |
+| 5.6 | Validation — 339 tests passing, TypeScript clean | This entry |
+
+**Phase 5 is complete.** Next: Phase 6 — Production Deployment
 
 ---
 
