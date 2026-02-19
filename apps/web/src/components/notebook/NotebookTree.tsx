@@ -31,9 +31,10 @@ function RefreshIcon() {
 
 function BlockedBadge() {
   return (
-    <span className="shrink-0 inline-flex items-center text-red-600 dark:text-red-400 ml-1">
-      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.343 4.343a8 8 0 0011.314 0L4.343 15.657a8 8 0 010-11.314z" clipRule="evenodd" />
+    <span className="ml-auto shrink-0 inline-flex items-center text-red-500 dark:text-red-400">
+      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="10" cy="10" r="7" />
+        <line x1="5" y1="15" x2="15" y2="5" />
       </svg>
     </span>
   );
@@ -41,9 +42,11 @@ function BlockedBadge() {
 
 function CopyBadge() {
   return (
-    <span className="shrink-0 inline-flex items-center text-green-600 dark:text-green-400 ml-1">
-      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+    <span className="ml-auto shrink-0 inline-flex items-center text-green-500 dark:text-green-400">
+      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="10" cy="10" r="7" />
+        <line x1="10" y1="6" x2="10" y2="14" />
+        <line x1="6" y1="10" x2="14" y2="10" />
       </svg>
     </span>
   );
