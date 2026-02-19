@@ -354,10 +354,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - Cross-notebook copy only supported between local notebooks
 - [x] Retire `flash()` for all non-save messages; status bar kept for save confirmations + persistent stats
 
-### 4.7 Status Bar Enhancements
+### 4.7 Status Bar Enhancements — COMPLETE (covered by existing implementation)
 
-- [ ] Ephemeral messages in the status bar (save confirmations, sync status)
-- [ ] Auto-dismiss after 5 seconds
+- [x] Ephemeral messages in the status bar (save confirmations, sync status) — `flash()` already handles this
+- [x] Auto-dismiss after 5 seconds — `flash()` auto-clears after 2s; all other messages moved to toasts in 4.6
 
 ### 4.8 Tier 2: Web Unit Tests (§8.15)
 
