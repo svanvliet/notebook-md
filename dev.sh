@@ -328,8 +328,17 @@ case "${1:-start}" in
   stop)   do_stop ;;
   status) do_status ;;
   logs)   do_logs ;;
+  promote-admin)
+    if [ -z "${2:-}" ]; then
+      echo -e "${RED}Usage: ./dev.sh promote-admin <email>${NC}"
+      exit 1
+    fi
+    echo -e "${BOLD}Promoting ${2} to admin...${NC}"
+    DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd" \
+      node apps/api/cli/promote-admin.js "$2"
+    ;;
   *)
-    echo "Usage: ./dev.sh [start|stop|status|logs]"
+    echo "Usage: ./dev.sh [start|stop|status|logs|promote-admin <email>]"
     exit 1
     ;;
 esac
