@@ -1382,6 +1382,34 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Provider Unlink Cleanup Fix
+
+**Completed:** 2026-02-19
+
+**Problem:** Unlinking a provider (e.g., GitHub) only removed the identity link. Notebooks connected to that provider remained visible in the UI, auto-save failed (tokens deleted), and publish still worked (GitHub App installation token survived). No cleanup of notebooks, tabs, installations, or local state.
+
+**Server-side fix (account-link.ts):**
+- `unlinkProvider()` now maps provider → source_type and deletes matching notebooks
+- For GitHub, also deletes `github_installations` rows
+- Each deleted notebook is audit-logged
+
+**Client-side fix:**
+- Added `handleProviderUnlinked(provider)` to `useNotebookManager` — closes tabs, removes notebooks from IndexedDB + state, clears GitHub working branch refs
+- `AccountModal` accepts `onProviderUnlinked` callback, calls it after successful unlink
+- Wired through `App.tsx`
+
+**Files modified:**
+- `apps/api/src/services/account-link.ts` — Notebook + installation cleanup in `unlinkProvider()`
+- `apps/web/src/hooks/useNotebookManager.ts` — `handleProviderUnlinked()`, exported in return object
+- `apps/web/src/components/account/AccountModal.tsx` — `onProviderUnlinked` prop + call
+- `apps/web/src/App.tsx` — Wire `nb.handleProviderUnlinked` to AccountModal
+- `apps/web/src/tests/localNotebookStore.test.ts` — 3 new provider unlink cleanup tests
+- `apps/api/src/tests/oauth.test.ts` — 3 new server-side unlink cleanup tests
+
+**Tests: 3 new web (65 total), 3 new API (155 total)**
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
