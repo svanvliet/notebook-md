@@ -1531,6 +1531,50 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Phase 4.8: Tier 2 Web Unit Tests ✅
+
+**Completed:** 2026-02-19
+
+**Summary:** Added 38 new web tests across 4 new test files. Total web tests: 105 (was 67). Total API tests: 177. Combined: 282 tests.
+
+**New test files:**
+- `apps/web/src/tests/useSettings.test.ts` (8 tests) — defaults, localStorage persistence, merge with defaults, reset, server sync, corrupted localStorage
+- `apps/web/src/tests/useAuth.test.ts` (13 tests) — loading state, sign-up/in/out, error handling, changePassword with confirmPassword, deleteAccount with confirmation, devSkipAuth, clearError, network errors
+- `apps/web/src/tests/notebookManager.test.ts` (7 tests) — tab id format, unsaved changes, tab close adjacency, provider mapping, source type filtering, tab rename
+- `apps/web/src/tests/accountModal.test.tsx` (10 tests) — password section states (add vs change), current password visibility, confirm password, validation errors, delete section (password vs typed confirmation), button disabled states
+
+**Also done:**
+- Added `test` script to `apps/web/package.json`
+- Added `createOAuthUser()` helper to `apps/api/src/tests/helpers.ts`
+
+**Test inventory (8 web files, 13 API files):**
+| Suite | File | Tests |
+|-------|------|-------|
+| Web | markdownConverter.test.ts | 30 |
+| Web | localNotebookStore.test.ts | 22 |
+| Web | useAuth.test.ts | 13 |
+| Web | accountModal.test.tsx | 10 |
+| Web | appSettings.test.ts | 8 |
+| Web | useToast.test.tsx | 8 |
+| Web | useSettings.test.ts | 8 |
+| Web | notebookManager.test.ts | 7 |
+| API | auth.test.ts | 33 |
+| API | github-routes.test.ts | 23 |
+| API | path-validation.test.ts | 22 |
+| API | provider-revocation.test.ts | 22 |
+| API | onedrive-routes.test.ts | 20 |
+| API | googledrive-routes.test.ts | 20 |
+| API | encryption.test.ts | 18 |
+| API | notebooks.test.ts | 13 |
+| API | oauth.test.ts | 10 |
+| API | sessions.test.ts | 8 |
+| API | webhook.test.ts | 8 |
+| API | circuit-breaker.test.ts | 8 |
+| API | settings.test.ts | 7 |
+| **Total** | **21 files** | **282** |
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

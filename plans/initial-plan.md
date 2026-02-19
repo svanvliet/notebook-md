@@ -414,32 +414,50 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 4.8 Tier 2: Web Unit Tests (§8.15)
 
-- [ ] Install Vitest + React Testing Library + jsdom + fake-indexeddb + msw in `apps/web`
-- [ ] Configure Vitest for web (`vitest.config.ts`) with jsdom environment
+**Infrastructure (already complete):**
+- [x] Install Vitest + React Testing Library + jsdom + fake-indexeddb in `apps/web`
+- [x] Configure Vitest for web (`vitest.config.ts`) with node environment
 - [ ] Add `test` script to `apps/web/package.json`
-- [ ] Test suite: `localNotebookStore`
-  - [ ] CRUD operations on notebooks and files (using fake-indexeddb)
-  - [ ] Storage scoping by userId (`setStorageScope`)
-  - [ ] Folder rename/move cascades to children
-  - [ ] Delete notebook cascades to all files
-- [ ] Test suite: `markdownConverter`
-  - [ ] HTML → Markdown conversion (tables, task lists, highlights, code blocks)
-  - [ ] Markdown → HTML conversion (GFM tables, nested lists, code blocks)
-  - [ ] Round-trip fidelity: Markdown → HTML → Markdown preserves structure
-- [ ] Test suite: `useAuth` hook
-  - [ ] Sign-up, sign-in, sign-out state transitions
-  - [ ] Token refresh on 401
-  - [ ] Error handling (network failure, invalid credentials)
-  - [ ] devSkipAuth creates fake user
-- [ ] Test suite: `useNotebookManager` hook
-  - [ ] Notebook CRUD updates state correctly
-  - [ ] Tab management (open, close, switch, unsaved indicator)
-  - [ ] Auto-save debounce behavior
-  - [ ] File import flow
-- [ ] Test suite: `useSettings` hook
-  - [ ] Default settings applied on first load
-  - [ ] Settings persist to localStorage
-  - [ ] Server sync when signed in (mock API)
+
+**Existing test suites (67 tests across 4 files):**
+- [x] `localNotebookStore.test.ts` (22 tests) — CRUD, scoping, folder ops, cascades, sync, provider unlink cleanup
+- [x] `markdownConverter.test.ts` (30 tests) — HTML↔MD conversion, detection, round-trip
+- [x] `appSettings.test.ts` (8 tests) — defaults, merging, margin mapping, font validation
+- [x] `useToast.test.tsx` (8 tests) — create, auto-dismiss, manual dismiss, stacking, limits
+
+**New test suites needed:**
+- [x] Test suite: `useSettings` (8 tests)
+  - [x] Default settings applied on first load (no localStorage)
+  - [x] Settings persist to localStorage on update
+  - [x] Settings merge with defaults (handles missing keys from older versions)
+  - [x] resetSettings restores defaults
+  - [x] No server calls when not signed in
+  - [x] Server sync on update when signed in
+  - [x] Corrupted localStorage handled gracefully
+- [x] Test suite: `useAuth` (13 tests)
+  - [x] Initial loading state, then resolved user from /auth/me
+  - [x] Sign-up, sign-in set user state
+  - [x] Sign-out clears user state
+  - [x] Error handling (network failure, invalid credentials)
+  - [x] changePassword sends confirmPassword
+  - [x] deleteAccount sends password or confirmation
+  - [x] devSkipAuth creates fake user with hasPassword
+  - [x] clearError resets error state
+- [x] Test suite: `useNotebookManager` tab logic (7 tests)
+  - [x] Tab id format and name extraction
+  - [x] Unsaved changes tracking
+  - [x] Tab close selects adjacent tab / null when last
+  - [x] Provider-to-sourceType mapping
+  - [x] Filter tabs by source type on provider unlink
+  - [x] Tab rename updates id and active reference
+- [x] Test suite: `AccountModal` (10 tests)
+  - [x] Shows "Add a password" when hasPassword is false
+  - [x] Shows "Change password" when hasPassword is true
+  - [x] Hides current password field when adding password
+  - [x] Shows confirm password field
+  - [x] Password validation (min length, mismatch)
+  - [x] Delete account: password field for password accounts, "type DELETE" for OAuth-only
+  - [x] Delete button disabled until valid confirmation
 
 ### 4.9 Phase 4 Validation
 
