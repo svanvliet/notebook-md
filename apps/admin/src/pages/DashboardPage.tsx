@@ -30,36 +30,40 @@ export default function DashboardPage({
       <section className="mb-8">
         <h3 className="text-lg font-semibold mb-3">System Health</h3>
         {health ? (
-          <div className="grid grid-cols-3 gap-4">
-            {Object.entries(health.services).map(([name, svc]) => (
-              <div
-                key={name}
-                className={`rounded-lg border p-4 ${
-                  svc.status === 'ok'
-                    ? 'border-green-200 bg-green-50'
-                    : 'border-red-200 bg-red-50'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      svc.status === 'ok' ? 'bg-green-500' : 'bg-red-500'
-                    }`}
-                  />
-                  <span className="font-medium capitalize">{name}</span>
+          <>
+            <p className="text-sm text-gray-500 mb-3">
+              Status: <span className={health.status === 'ok' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{health.status === 'ok' ? 'All systems operational' : 'Degraded'}</span>
+              {health.uptimeSeconds != null && (
+                <span className="ml-4">
+                  API uptime: {Math.floor(health.uptimeSeconds / 3600)}h {Math.floor((health.uptimeSeconds % 3600) / 60)}m
+                </span>
+              )}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {Object.entries(health.services).map(([name, svc]) => (
+                <div
+                  key={name}
+                  className={`rounded-lg border p-4 ${
+                    svc.status === 'ok'
+                      ? 'border-green-200 bg-green-50'
+                      : 'border-red-200 bg-red-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        svc.status === 'ok' ? 'bg-green-500' : 'bg-red-500'
+                      }`}
+                    />
+                    <span className="font-medium capitalize">{name}</span>
+                  </div>
+                  {svc.latencyMs != null && (
+                    <p className="text-xs text-gray-500">{svc.latencyMs}ms latency</p>
+                  )}
                 </div>
-                {svc.latencyMs != null && (
-                  <p className="text-xs text-gray-500">{svc.latencyMs}ms latency</p>
-                )}
-                {svc.uptimeSeconds != null && (
-                  <p className="text-xs text-gray-500">
-                    Uptime: {Math.floor(svc.uptimeSeconds / 3600)}h{' '}
-                    {Math.floor((svc.uptimeSeconds % 3600) / 60)}m
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         ) : (
           <p className="text-gray-500">Loading...</p>
         )}

@@ -21,7 +21,8 @@ interface Pagination {
 
 interface HealthStatus {
   status: string;
-  services: Record<string, { status: string; uptimeSeconds?: number; latencyMs?: number }>;
+  services: Record<string, { status: string; latencyMs?: number }>;
+  uptimeSeconds?: number;
 }
 
 interface Metrics {

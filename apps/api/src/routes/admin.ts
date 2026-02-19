@@ -18,18 +18,21 @@ function getClientIp(req: Request): string {
 // ── System Health ────────────────────────────────────────────────────────────
 
 router.get('/health', async (_req: Request, res: Response) => {
-  const startTime = Date.now();
-  const [dbOk, redisOk] = await Promise.all([healthCheck(), redisHealthCheck()]);
-  const uptime = process.uptime();
+  const dbStart = Date.now();
+  const dbOk = await healthCheck();
+  const dbLatency = Date.now() - dbStart;
+
+  const redisStart = Date.now();
+  const redisOk = await redisHealthCheck();
+  const redisLatency = Date.now() - redisStart;
 
   res.json({
     status: dbOk && redisOk ? 'ok' : 'degraded',
     services: {
-      api: { status: 'ok', uptimeSeconds: Math.floor(uptime) },
-      db: { status: dbOk ? 'ok' : 'down' },
-      redis: { status: redisOk ? 'ok' : 'down' },
+      db: { status: dbOk ? 'ok' : 'down', latencyMs: dbLatency },
+      redis: { status: redisOk ? 'ok' : 'down', latencyMs: redisLatency },
     },
-    responseTimeMs: Date.now() - startTime,
+    uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
   });
 });

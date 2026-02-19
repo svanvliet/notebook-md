@@ -62,10 +62,11 @@ describe('Admin Console API', () => {
       const cookies = await createAdmin();
       const res = await request.get('/admin/health').set('Cookie', cookies).expect(200);
       expect(res.body.status).toBe('ok');
-      expect(res.body.services.api.status).toBe('ok');
       expect(res.body.services.db.status).toBe('ok');
+      expect(res.body.services.db.latencyMs).toBeGreaterThanOrEqual(0);
       expect(res.body.services.redis.status).toBe('ok');
-      expect(res.body.services.api.uptimeSeconds).toBeGreaterThan(0);
+      expect(res.body.services.redis.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(res.body.uptimeSeconds).toBeGreaterThan(0);
     });
   });
 
