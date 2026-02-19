@@ -25,7 +25,7 @@ export default function App() {
           <h1 className="text-2xl font-bold mb-2">📓 Notebook.md Admin</h1>
           <p className="text-red-600 mb-4">{admin.error || 'Unable to authenticate'}</p>
           <a
-            href="/"
+            href="http://localhost:5173"
             className="text-blue-600 hover:underline text-sm"
           >
             Go to Notebook.md →

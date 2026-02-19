@@ -572,8 +572,10 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
     password_hash: string | null;
     totp_enabled: boolean;
     totp_secret_enc: string | null;
+    is_admin: boolean;
+    is_suspended: boolean;
   }>(
-    'SELECT id, display_name, email, email_verified, avatar_url, created_at, password_hash, totp_enabled, totp_secret_enc FROM users WHERE id = $1',
+    'SELECT id, display_name, email, email_verified, avatar_url, created_at, password_hash, totp_enabled, totp_secret_enc, is_admin, is_suspended FROM users WHERE id = $1',
     [req.userId!],
   );
 
@@ -594,6 +596,8 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
       hasPassword: !!user.password_hash,
       twoFactorEnabled: user.totp_enabled,
       twoFactorMethod: user.totp_enabled ? (user.totp_secret_enc ? 'totp' : 'email') : null,
+      isAdmin: user.is_admin,
+      isSuspended: user.is_suspended,
     },
   });
 });
