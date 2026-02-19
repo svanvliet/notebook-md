@@ -7,16 +7,20 @@ import { StatusBar } from './components/layout/StatusBar';
 import { WelcomeScreen } from './components/welcome/WelcomeScreen';
 import { InputModal } from './components/common/InputModal';
 import { SaveLocationPicker } from './components/common/SaveLocationPicker';
+import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AccountModal } from './components/account/AccountModal';
 import { AddNotebookModal } from './components/notebook/AddNotebookModal';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
+import { TermsPage } from './components/legal/TermsPage';
+import { PrivacyPage } from './components/legal/PrivacyPage';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
 import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
 import { useToast } from './hooks/useToast';
+import { useCookieConsent } from './hooks/useCookieConsent';
 import { ToastContainer } from './components/common/ToastContainer';
 
 export default function App() {
@@ -26,6 +30,41 @@ export default function App() {
   const { addToast } = useToast();
   const nb = useNotebookManager(auth.user?.id, addToast);
   const { settings, updateSettings } = useSettings(auth.isSignedIn);
+  const cookieConsent = useCookieConsent();
+
+  // Legal page routing
+  const [currentPage, setCurrentPage] = useState<'app' | 'terms' | 'privacy'>(() => {
+    const path = window.location.pathname;
+    if (path === '/terms') return 'terms';
+    if (path === '/privacy') return 'privacy';
+    return 'app';
+  });
+
+  const navigateToLegal = useCallback((page: 'terms' | 'privacy') => {
+    setCurrentPage(page);
+    window.history.pushState({}, '', `/${page}`);
+  }, []);
+
+  const navigateBack = useCallback(() => {
+    setCurrentPage('app');
+    window.history.pushState({}, '', '/');
+  }, []);
+
+  // Handle browser back/forward for legal pages
+  useEffect(() => {
+    const onPopState = () => {
+      const path = window.location.pathname;
+      if (path === '/terms') setCurrentPage('terms');
+      else if (path === '/privacy') setCurrentPage('privacy');
+      else setCurrentPage('app');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // Render legal pages before anything else
+  if (currentPage === 'terms') return <TermsPage onBack={navigateBack} />;
+  if (currentPage === 'privacy') return <PrivacyPage onBack={navigateBack} />;
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
@@ -183,6 +222,7 @@ export default function App() {
           onVerify2fa={auth.verify2fa}
           onSend2faEmailCode={auth.send2faEmailCode}
           onCancel2fa={auth.cancel2fa}
+          onNavigateToLegal={navigateToLegal}
         />
         {/* Dev shortcut to skip auth */}
         {process.env.NODE_ENV !== 'production' && (
@@ -192,6 +232,13 @@ export default function App() {
           >
             Skip to app (dev)
           </button>
+        )}
+        {cookieConsent.showBanner && (
+          <CookieConsentBanner
+            onAcceptAll={cookieConsent.acceptAll}
+            onRejectAll={cookieConsent.rejectAll}
+            onSaveCustom={cookieConsent.saveCustom}
+          />
         )}
       </div>
     );
@@ -290,7 +337,16 @@ export default function App() {
         charCount={charCount}
         lastSaved={lastSaved}
         message={nb.statusMessage}
+        onNavigateToLegal={navigateToLegal}
       />
+
+      {cookieConsent.showBanner && (
+        <CookieConsentBanner
+          onAcceptAll={cookieConsent.acceptAll}
+          onRejectAll={cookieConsent.rejectAll}
+          onSaveCustom={cookieConsent.saveCustom}
+        />
+      )}
 
       {/* Drag-and-drop overlay */}
       {dragOver && nb.notebooks.length > 0 && (

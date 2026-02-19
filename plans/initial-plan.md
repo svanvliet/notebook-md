@@ -549,16 +549,16 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 5.4 Cookie Consent Banner
 
-- [ ] Custom cookie consent banner (§13.3): "Accept All", "Reject All", "Manage Preferences"
-- [ ] Consent stored in first-party cookie (works pre-auth)
-- [ ] Respect "Do Not Track" header
-- [ ] PostHog initialization hook prepared (actual PostHog integration deferred to Phase 7)
+- [x] Custom cookie consent banner (§13.3): "Accept All", "Reject All", "Manage Preferences"
+- [x] Consent stored in first-party cookie (works pre-auth)
+- [x] Respect "Do Not Track" header
+- [x] PostHog initialization hook prepared (actual PostHog integration deferred to Phase 7)
 
 ### 5.5 Legal Pages
 
-- [ ] Terms of Service page at `/terms` — boilerplate for Van Vliet Ventures, LLC with liability limitation, indemnification, "as-is" warranty disclaimer
-- [ ] Privacy Policy page at `/privacy` — data collected, data not collected (no document content), third-party services list, GDPR rights, contact info
-- [ ] Link to Terms and Privacy from sign-up flow and app footer
+- [x] Terms of Service page at `/terms` — boilerplate for Van Vliet Ventures, LLC with liability limitation, indemnification, "as-is" warranty disclaimer
+- [x] Privacy Policy page at `/privacy` — data collected, data not collected (no document content), third-party services list, GDPR rights, contact info
+- [x] Link to Terms and Privacy from sign-up flow and app footer
 
 ### 5.6 Phase 5 Validation
 

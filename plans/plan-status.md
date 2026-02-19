@@ -1969,6 +1969,62 @@ Migrated all API callers to `apiFetch`: `github.ts`, `onedrive.ts`, `googledrive
 
 ---
 
+## Phase 5.4 + 5.5 Completion — Cookie Consent & Legal Pages ✅
+
+**Completed:** 2026-02-19
+
+### 5.4 Cookie Consent Banner
+
+- **`useCookieConsent` hook** — Manages consent state in first-party cookie (`nbmd_consent`), 1-year expiry
+  - `acceptAll()` — Sets essential + analytics + functional = true
+  - `rejectAll()` — Sets essential only (analytics/functional = false)
+  - `saveCustom()` — Granular per-category preferences
+  - Respects `navigator.doNotTrack` and `globalPrivacyControl` — auto-sets essential-only without showing banner
+  - `analyticsAllowed` boolean for future PostHog integration (Phase 7)
+- **`CookieConsentBanner` component** — Fixed bottom banner with "Accept All", "Reject All", "Manage" buttons
+  - "Manage" expands to show checkboxes for Essential (locked), Functional, Analytics
+  - Links to Privacy Policy
+- **Shows on both Welcome Screen and main app** (works pre-auth since it uses first-party cookie)
+
+### 5.5 Legal Pages
+
+- **`TermsPage`** — 12 sections: Acceptance, Description, Accounts, Acceptable Use, Content, Warranty Disclaimer, Liability Limitation, Indemnification, Termination, Changes, Governing Law (WA), Contact
+- **`PrivacyPage`** — 11 sections: Overview, Data Collected, Data NOT Collected, Usage, Third-Party Services, Security, Retention, GDPR Rights, Cookies, Changes, Contact
+  - Explicitly states: "We never read, store, or process the content of your Markdown files"
+  - Lists actual cookies: `refresh_token`, `nbmd_consent`, `notebookmd-settings`
+- **Routing** — SPA-based routing via `currentPage` state + `popstate` listener for browser back/forward
+  - `/terms` renders TermsPage, `/privacy` renders PrivacyPage
+  - Legal pages render before auth check (accessible without sign-in)
+- **Sign-up flow** — "By creating an account, you agree to our Terms of Service and Privacy Policy" with links
+- **StatusBar** — Terms and Privacy links in the right side of the footer bar
+
+### Tests
+
+- 4 new tests in `cookieConsent.test.ts`: accept all, reject all, custom preferences, read existing consent
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `apps/web/src/hooks/useCookieConsent.ts` | Cookie consent state management hook |
+| `apps/web/src/components/common/CookieConsentBanner.tsx` | Cookie consent banner UI |
+| `apps/web/src/components/legal/TermsPage.tsx` | Terms of Service page |
+| `apps/web/src/components/legal/PrivacyPage.tsx` | Privacy Policy page |
+| `apps/web/src/tests/cookieConsent.test.ts` | Cookie consent hook tests |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/web/src/App.tsx` | Legal page routing, cookie consent banner integration |
+| `apps/web/src/components/welcome/WelcomeScreen.tsx` | Legal links in sign-up form |
+| `apps/web/src/components/layout/StatusBar.tsx` | Terms/Privacy links in footer |
+| `plans/initial-plan.md` | Phase 5.4 + 5.5 checkboxes marked complete |
+
+**Test inventory:** 325 tests across 27 files (207 API + 118 web)
+
+**Next:** Phase 5.6 — Phase 5 Validation
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

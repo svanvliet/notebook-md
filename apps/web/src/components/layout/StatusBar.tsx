@@ -5,9 +5,10 @@ interface StatusBarProps {
   charCount: number;
   lastSaved: string | null;
   message: string | null;
+  onNavigateToLegal?: (page: 'terms' | 'privacy') => void;
 }
 
-export function StatusBar({ wordCount, charCount, lastSaved, message }: StatusBarProps) {
+export function StatusBar({ wordCount, charCount, lastSaved, message, onNavigateToLegal }: StatusBarProps) {
   const { t } = useTranslation();
 
   return (
@@ -21,6 +22,10 @@ export function StatusBar({ wordCount, charCount, lastSaved, message }: StatusBa
           {lastSaved && <span>{t('editor.lastSaved', { time: lastSaved })}</span>}
         </div>
       )}
+      <div className="ml-auto flex items-center gap-3">
+        <button onClick={() => onNavigateToLegal?.('terms')} className="hover:underline">Terms</button>
+        <button onClick={() => onNavigateToLegal?.('privacy')} className="hover:underline">Privacy</button>
+      </div>
     </footer>
   );
 }
