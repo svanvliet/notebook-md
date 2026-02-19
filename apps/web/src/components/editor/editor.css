@@ -80,8 +80,8 @@
   top: 4px;
   right: 4px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  font-size: 11px;
-  padding: 1px 6px;
+  font-size: 13px;
+  padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid #d0d7de;
   background: white;
@@ -152,7 +152,7 @@
 /* Tables — GitHub style */
 .tiptap table {
   border-collapse: collapse;
-  width: 100%;
+  width: auto;
   margin: 16px 0;
 }
 
@@ -165,13 +165,23 @@
 }
 
 .tiptap table th {
-  background: transparent;
+  background: #f6f8fa;
   font-weight: 600;
+}
+
+.tiptap table td > *,
+.tiptap table th > * {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .dark .tiptap table td,
 .dark .tiptap table th {
   border-color: #3d444d;
+}
+
+.dark .tiptap table th {
+  background: #161b22;
 }
 
 /* Selected table cells */
