@@ -20,6 +20,8 @@ function sanitize(html: string): string {
                'data-callout', 'data-callout-type', 'contenteditable',
                'disabled', 'type', 'checked', 'controls', 'autoplay',
                'loop', 'muted', 'poster'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
   }) as string;
 }
 

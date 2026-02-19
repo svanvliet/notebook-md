@@ -29,11 +29,71 @@ const app = express();
 app.use('/webhooks/github', express.text({ type: 'application/json' }), webhookRoutes);
 
 // Core middleware
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173', credentials: true }));
+
+// Security headers via helmet with custom CSP
+const isDev = process.env.NODE_ENV !== 'production';
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind injects inline styles
+        imgSrc: ["'self'", 'data:', 'blob:', '*.sharepoint.com', '*.googleusercontent.com', '*.githubusercontent.com', '*.ggpht.com'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'fonts.gstatic.com'],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    // HSTS: 1 year, include subdomains, preload-ready
+    strictTransportSecurity: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    crossOriginEmbedderPolicy: false, // Needed for external images
+  }),
+);
+
+// CORS: restrict to allowed origins
+const allowedOrigins = isDev
+  ? [/^http:\/\/localhost:\d+$/]
+  : [process.env.CORS_ORIGIN ?? 'https://notebookmd.io', process.env.ADMIN_ORIGIN ?? 'https://admin.notebookmd.io'];
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // Allow requests with no origin (server-to-server, curl, etc.)
+      if (!origin) return cb(null, true);
+      const allowed = allowedOrigins.some((o) =>
+        o instanceof RegExp ? o.test(origin) : o === origin,
+      );
+      cb(allowed ? null : new Error('CORS not allowed'), allowed);
+    },
+    credentials: true,
+  }),
+);
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
+
+// CSRF protection: state-changing requests must have JSON Content-Type
+// Browsers can't send cross-origin JSON without a CORS preflight, so
+// this plus SameSite=Lax cookies prevents CSRF attacks.
+app.use((req, res, next) => {
+  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+  if (safeMethods.includes(req.method)) return next();
+  const ct = req.headers['content-type'] ?? '';
+  const hasBody = req.headers['content-length'] && req.headers['content-length'] !== '0';
+  // Allow JSON, text (webhooks), or bodyless requests (cookie-only endpoints like /auth/refresh)
+  if (ct.includes('application/json') || ct.includes('text/') || !hasBody || req.path.startsWith('/webhooks/')) {
+    return next();
+  }
+  res.status(403).json({ error: 'Invalid Content-Type' });
+});
+
 app.use(correlationMiddleware);
 app.use(requestLogger);
 

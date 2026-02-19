@@ -523,17 +523,17 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 5.3 Security Hardening
 
-- [ ] Content Security Policy (§11.2):
+- [x] Content Security Policy (§11.2):
   - Nonce-based script/style loading
   - `img-src 'self' data: blob: *.sharepoint.com *.googleusercontent.com *.githubusercontent.com`
   - `connect-src 'self'`
   - `frame-src 'none'`, `object-src 'none'`
   - Verify KaTeX works without `unsafe-eval`
-- [ ] CORS policy: `Access-Control-Allow-Origin` restricted to `notebookmd.io` and `admin.notebookmd.io` (and `localhost:*` in dev)
-- [ ] CSRF protection on all state-changing endpoints
-- [ ] HSTS header configuration
-- [ ] Verify DOMPurify sanitization covers all Markdown XSS vectors (raw HTML, `javascript:` URIs, SVG scripts, `data:` URIs)
-- [ ] Audit: ensure no tokens, secrets, or sensitive data can leak through error responses, logs, or client-side state
+- [x] CORS policy: `Access-Control-Allow-Origin` restricted to `notebookmd.io` and `admin.notebookmd.io` (and `localhost:*` in dev)
+- [x] CSRF protection on all state-changing endpoints
+- [x] HSTS header configuration
+- [x] Verify DOMPurify sanitization covers all Markdown XSS vectors (raw HTML, `javascript:` URIs, SVG scripts, `data:` URIs)
+- [x] Audit: ensure no tokens, secrets, or sensitive data can leak through error responses, logs, or client-side state
 
 ### 5.3b Session Hardening (§2.6)
 
