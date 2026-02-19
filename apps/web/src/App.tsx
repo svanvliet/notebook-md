@@ -10,6 +10,7 @@ import { SaveLocationPicker } from './components/common/SaveLocationPicker';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AccountModal } from './components/account/AccountModal';
 import { AddNotebookModal } from './components/notebook/AddNotebookModal';
+import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
@@ -35,6 +36,7 @@ export default function App() {
   const [showAccount, setShowAccount] = useState(false);
   const [showAddNotebook, setShowAddNotebook] = useState(false);
   const [initialSource, setInitialSource] = useState<string | null>(null);
+  const [showOnboarding2fa, setShowOnboarding2fa] = useState(false);
 
   // Detect OAuth error from URL before auth init can clear it
   const [oauthError, setOauthError] = useState<string | null>(() => {
@@ -163,11 +165,16 @@ export default function App() {
     const handleOAuth = (provider: string) => {
       window.location.href = `/auth/oauth/${provider}?returnTo=/`;
     };
+    const handleSignUp = async (email: string, password: string, displayName: string, rememberMe: boolean) => {
+      const ok = await auth.signUp(email, password, displayName, rememberMe);
+      if (ok) setShowOnboarding2fa(true);
+      return ok;
+    };
     return (
       <div>
         <WelcomeScreen
           onSignIn={auth.signIn}
-          onSignUp={auth.signUp}
+          onSignUp={handleSignUp}
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
           error={oauthError ?? auth.error}
@@ -196,6 +203,17 @@ export default function App() {
       <div className="h-full flex items-center justify-center">
         <div className="text-gray-500 dark:text-gray-400">Loading...</div>
       </div>
+    );
+  }
+
+  // Post-signup 2FA onboarding
+  if (showOnboarding2fa && auth.isSignedIn) {
+    return (
+      <OnboardingTwoFactor
+        onSetup={auth.setup2fa}
+        onEnable={auth.enable2fa}
+        onSkip={() => setShowOnboarding2fa(false)}
+      />
     );
   }
 

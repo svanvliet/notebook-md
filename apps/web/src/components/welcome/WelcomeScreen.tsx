@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NotebookIcon } from '../icons/Icons';
 
@@ -29,6 +29,23 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
   const [twoFaCode, setTwoFaCode] = useState('');
   const [twoFaMode, setTwoFaMode] = useState<'totp' | 'email' | 'recovery'>('totp');
   const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const emailAutoSentRef = useRef(false);
+
+  // When 2FA challenge arrives, set mode to match the user's configured method
+  // and auto-send email code if method is email
+  useEffect(() => {
+    if (twoFactorChallenge) {
+      setTwoFaMode(twoFactorChallenge.method);
+      setTwoFaCode('');
+      if (twoFactorChallenge.method === 'email' && !emailAutoSentRef.current) {
+        emailAutoSentRef.current = true;
+        onSend2faEmailCode().then((ok) => { if (ok) setEmailCodeSent(true); });
+      }
+    } else {
+      emailAutoSentRef.current = false;
+      setEmailCodeSent(false);
+    }
+  }, [twoFactorChallenge, onSend2faEmailCode]);
 
   const switchView = (v: View) => {
     setView(v);
@@ -74,6 +91,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
     setTwoFaCode('');
     setTwoFaMode('totp');
     setEmailCodeSent(false);
+    emailAutoSentRef.current = false;
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
