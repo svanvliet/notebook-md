@@ -1163,6 +1163,46 @@ These will need backend API additions for each source type's file management ope
 
 ---
 
+### UI Polish (this session, continued)
+
+**Loading indicator for remote notebooks:**
+- Added `loadingNotebooks` state (`Set<string>`) to `useNotebookManager` tracking which notebooks are fetching files
+- `refreshFiles()` sets loading before remote API calls, clears in `finally` block
+- When a notebook is loading (first expand), shows animated spinner + "Loading…" text (non-italic) instead of "Empty notebook"
+- When refreshing a notebook that already has files (context menu refresh), shows a small inline spinner to the right of the notebook name — file tree stays visible during refresh
+- "Empty notebook" only appears after loading completes with zero files
+- Loading state threaded via `loadingNotebooks` prop: `useNotebookManager` → `App.tsx` → `NotebookPane` → `NotebookTree`
+
+**Source type icons:**
+- Replaced OneDrive icon with official Microsoft OneDrive logo SVG (2019–2025) from Wikimedia Commons — 4-segment layered cloud with brand blues (#0364b8, #0078d4, #1490df, #28a8ea)
+- Replaced Google Drive icon with official logo SVG (2020) from Wikimedia Commons — 6-segment multi-color triangle with proper brand colors
+- Both render cleanly at all sizes in the notebook tree and Add Notebook picker
+
+---
+
+### OAuth Auto-Merge Bug Fix
+
+**Problem:** Logging in with a new OAuth provider created a duplicate account instead of merging with the existing one, when the email matched a `provider_email` on an identity link but not the `users.email` column.
+
+**Example scenario:**
+1. User signs up via Microsoft → `users.email = svanvliet@outlook.com`
+2. User links Google from settings → `identity_links.provider_email = svanvliet@gmail.com`
+3. User logs out, logs in via GitHub (email: `svanvliet@gmail.com`)
+4. **Before fix:** `users.email` lookup found no match → new user created
+5. **After fix:** Falls through to `identity_links.provider_email` lookup → finds existing user → auto-merges
+
+**Fix in `apps/api/src/services/account-link.ts` (`handleOAuthLogin`, step 2):**
+- After checking `users.email`, now also queries `identity_links.provider_email` for a matching email
+- If exactly one user is found via provider email, proceeds with auto-merge logic (same OAuth↔OAuth rules apply)
+- Email+password accounts still never auto-merge (must link manually)
+
+**Dev DB cleanup:**
+- Moved orphaned GitHub identity link from duplicate user to correct account
+- Deleted duplicate user and associated sessions/audit records
+- Verified all 3 providers (Microsoft, Google, GitHub) now linked to single account
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
