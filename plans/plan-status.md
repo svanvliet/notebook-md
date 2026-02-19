@@ -1929,6 +1929,46 @@ Migrated all API callers to `apiFetch`: `github.ts`, `onedrive.ts`, `googledrive
 
 ---
 
+## Phase 5.3b Completion — Session Hardening ✅
+
+**Completed:** 2026-02-19
+**Commit:** `52bff26`
+
+### Pre-existing (verified working)
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Remember Me | ✅ Already done | Checkbox on sign-in/sign-up; 24hr default, 30-day with Remember Me |
+| Refresh token rotation | ✅ Already done | New token issued on each refresh; old one revoked |
+| Token family reuse detection | ✅ Already done | Reuse of revoked token invalidates entire family |
+| Session expiry | ✅ Already done | `expires_at` checked in `getSessionByRefreshToken` |
+
+### New: Idle Timeout
+
+- **Migration 003** — Added `last_active_at TIMESTAMPTZ` to sessions, `idle_timeout_minutes INTEGER` to user_settings
+- **Auth middleware** — On every authenticated request: checks idle timeout (if configured) against `last_active_at`, updates `last_active_at` (fire-and-forget, non-blocking)
+- **Settings API** — `idle_timeout_minutes` stored as dedicated column (not in JSON blob) for efficient middleware lookup without JSON parsing
+- **Settings UI** — Dropdown in Settings modal: Off (default), 15m, 30m, 1h, 2h. Shows description: "Require re-authentication after inactivity"
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `apps/api/migrations/003_session-idle-timeout.sql` | Schema migration for idle timeout |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/api/src/middleware/auth.ts` | Idle timeout check + `last_active_at` bump |
+| `apps/api/src/services/session.ts` | `getSessionByRefreshToken` returns `lastActiveAt` |
+| `apps/api/src/routes/settings.ts` | Read/write `idle_timeout_minutes` column |
+| `apps/web/src/hooks/useSettings.ts` | Added `idleTimeoutMinutes` to `AppSettings` |
+| `apps/web/src/components/settings/SettingsModal.tsx` | Idle timeout dropdown |
+| `plans/initial-plan.md` | Phase 5.3b checkboxes marked complete |
+
+**Next:** Phase 5.4 — Cookie Consent Banner
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
