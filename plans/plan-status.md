@@ -2156,6 +2156,60 @@ The app used manual `window.history.pushState` for navigation. This caused:
 
 ---
 
+## Phase 6.1 Completion — Infrastructure as Code ✅
+
+**Completed:** 2026-02-19
+**Commits:** `b9a7ad3`, `4b6c788`, `6e6084c`
+
+### Terraform Project (`infra/terraform/`)
+
+14 files defining all Azure infrastructure:
+
+| Resource | Config |
+|----------|--------|
+| Resource Group | `rg-notebookmd-prod`, East US 2 |
+| Container Apps | 3 apps: api (0.5 CPU/1Gi, 1–5 replicas), web (0.25 CPU/0.5Gi, 1–3), admin (0.25 CPU/0.5Gi, 1–2) |
+| Container Registry | Basic SKU, managed identity pull, hyphens stripped from name |
+| PostgreSQL | Flexible Server B1ms, v16, 35-day PITR, geo-redundant backup |
+| Redis | Basic C0, TLS 1.2, v7 |
+| Key Vault | Stores DB URL, Redis URL, session secret, encryption key; purge protection |
+| Front Door | Standard tier, 3 endpoints (web/api/admin), HTTPS redirect, custom domains ready to uncomment |
+| Monitoring | App Insights + Log Analytics (90-day retention) |
+| Identity | User-assigned managed identity with ACR pull + Key Vault read |
+
+### Key decisions
+- **Terraform** chosen over Pulumi (industry standard, larger Azure provider ecosystem)
+- **Azure Storage** backend for Terraform state (`bootstrap-state.sh` creates it)
+- **`local.db_name`** strips hyphens from project name for DB/ACR compatibility
+- API container has **health/readiness probes** at `/api/health`
+- All secrets flow through **Key Vault** via managed identity (no plaintext in container env)
+- OAuth credentials and SendGrid key stored as Container App secrets
+- Production `session_secret` and `encryption_key` freshly generated (not reusing dev values)
+- `terraform.tfvars` gitignored; `terraform.tfvars.example` committed as template
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `infra/terraform/main.tf` | Provider config, backend |
+| `infra/terraform/variables.tf` | All input variables |
+| `infra/terraform/resource_group.tf` | RG + shared locals/tags |
+| `infra/terraform/acr.tf` | Container Registry |
+| `infra/terraform/database.tf` | PostgreSQL Flexible Server |
+| `infra/terraform/redis.tf` | Redis Cache |
+| `infra/terraform/keyvault.tf` | Key Vault + secrets |
+| `infra/terraform/container_apps.tf` | Identity + CAE + 3 container apps |
+| `infra/terraform/frontdoor.tf` | Front Door + endpoints/origins/routes |
+| `infra/terraform/monitoring.tf` | App Insights + Log Analytics |
+| `infra/terraform/outputs.tf` | FQDNs, connection strings |
+| `infra/terraform/bootstrap-state.sh` | One-time state backend setup |
+| `infra/terraform/terraform.tfvars.example` | Template for secrets |
+| `infra/terraform/.gitignore` | Ignore state, tfvars, plans |
+| `infra/dns-records.md` | DNS record documentation |
+
+**Next:** Phase 6.2 — Container Images
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

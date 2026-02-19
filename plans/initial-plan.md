@@ -580,7 +580,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.1 Infrastructure as Code
 
-- [ ] Set up Terraform (or Pulumi) project for Azure resources:
+- [x] Set up Terraform project for Azure resources:
   - Resource group (East US 2)
   - Azure Container Apps environment (with 3 container apps: web, api, admin)
   - Azure Container Registry (private)
@@ -589,9 +589,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - Azure Front Door (Standard tier) with CDN for SPA assets
   - Azure Key Vault for secrets (OAuth tokens encryption key, webhook secrets, etc.)
   - Azure Monitor / Application Insights workspace
-- [ ] Configure managed identity for Container Apps → Key Vault access
-- [ ] Migrate token encryption from local dev key to Azure Key Vault (envelope encryption with KMS-managed key)
-- [ ] Configure environment variables per container app (CORS_ORIGIN, ADMIN_ORIGIN, DATABASE_URL, REDIS_URL, etc.)
+- [x] Configure managed identity for Container Apps → Key Vault access
+- [x] Migrate token encryption from local dev key to Azure Key Vault (envelope encryption with KMS-managed key)
+- [x] Configure environment variables per container app (CORS_ORIGIN, ADMIN_ORIGIN, DATABASE_URL, REDIS_URL, etc.)
 
 ### 6.2 Container Images
 
