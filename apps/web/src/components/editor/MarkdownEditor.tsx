@@ -441,14 +441,25 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       <div className="flex-1 overflow-hidden flex">
         {/* Source pane — shown in source-only or split mode */}
         {(viewMode === 'source' || viewMode === 'split') && (
-          <div className={`flex border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}>
+          <div className={`flex border-r border-gray-200 dark:border-gray-800 overflow-auto ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}
+            onScroll={(e) => {
+              // Sync line number gutter scroll with container
+              const target = e.currentTarget;
+              const gutter = target.querySelector('[data-line-gutter]') as HTMLElement | null;
+              if (gutter) gutter.style.top = `${-target.scrollTop}px`;
+            }}
+          >
             {lineNumbers && (
-              <div className="select-none text-right pr-3 pl-3 pt-6 font-mono text-xs text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 leading-[1.625rem] shrink-0 overflow-hidden"
-                aria-hidden="true"
+              <div className="relative shrink-0 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
+                style={{ width: `${Math.max(3, String(rawContent.split('\n').length).length) * 0.6 + 1.5}rem` }}
               >
-                {rawContent.split('\n').map((_, i) => (
-                  <div key={i}>{i + 1}</div>
-                ))}
+                <div data-line-gutter className="absolute right-0 left-0 select-none text-right pr-3 pl-2 pt-6 font-mono text-xs text-gray-400 dark:text-gray-600 whitespace-pre leading-[1.3125rem]"
+                  aria-hidden="true"
+                >
+                  {rawContent.split('\n').map((_, i) => (
+                    <div key={i}>{i + 1}</div>
+                  ))}
+                </div>
               </div>
             )}
             <textarea
@@ -456,9 +467,10 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
               value={rawContent}
               onChange={(e) => handleSourceChange(e.target.value)}
               onScroll={viewMode === 'split' ? handleSourceScroll : undefined}
-              className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none flex-1 ${
+              className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none flex-1 min-w-0 whitespace-pre overflow-x-auto leading-[1.3125rem] ${
                 lineNumbers ? 'pl-2 pr-6' : 'px-6'
               }`}
+              wrap="off"
               spellCheck={spellCheckProp !== false}
             />
           </div>
