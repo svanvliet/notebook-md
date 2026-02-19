@@ -109,7 +109,7 @@ export function useAdmin() {
 
   const getUser = useCallback(
     (id: string) =>
-      api<{ user: AdminUser; notebookCount: number; activeSessions: number; identityLinks: { provider: string }[] }>(
+      api<{ user: AdminUser; notebookCount: number; activeSessions: number; linkedProviders: { provider: string; email: string }[] }>(
         `/admin/users/${id}`,
       ),
     [],

@@ -8,7 +8,7 @@ export default function UsersPage({
   deleteUser,
 }: {
   getUsers: (p: { page?: number; limit?: number; search?: string }) => Promise<{ users: AdminUser[]; pagination: Pagination }>;
-  getUser: (id: string) => Promise<{ user: AdminUser; notebookCount: number; activeSessions: number; identityLinks: { provider: string }[] }>;
+  getUser: (id: string) => Promise<{ user: AdminUser; notebookCount: number; activeSessions: number; linkedProviders: { provider: string; email: string }[] }>;
   updateUser: (id: string, data: { isSuspended?: boolean }) => Promise<{ message: string }>;
   deleteUser: (id: string) => Promise<{ message: string }>;
 }) {
@@ -49,7 +49,7 @@ export default function UsersPage({
 
   const handleViewUser = async (id: string) => {
     const data = await getUser(id);
-    setSelectedUser({ ...data.user, notebookCount: data.notebookCount, activeSessions: data.activeSessions, identityLinks: data.identityLinks });
+    setSelectedUser({ ...data.user, notebookCount: data.notebookCount, activeSessions: data.activeSessions, identityLinks: data.linkedProviders || [] });
   };
 
   return (
