@@ -91,6 +91,11 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, onSignOut, on
                   <button onClick={() => { setShowAccountMenu(false); onOpenSettings?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
                     {t('settings.title')}
                   </button>
+                  {user.isAdmin && (
+                    <a href="http://localhost:5174" target="_blank" rel="noopener noreferrer" className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
+                      Admin Site
+                    </a>
+                  )}
                   <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
                     <button onClick={() => { setShowAccountMenu(false); onSignOut?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-red-600 dark:text-red-400">
                       {t('auth.signOut')}

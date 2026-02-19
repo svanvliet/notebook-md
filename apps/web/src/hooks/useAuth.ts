@@ -11,6 +11,7 @@ export interface User {
   hasPassword?: boolean;
   twoFactorEnabled?: boolean;
   twoFactorMethod?: 'totp' | 'email' | null;
+  isAdmin?: boolean;
   createdAt?: string;
 }
 
