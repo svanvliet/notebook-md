@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetch } from '../api/apiFetch.js';
 import {
   createNotebook,
   listNotebooks,
@@ -97,7 +98,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
       // Sync remote notebooks from server into IndexedDB
       if (userId) {
         try {
-          const res = await fetch('/api/notebooks', { credentials: 'include' });
+          const res = await apiFetch('/api/notebooks');
           if (res.ok) {
             const { notebooks: serverNbs } = await res.json();
             const serverIds = new Set<string>();
@@ -306,10 +307,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
       } else {
         // Remote notebook — also save to server via API
         try {
-          const res = await fetch('/api/notebooks', {
+          const res = await apiFetch('/api/notebooks', {
             method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, sourceType, sourceConfig }),
           });
           if (!res.ok) throw new Error('Failed to create notebook');

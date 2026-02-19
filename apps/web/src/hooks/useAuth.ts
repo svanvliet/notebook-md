@@ -30,6 +30,16 @@ export function useAuth() {
   const [state, setState] = useState<AuthState>({ user: null, loading: true, error: null });
   const [twoFactorChallenge, setTwoFactorChallenge] = useState<TwoFactorChallenge | null>(null);
 
+  // Session invalidation handler — called when any API response indicates
+  // the session is no longer valid (401/403). Avoids polling; instead we
+  // piggyback on existing API calls and check on tab re-focus.
+  const handleSessionInvalid = useCallback(() => {
+    setState(prev => {
+      if (!prev.user) return prev; // Already logged out
+      return { user: null, loading: false, error: 'Your session has ended.' };
+    });
+  }, []);
+
   // Check existing session on mount
   useEffect(() => {
     (async () => {
@@ -47,21 +57,27 @@ export function useAuth() {
     })();
   }, []);
 
-  // Periodic session validation — catches suspensions, revocations, etc.
+  // Re-validate session when the tab becomes visible again (handles idle users)
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (!state.user) return;
+    const onVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible' || !state.user) return;
       try {
         const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
-        if (!res.ok) {
-          setState({ user: null, loading: false, error: 'Your session has ended.' });
-        }
+        if (!res.ok) handleSessionInvalid();
       } catch {
-        // Network error — don't log out, they may be temporarily offline
+        // Network error — don't log out
       }
-    }, 30_000); // Check every 30 seconds
-    return () => clearInterval(interval);
-  }, [state.user]);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [state.user, handleSessionInvalid]);
+
+  // Listen for session-invalid events dispatched by API calls anywhere in the app
+  useEffect(() => {
+    const handler = () => handleSessionInvalid();
+    window.addEventListener('auth:session-invalid', handler);
+    return () => window.removeEventListener('auth:session-invalid', handler);
+  }, [handleSessionInvalid]);
 
   const signUp = useCallback(async (email: string, password: string, displayName?: string, rememberMe?: boolean) => {
     setState(s => ({ ...s, error: null }));

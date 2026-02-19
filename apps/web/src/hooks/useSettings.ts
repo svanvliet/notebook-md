@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
+import { apiFetch } from '../api/apiFetch.js';
 
-const API_BASE = '';
 const LOCAL_KEY = 'notebookmd-settings';
 
 export interface AppSettings {
@@ -38,7 +38,7 @@ export function useSettings(isSignedIn: boolean) {
     if (!isSignedIn) return;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/auth/settings`, { credentials: 'include' });
+        const res = await apiFetch('/auth/settings');
         if (res.ok) {
           const data = await res.json();
           if (data.settings && Object.keys(data.settings).length > 0) {
@@ -59,10 +59,8 @@ export function useSettings(isSignedIn: boolean) {
     // Sync to server if signed in
     if (isSignedIn) {
       try {
-        await fetch(`${API_BASE}/auth/settings`, {
+        await apiFetch('/auth/settings', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ settings: newSettings }),
         });
       } catch { /* best effort */ }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { User } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
+import { apiFetch } from '../../api/apiFetch';
 import { GitHubIcon, OneDriveIcon, GoogleDriveIcon } from '../icons/Icons';
 import { TwoFactorSetup } from './TwoFactorSetup';
 
@@ -55,7 +56,7 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/auth/oauth/linked', { credentials: 'include' });
+        const res = await apiFetch('/auth/oauth/linked');
         if (res.ok) {
           const { providers } = await res.json();
           setLinkedProviders(providers);
@@ -68,9 +69,8 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
     if (!confirm(`Unlink ${PROVIDER_META[provider]?.label ?? provider} from your account?`)) return;
     setUnlinking(provider);
     try {
-      const res = await fetch(`/auth/oauth/${provider}`, {
+      const res = await apiFetch(`/auth/oauth/${provider}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (!res.ok) {
         const data = await res.json();

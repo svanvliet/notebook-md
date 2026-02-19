@@ -3,14 +3,10 @@
  * All calls go through our backend proxy (not directly to Google APIs).
  */
 
-const API_BASE = '';
+import { apiFetch } from './apiFetch.js';
 
 async function api<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...opts?.headers },
-    ...opts,
-  });
+  const res = await apiFetch(path, opts);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(body.error ?? `API error: ${res.status}`);
