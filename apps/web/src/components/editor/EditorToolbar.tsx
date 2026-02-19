@@ -1,6 +1,7 @@
 import { Editor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useState } from 'react';
+import { useToast } from '../../hooks/useToast';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -206,6 +207,7 @@ function MediaInsertMenu({
   onUploadFile: (file: File) => void;
   onCancel: () => void;
 }) {
+  const { addToast } = useToast();
   const [mode, setMode] = useState<'choose' | 'url'>('choose');
   const [url, setUrl] = useState('');
   const [alt, setAlt] = useState('');
@@ -249,7 +251,7 @@ function MediaInsertMenu({
             const file = input.files?.[0];
             if (!file) return;
             if (file.size > MAX_UPLOAD_SIZE) {
-              alert(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+              addToast(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`, 'warning');
               return;
             }
             onUploadFile(file);

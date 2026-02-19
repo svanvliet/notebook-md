@@ -15,12 +15,15 @@ import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
 import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
+import { useToast } from './hooks/useToast';
+import { ToastContainer } from './components/common/ToastContainer';
 
 export default function App() {
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
   const auth = useAuth();
-  const nb = useNotebookManager(auth.user?.id);
+  const { addToast } = useToast();
+  const nb = useNotebookManager(auth.user?.id, addToast);
   const { settings, updateSettings } = useSettings(auth.isSignedIn);
 
   // Status bar state
@@ -197,6 +200,7 @@ export default function App() {
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
+      <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
           width={sidebar.width}

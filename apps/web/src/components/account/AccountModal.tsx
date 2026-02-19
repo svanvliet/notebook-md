@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { User } from '../../hooks/useAuth';
+import { useToast } from '../../hooks/useToast';
 
 interface AccountModalProps {
   user: User;
@@ -11,6 +12,7 @@ interface AccountModalProps {
 }
 
 export function AccountModal({ user, onUpdateProfile, onChangePassword, onDeleteAccount, onSignOut, onClose }: AccountModalProps) {
+  const { addToast } = useToast();
   const [displayName, setDisplayName] = useState(user.displayName);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,9 +31,13 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
     if (displayName === user.displayName) return;
     setSaving(true);
     const ok = await onUpdateProfile({ displayName });
-    setMessage(ok ? 'Profile updated' : 'Failed to update profile');
+    if (ok) {
+      addToast('Profile updated', 'success');
+    } else {
+      addToast('Failed to update profile', 'error');
+    }
+    setMessage(null);
     setSaving(false);
-    setTimeout(() => setMessage(null), 2000);
   };
 
   const handleChangePassword = async () => {
@@ -47,8 +53,7 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
       setShowPasswordChange(false);
       setCurrentPassword('');
       setNewPassword('');
-      setMessage('Password changed');
-      setTimeout(() => setMessage(null), 2000);
+      addToast('Password changed', 'success');
     }
   };
 

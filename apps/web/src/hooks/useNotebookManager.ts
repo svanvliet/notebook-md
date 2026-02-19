@@ -68,7 +68,11 @@ export interface SaveLocationRequest {
   onSave: (notebookId: string, parentPath: string) => void;
 }
 
-export function useNotebookManager(userId?: string | null) {
+import type { ToastType } from './useToast';
+
+export type ToastFn = (message: string, type?: ToastType) => void;
+
+export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
   const [loadingNotebooks, setLoadingNotebooks] = useState<Set<string>>(new Set());
@@ -255,7 +259,7 @@ export function useNotebookManager(userId?: string | null) {
           setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
         }
       } catch (err) {
-        flash(`Failed to load files: ${(err as Error).message}`);
+        toast?.(`Failed to load files: ${(err as Error).message}`, 'error');
       } finally {
         setLoadingNotebooks((prev) => {
           const next = new Set(prev);
@@ -264,7 +268,7 @@ export function useNotebookManager(userId?: string | null) {
         });
       }
     }
-  }, [notebooks, flash]);
+  }, [notebooks, flash, toast]);
 
   // --- Notebook operations ---
 
@@ -278,10 +282,10 @@ export function useNotebookManager(userId?: string | null) {
         const nb = await createNotebook(name, 'local');
         setNotebooks((prev) => [...prev, nb]);
         setFiles((prev) => ({ ...prev, [nb.id]: [] }));
-        flash(`Created notebook "${nb.name}"`);
+        toast?.(`Created notebook "${nb.name}"`, 'success');
       },
     });
-  }, [flash]);
+  }, [flash, toast]);
 
   const handleAddNotebook = useCallback(
     async (name: string, sourceType: string, sourceConfig: Record<string, unknown>) => {
@@ -289,7 +293,7 @@ export function useNotebookManager(userId?: string | null) {
         const nb = await createNotebook(name, 'local');
         setNotebooks((prev) => [...prev, nb]);
         setFiles((prev) => ({ ...prev, [nb.id]: [] }));
-        flash(`Created notebook "${nb.name}"`);
+        toast?.(`Created notebook "${nb.name}"`, 'success');
       } else {
         // Remote notebook — also save to server via API
         try {
@@ -311,13 +315,13 @@ export function useNotebookManager(userId?: string | null) {
           nb.id = notebook.id;
           setNotebooks((prev) => [...prev, nb]);
           setFiles((prev) => ({ ...prev, [nb.id]: [] }));
-          flash(`Added ${sourceType} notebook "${name}"`);
+          toast?.(`Added ${sourceType} notebook "${name}"`, 'success');
         } catch (err) {
-          flash(`Failed to add notebook: ${(err as Error).message}`);
+          toast?.(`Failed to add notebook: ${(err as Error).message}`, 'error');
         }
       }
     },
-    [flash],
+    [flash, toast],
   );
 
   const handleDeleteNotebook = useCallback(async (id: string) => {
@@ -342,8 +346,8 @@ export function useNotebookManager(userId?: string | null) {
       delete next[id];
       return next;
     });
-    flash(`Deleted notebook "${nb.name}"`);
-  }, [notebooks, tabs, flash]);
+    toast?.(`Deleted notebook "${nb.name}"`, 'success');
+  }, [notebooks, tabs, flash, toast]);
 
   const handleRenameNotebook = useCallback(async (id: string, name: string) => {
     await renameNb(id, name);
@@ -411,9 +415,9 @@ export function useNotebookManager(userId?: string | null) {
               const branch = await ensureWorkingBranch(notebookId, nb);
               await createGitHubFile(rootPath, filePath, '', branch);
               await refreshFiles(notebookId);
-              flash(`Created ${type} "${name}"`);
+              toast?.(`Created ${type} "${name}"`, 'success');
             } catch (err) {
-              flash(`Failed to create file: ${(err as Error).message}`);
+              toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
             }
           } else if (nb?.sourceType === 'onedrive') {
             const rootPath = nb.sourceConfig.rootPath as string;
@@ -421,9 +425,9 @@ export function useNotebookManager(userId?: string | null) {
             try {
               await createOneDriveFile(rootPath, filePath, '');
               await refreshFiles(notebookId);
-              flash(`Created ${type} "${name}"`);
+              toast?.(`Created ${type} "${name}"`, 'success');
             } catch (err) {
-              flash(`Failed to create file: ${(err as Error).message}`);
+              toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
             }
           } else if (nb?.sourceType === 'google-drive') {
             const rootFolderId = nb.sourceConfig.rootPath as string;
@@ -431,19 +435,19 @@ export function useNotebookManager(userId?: string | null) {
             try {
               await createGoogleDriveFile(rootFolderId, filePath, '');
               await refreshFiles(notebookId);
-              flash(`Created ${type} "${name}"`);
+              toast?.(`Created ${type} "${name}"`, 'success');
             } catch (err) {
-              flash(`Failed to create file: ${(err as Error).message}`);
+              toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
             }
           } else {
             await createFile(notebookId, parentPath, name, type);
             await refreshFiles(notebookId);
-            flash(`Created ${type} "${name}"`);
+            toast?.(`Created ${type} "${name}"`, 'success');
           }
         },
       });
     },
-    [notebooks, ensureWorkingBranch, refreshFiles, flash],
+    [notebooks, ensureWorkingBranch, refreshFiles, flash, toast],
   );
 
   // Import a file from the user's device
@@ -462,7 +466,7 @@ export function useNotebookManager(userId?: string | null) {
             // Direct import to a known location
             const entry = await createFile(notebookId, parentPath ?? '', fileName, 'file', content);
             await refreshFiles(notebookId);
-            flash(`Imported "${fileName}"`);
+            toast?.(`Imported "${fileName}"`, 'success');
             // Auto-open the imported file
             const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
             const tabId = `${notebookId}:${entry.path}`;
@@ -481,7 +485,7 @@ export function useNotebookManager(userId?: string | null) {
                 setSaveLocationRequest(null);
                 const entry = await createFile(nbId, savePath, fileName, 'file', content);
                 await refreshFiles(nbId);
-                flash(`Imported "${fileName}"`);
+                toast?.(`Imported "${fileName}"`, 'success');
                 // Auto-open the imported file
                 const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
                 const tabId = `${nbId}:${entry.path}`;
@@ -498,7 +502,7 @@ export function useNotebookManager(userId?: string | null) {
       };
       input.click();
     },
-    [refreshFiles, flash],
+    [refreshFiles, flash, toast],
   );
 
   // Import via drag-and-drop (shows save location picker)
@@ -511,7 +515,7 @@ export function useNotebookManager(userId?: string | null) {
           setSaveLocationRequest(null);
           const entry = await createFile(nbId, savePath, fileName, 'file', content);
           await refreshFiles(nbId);
-          flash(`Imported "${fileName}"`);
+          toast?.(`Imported "${fileName}"`, 'success');
           // Auto-open the imported file
           const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
           const tabId = `${nbId}:${entry.path}`;
@@ -524,7 +528,7 @@ export function useNotebookManager(userId?: string | null) {
         },
       });
     },
-    [refreshFiles, flash],
+    [refreshFiles, flash, toast],
   );
 
   const handleDeleteFile = useCallback(
@@ -545,9 +549,9 @@ export function useNotebookManager(userId?: string | null) {
 
       await deleteF(notebookId, path);
       await refreshFiles(notebookId);
-      flash(`Deleted "${name}"`);
+      toast?.(`Deleted "${name}"`, 'success');
     },
-    [refreshFiles, tabs, flash],
+    [refreshFiles, tabs, flash, toast],
   );
 
   const handleRenameFile = useCallback(
@@ -608,7 +612,7 @@ export function useNotebookManager(userId?: string | null) {
           setTabs((prev) => [...prev, tab]);
           setActiveTabId(tabId);
         } catch (err) {
-          flash(`Failed to open file: ${(err as Error).message}`);
+          toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
         }
         return;
       }
@@ -637,7 +641,7 @@ export function useNotebookManager(userId?: string | null) {
           setTabs((prev) => [...prev, tab]);
           setActiveTabId(tabId);
         } catch (err) {
-          flash(`Failed to open file: ${(err as Error).message}`);
+          toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
         }
         return;
       }
@@ -666,7 +670,7 @@ export function useNotebookManager(userId?: string | null) {
           setTabs((prev) => [...prev, tab]);
           setActiveTabId(tabId);
         } catch (err) {
-          flash(`Failed to open file: ${(err as Error).message}`);
+          toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
         }
         return;
       }
@@ -695,7 +699,7 @@ export function useNotebookManager(userId?: string | null) {
       setTabs((prev) => [...prev, tab]);
       setActiveTabId(tabId);
     },
-    [tabs, notebooks, flash],
+    [tabs, notebooks, flash, toast],
   );
 
   // --- Content change (auto-save) ---
@@ -739,7 +743,7 @@ export function useNotebookManager(userId?: string | null) {
 
       const branch = workingBranches.current[notebookId];
       if (!branch) {
-        flash('No pending changes to publish');
+        toast?.('No pending changes to publish', 'info');
         return;
       }
 
@@ -762,12 +766,12 @@ export function useNotebookManager(userId?: string | null) {
         setTabs((prev) =>
           prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
         );
-        flash('Changes published to main');
+        toast?.('Changes published to main', 'success');
       } catch (err) {
-        flash(`Publish failed: ${(err as Error).message}`);
+        toast?.(`Publish failed: ${(err as Error).message}`, 'error');
       }
     },
-    [notebooks, refreshFiles, flash],
+    [notebooks, refreshFiles, flash, toast],
   );
 
   /** Check if a notebook has a working branch with unpublished changes */
@@ -886,7 +890,7 @@ export function useNotebookManager(userId?: string | null) {
       const notebook = notebooks.find((n) => n.id === notebookId);
       if (notebook && notebook.sourceType !== 'local' && notebook.sourceType) {
         // Remote move not yet supported
-        console.warn('File move not supported for remote notebooks');
+        toast?.('File move is not supported for remote notebooks', 'warning');
         return;
       }
       const oldKey = `${notebookId}:${oldPath}`;
@@ -910,9 +914,9 @@ export function useNotebookManager(userId?: string | null) {
       const updatedFiles = await listFiles(notebookId);
       setFiles((prev) => ({ ...prev, [notebookId]: updatedFiles }));
     } catch (err) {
-      console.error('Failed to move file:', err);
+      toast?.('Failed to move file', 'error');
     }
-  }, [notebooks]);
+  }, [notebooks, toast]);
 
   const handleReorderNotebooks = useCallback(async (orderedIds: string[]) => {
     try {
@@ -920,9 +924,9 @@ export function useNotebookManager(userId?: string | null) {
       const nbs = await listNotebooks();
       setNotebooks(nbs);
     } catch (err) {
-      console.error('Failed to reorder notebooks:', err);
+      toast?.('Failed to reorder notebooks', 'error');
     }
-  }, []);
+  }, [toast]);
 
   const handleCopyFile = useCallback(async (
     sourceNotebookId: string,
@@ -935,7 +939,7 @@ export function useNotebookManager(userId?: string | null) {
       const targetNb = notebooks.find((n) => n.id === targetNotebookId);
       if (!sourceNb || !targetNb) return;
       if ((sourceNb.sourceType ?? 'local') !== 'local' || (targetNb.sourceType ?? 'local') !== 'local') {
-        console.warn('Cross-notebook copy only supported between local notebooks');
+        toast?.('Cross-notebook copy is only supported between local notebooks', 'warning');
         return;
       }
 
@@ -963,9 +967,9 @@ export function useNotebookManager(userId?: string | null) {
       const updatedFiles = await listFiles(targetNotebookId);
       setFiles((prev) => ({ ...prev, [targetNotebookId]: updatedFiles }));
     } catch (err) {
-      console.error('Failed to copy file:', err);
+      toast?.('Failed to copy file', 'error');
     }
-  }, [notebooks]);
+  }, [notebooks, toast]);
 
   return {
     notebooks,

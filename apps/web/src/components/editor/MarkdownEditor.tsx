@@ -9,6 +9,7 @@ import { SlashCommandExtension } from './SlashCommands';
 import { EditorContextMenu } from './EditorContextMenu';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
+import { useToast } from '../../hooks/useToast';
 import './editor.css';
 
 // Allow table-related attributes and elements that Tiptap generates
@@ -39,6 +40,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   onInsertUrl: (url: string, alt: string) => void;
   onUploadFile: (file: File) => void;
 }) {
+  const { addToast } = useToast();
   const [url, setUrl] = useState('');
   const [alt, setAlt] = useState('');
   const accept = mediaType === 'video' ? VIDEO_ACCEPT : IMAGE_ACCEPT;
@@ -72,7 +74,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
                   const file = input.files?.[0];
                   if (!file) return;
                   if (file.size > MAX_UPLOAD_SIZE) {
-                    alert(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+                    addToast(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`, 'warning');
                     return;
                   }
                   onUploadFile(file);
@@ -96,6 +98,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
 }
 
 export function MarkdownEditor({ content, onChange, onWordCountChange }: MarkdownEditorProps) {
+  const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
   const [viewMode, setViewMode] = useState<ViewMode>('wysiwyg');
@@ -291,7 +294,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
 
         mediaFiles.forEach((file) => {
           if (file.size > 10 * 1024 * 1024) {
-            alert(`File "${file.name}" is too large. Maximum size is 10 MB.`);
+            addToast(`File "${file.name}" is too large. Maximum size is 10 MB.`, 'warning');
             return;
           }
           const reader = new FileReader();

@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-19
 
 ---
 
@@ -1286,6 +1286,60 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 **Tests: 3 new (47 web total)**
 - upsertNotebook: inserts new notebook, updates without duplicating, does not overwrite local notebooks
+
+---
+
+### Phase 4.6: Toast Notifications ✅ (core system + notebook/editor wiring)
+
+**Completed:** 2026-02-19
+
+**Implementation:**
+
+- **`useToast.tsx`** — React context provider with `addToast(message, type?)` API
+  - Types: success (green ✓), info (blue ℹ), warning (amber ⚠), error (red ✕)
+  - Auto-dismiss: success/info 4s, warning 6s, error persistent (manual dismiss only)
+  - Max 5 visible, newest on top, oldest trimmed
+  - Timer cleanup on dismiss and overflow
+
+- **`ToastContainer.tsx`** — Positioned `fixed top-14 right-4`, below title bar
+  - Each toast: white card with colored left border, icon, message, × button
+  - Slide-in from right animation on mount
+  - Dark mode support, hidden during print
+
+- **`main.tsx`** — Wrapped `<App />` in `<ToastProvider>`
+
+- **Wiring completed:**
+  - `useNotebookManager`: 23 `flash()` → `toast?.()` conversions (success/error/info)
+  - `useNotebookManager`: 5 `console.warn/error` → `toast?.()` (warning/error)
+  - `EditorToolbar`: 1 `alert()` → `addToast()` (warning, file too large)
+  - `MarkdownEditor`: 2 `alert()` → `addToast()` (warning, file too large)
+  - `AccountModal`: profile updated + password changed → `addToast()` (success)
+  - Kept `flash()` only for: "Saved", "Failed to save", "Failed to auto-save" (status bar)
+
+- **Requirements updated:** Added §5.5.1 Notification Catalog with full event list
+
+**Files created:**
+- `apps/web/src/hooks/useToast.tsx` — Toast context provider + hook
+- `apps/web/src/components/common/ToastContainer.tsx` — Toast rendering component
+- `apps/web/src/tests/useToast.test.tsx` — 8 tests for toast logic
+
+**Files modified:**
+- `apps/web/src/main.tsx` — ToastProvider wrapping
+- `apps/web/src/App.tsx` — ToastContainer + addToast wired to useNotebookManager
+- `apps/web/src/hooks/useNotebookManager.ts` — toast param, 28 message conversions
+- `apps/web/src/components/editor/EditorToolbar.tsx` — alert→toast
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — alert→toast
+- `apps/web/src/components/account/AccountModal.tsx` — toast for profile/password
+- `apps/web/vitest.config.ts` — Added .test.tsx to include pattern
+- `requirements/requirements.md` — §5.5.1 Notification Catalog
+- `plans/initial-plan.md` — Phase 4.6 checklist updated
+
+**Tests: 8 new (55 web total)**
+- addToast, auto-dismiss success/warning/error, manual dismiss, stacking, max limit, default type
+
+**Remaining (future):**
+- Wire remaining auth events (useAuth, WelcomeScreen): provider link/unlink, sign-out, magic link, OAuth errors
+- Wire silent catch blocks in useAuth and AddNotebookModal
 
 ---
 

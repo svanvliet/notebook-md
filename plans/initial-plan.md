@@ -327,29 +327,32 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 4.6 Toast Notifications
 
-- [ ] Create `useToast` hook + `ToastContainer` component
+- [x] Create `useToast` hook + `ToastContainer` component
   - React context provider with `addToast(message, type, options?)` API
   - Types: `success`, `info`, `warning`, `error` — each with distinct color and icon
   - Auto-dismiss: success/info ~4s, warning ~6s, error persistent (manual dismiss)
-  - Position: bottom-right, stacking newest on top, max 5 visible
+  - Position: top-right under title bar, stacking newest on top, max 5 visible
   - Smooth enter/exit animations (slide-in from right, fade-out)
   - Each toast has an × dismiss button
-- [ ] Wire all existing `flash()` calls in `useNotebookManager` to use `addToast`
-  - Success: file saved, notebook created/added/deleted, file/folder created, file imported, file deleted, file moved, file copied, changes published
-  - Error: failed to load/add/create/open/save/publish/move/copy
+- [x] Wire all existing `flash()` calls in `useNotebookManager` to use `addToast`
+  - Success: notebook created/added/deleted, file/folder created, file imported, file deleted, changes published
+  - Error: failed to load/add/create/open/publish/move/copy
   - Info: no pending changes to publish
-- [ ] Replace `alert()` calls (media upload size limit) with warning toasts
-- [ ] Wire auth events in `useAuth` / `AccountModal` / `WelcomeScreen`
-  - Success: profile updated, password changed, provider linked/unlinked, email verified, settings saved
+  - Kept flash() only for save messages (Saved, Failed to save, Failed to auto-save) in status bar
+- [x] Replace `alert()` calls (media upload size limit) with warning toasts
+- [x] Wire auth events in `AccountModal`
+  - Success: profile updated, password changed
+- [ ] Wire remaining auth events in `useAuth` / `WelcomeScreen` (future)
+  - Success: provider linked/unlinked, email verified, settings saved
   - Info: magic link sent, password reset email sent, signed out
-  - Error: sign-in failed, sign-up failed, OAuth error, provider unlink blocked, password change failed
-- [ ] Wire silent catch blocks — surface errors that are currently swallowed
+  - Error: sign-in failed, sign-up failed, OAuth error, provider unlink blocked
+- [ ] Wire silent catch blocks — surface errors that are currently swallowed (future)
   - `useAuth`: magic link request, password reset request, sign-out failure
   - `AddNotebookModal`: provider access check failures
-- [ ] Replace existing `console.warn` user events with warning toasts
+- [x] Replace existing `console.warn` user events with warning toasts
   - File move not supported for remote notebooks
   - Cross-notebook copy only supported between local notebooks
-- [ ] Retire `flash()` / `statusMessage` in favor of toast system (or keep status bar for persistent stats only)
+- [x] Retire `flash()` for all non-save messages; status bar kept for save confirmations + persistent stats
 
 ### 4.7 Status Bar Enhancements
 
