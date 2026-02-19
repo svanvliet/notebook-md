@@ -408,6 +408,27 @@
   border-left-color: #c084fc;
 }
 
+/* Search match highlighting */
+.search-match {
+  background-color: #fde68a;
+  border-radius: 2px;
+}
+
+.dark .search-match {
+  background-color: #92400e;
+}
+
+.search-match-current {
+  background-color: #f97316;
+  color: white;
+  border-radius: 2px;
+}
+
+.dark .search-match-current {
+  background-color: #ea580c;
+  color: white;
+}
+
 /* KaTeX math blocks */
 .tiptap .Tiptap-mathematics-editor {
   background: #f3f4f6;
