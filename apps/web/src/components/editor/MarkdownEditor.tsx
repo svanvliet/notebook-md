@@ -113,7 +113,9 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const [mediaModal, setMediaModal] = useState<{ type: 'image' | 'video' } | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
-  const lineNumRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumRef = useRef<HTMLDivElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
+  const [lineHeights, setLineHeights] = useState<number[]>([]);
   const wysiwygScrollRef = useRef<HTMLDivElement>(null);
   const syncingScroll = useRef(false);
   const syncingFromSource = useRef(false);
@@ -164,10 +166,39 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     el.setAttribute('spellcheck', spellCheckProp === false ? 'false' : 'true');
   }, [editor, spellCheckProp]);
 
-  // Build line number text: each logical line gets its number, wrapped continuation lines get blank
-  const lineNumText = rawContent.split('\n').map((_, i) => String(i + 1)).join('\n');
+  // Measure line heights via hidden mirror div (matches textarea wrapping)
+  const measureLineHeights = useCallback(() => {
+    if (!sourceRef.current || !mirrorRef.current || !lineNumbers) return;
+    const source = sourceRef.current;
+    const mirror = mirrorRef.current;
+    const lines = rawContent.split('\n');
+    const cs = getComputedStyle(source);
+    const contentWidth = source.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    mirror.style.width = `${contentWidth}px`;
+    mirror.style.font = cs.font;
+    mirror.style.letterSpacing = cs.letterSpacing;
+    mirror.style.lineHeight = cs.lineHeight;
+    mirror.style.whiteSpace = wordWrap ? 'pre-wrap' : 'pre';
+    mirror.style.overflowWrap = wordWrap ? 'break-word' : 'normal';
+    mirror.style.wordBreak = wordWrap ? 'break-word' : 'normal';
+    // Batch: render all lines as separate divs, then read heights in one pass
+    mirror.innerHTML = lines.map(l => {
+      const escaped = l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<div>${escaped || '&nbsp;'}</div>`;
+    }).join('');
+    const heights = Array.from(mirror.children).map(el => (el as HTMLElement).offsetHeight);
+    setLineHeights(heights);
+  }, [rawContent, lineNumbers, wordWrap]);
 
-  // Sync scroll between line number textarea and source textarea
+  useEffect(() => {
+    measureLineHeights();
+    if (!sourceRef.current) return;
+    const ro = new ResizeObserver(() => measureLineHeights());
+    ro.observe(sourceRef.current);
+    return () => ro.disconnect();
+  }, [measureLineHeights]);
+
+  // Sync scroll between line number gutter and source textarea
   const syncLineNumScroll = () => {
     if (lineNumRef.current && sourceRef.current) {
       lineNumRef.current.scrollTop = sourceRef.current.scrollTop;
@@ -455,20 +486,33 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
         {(viewMode === 'source' || viewMode === 'split') && (
           <div className={`source-pane relative border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}>
             {lineNumbers && (
-              <div
-                className="absolute top-0 left-0 bottom-0 z-10 overflow-hidden bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
-                style={{ width: `${Math.max(3, String(rawContent.split('\n').length).length) * 0.65 + 1.2}rem` }}
-              >
-                <textarea
-                  ref={lineNumRef}
-                  readOnly
-                  tabIndex={-1}
-                  value={lineNumText}
-                  wrap="off"
-                  className="resize-none w-full h-full font-mono text-sm py-6 pr-3 pl-2 text-right bg-transparent text-gray-400 dark:text-gray-600 select-none focus:outline-none cursor-default overflow-hidden border-none outline-none"
+              <>
+                {/* Hidden mirror for measuring wrapped line heights */}
+                <div
+                  ref={mirrorRef}
                   aria-hidden="true"
+                  style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', top: 0, left: 0 }}
                 />
-              </div>
+                {/* Line number gutter */}
+                <div
+                  ref={lineNumRef}
+                  className="absolute top-0 left-0 bottom-0 z-10 overflow-hidden bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
+                  style={{ width: `${Math.max(3, String(rawContent.split('\n').length).length) * 0.65 + 1.2}rem` }}
+                  aria-hidden="true"
+                >
+                  <div style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem' }}>
+                    {lineHeights.map((h, i) => (
+                      <div
+                        key={i}
+                        className="text-right pr-3 pl-2 text-gray-400 dark:text-gray-600 font-mono text-sm select-none"
+                        style={{ height: `${h}px` }}
+                      >
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
             <textarea
               ref={sourceRef}
