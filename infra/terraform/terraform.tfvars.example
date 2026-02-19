@@ -4,7 +4,7 @@
 subscription_id = ""
 location        = "eastus2"
 environment     = "prod"
-project         = "notebookmd"
+project         = "notebook-md"
 domain          = "notebookmd.io"
 
 # Required — generate strong values for production

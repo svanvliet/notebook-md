@@ -40,7 +40,7 @@ resource "azurerm_key_vault_access_policy" "container_apps" {
 
 resource "azurerm_key_vault_secret" "db_connection_string" {
   name         = "database-url"
-  value        = "postgresql://notebookmd_admin:${var.db_admin_password}@${azurerm_postgresql_flexible_server.main.fqdn}:5432/${var.project}?sslmode=require"
+  value        = "postgresql://notebookmd_admin:${var.db_admin_password}@${azurerm_postgresql_flexible_server.main.fqdn}:5432/${local.db_name}?sslmode=require"
   key_vault_id = azurerm_key_vault.main.id
 
   depends_on = [azurerm_key_vault_access_policy.deployer]

@@ -15,4 +15,6 @@ locals {
     environment = var.environment
     managed_by  = "terraform"
   }
+  # Database name without hyphens (matches dev setup)
+  db_name = replace(var.project, "-", "")
 }
