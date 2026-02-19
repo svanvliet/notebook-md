@@ -23,7 +23,6 @@ import { Color } from '@tiptap/extension-color';
 import { Mathematics } from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import { Callout } from './CalloutExtension';
-import { SearchReplace } from './SearchReplace';
 import { createLowlight } from 'lowlight';
 
 // Import common languages for code block highlighting
@@ -129,6 +128,5 @@ export function getEditorExtensions(placeholder?: string) {
       katexOptions: { throwOnError: false },
     }),
     Callout,
-    SearchReplace,
   ];
 }

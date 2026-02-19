@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-19
+**Last Updated:** 2026-02-18
 
 ---
 
@@ -1267,49 +1267,6 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 - On upload: call `ensureAssetsFolder()` → `createFile()` to store the binary in `assets/`
 - Insert a relative path (`assets/filename.png`) instead of the base64 blob
 - Consider: user may prefer inline base64 for portability vs. assets folder for file size
-
----
-
----
-
-### Phase 4.5: Find and Replace ✅
-
-**Completed:** 2026-02-19
-
-**Implementation:** Custom Tiptap extension + React UI bar
-
-- **SearchReplace.ts** — Custom Tiptap extension using ProseMirror `Plugin` with `Decoration` system
-  - Extension storage: searchTerm, replaceTerm, caseSensitive, wholeWord, isOpen, results[], currentIndex
-  - Commands: openSearch, closeSearch, setSearchTerm, setReplaceTerm, toggleCaseSensitive, toggleWholeWord, findNext, findPrev, replaceCurrent, replaceAll
-  - ProseMirror decorations highlight all matches (yellow) with current match distinguished (orange)
-  - Keyboard shortcuts: `Mod-f` opens/focuses search, `Escape` closes
-  - `findMatches()` function converts doc text to string and scans for occurrences with proper ProseMirror offset (+1)
-  - `scrollToMatch()` navigates to match position and scrolls into view
-
-- **FindReplaceBar.tsx** — React component rendered between toolbar and editor
-  - Search input with inline toggle buttons (Aa for case, ⊞ for whole word)
-  - Result counter ("X of Y" or "No results")
-  - Navigation buttons (↑ prev, ↓ next) with Enter/Shift+Enter keyboard shortcuts
-  - Collapsible replace row with Replace and Replace All buttons
-  - Auto-fills search from current text selection on open
-  - Expand/collapse chevron for replace section
-
-- **CSS** — `.search-match` (yellow/amber bg) and `.search-match-current` (orange bg with white text), dark mode variants
-
-- **Type safety** — Module augmentation (`declare module '@tiptap/core'`) for all 10 custom commands, `getSearchStorage()` helper for type-safe storage access
-
-**Files created:**
-- `apps/web/src/components/editor/SearchReplace.ts` — Tiptap extension
-- `apps/web/src/components/editor/FindReplaceBar.tsx` — UI component
-- `apps/web/src/tests/searchReplace.test.ts` — 9 tests for findMatches logic
-
-**Files modified:**
-- `apps/web/src/components/editor/extensions.ts` — Added SearchReplace to extension list
-- `apps/web/src/components/editor/MarkdownEditor.tsx` — FindReplaceBar rendering, storage sync via transaction listener
-- `apps/web/src/components/editor/editor.css` — Search match highlight styles
-
-**Tests: 9 new (53 web total)**
-- findMatches: simple matches, empty term, no matches, case-insensitive, case-sensitive, whole-word, whole-word+case-sensitive, overlapping positions, special characters
 
 ---
 

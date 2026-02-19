@@ -4,13 +4,11 @@ import DOMPurify from 'dompurify';
 import { getEditorExtensions } from './extensions';
 import { DragHandle } from './DragHandle';
 import { EditorToolbar } from './EditorToolbar';
-import { FindReplaceBar } from './FindReplaceBar';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { SlashCommandExtension } from './SlashCommands';
 import { EditorContextMenu } from './EditorContextMenu';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
-import { getSearchStorage } from './SearchReplace';
 import './editor.css';
 
 // Allow table-related attributes and elements that Tiptap generates
@@ -104,7 +102,6 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
   const [rawContent, setRawContent] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [mediaModal, setMediaModal] = useState<{ type: 'image' | 'video' } | null>(null);
-  const [showFindReplace, setShowFindReplace] = useState(false);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const wysiwygScrollRef = useRef<HTMLDivElement>(null);
@@ -269,16 +266,6 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     };
   }, [contextMenu]);
 
-  // Sync find/replace bar visibility with extension storage
-  useEffect(() => {
-    if (!editor) return;
-    const update = () => {
-      setShowFindReplace(getSearchStorage(editor).isOpen ?? false);
-    };
-    editor.on('transaction', update);
-    return () => { editor.off('transaction', update); };
-  }, [editor]);
-
   // Listen for media insert events from slash commands
   useEffect(() => {
     const handler = (e: Event) => {
@@ -425,14 +412,6 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
           </button>
         </div>
       </div>
-
-      {/* Find & Replace bar */}
-      {showFindReplace && editor && (
-        <FindReplaceBar
-          editor={editor}
-          onClose={() => setShowFindReplace(false)}
-        />
-      )}
 
       {/* Editor area */}
       <div className="flex-1 overflow-hidden flex">

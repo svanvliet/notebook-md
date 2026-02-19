@@ -320,10 +320,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 4.5 Find and Replace
 
-- [x] `Cmd/Ctrl+F` opens find bar within the active document
-- [x] Case-sensitive toggle, whole-word toggle
-- [x] Highlight all matches
-- [x] Replace one / Replace all
+- [ ] `Cmd/Ctrl+F` opens find bar within the active document
+- [ ] Case-sensitive toggle, whole-word toggle
+- [ ] Highlight all matches
+- [ ] Replace one / Replace all
 
 ### 4.6 Toast Notifications
 
