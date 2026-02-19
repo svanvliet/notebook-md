@@ -52,6 +52,13 @@
   flex: 1;
 }
 
+/* Strip paragraph margins inside list items */
+.tiptap li > p,
+.tiptap li > div > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 /* Code blocks — GitHub style */
 .tiptap pre {
   background: #f6f8fa;
@@ -282,11 +289,19 @@
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
+  margin: 0;
 }
 
 /* Image view wrapper */
 .image-view-wrapper {
   display: inline-block;
+  margin: 0;
+}
+
+/* Strip paragraph margins around images */
+.tiptap p:has(.image-view-wrapper) {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .image-selected img {
