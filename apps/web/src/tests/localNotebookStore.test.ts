@@ -264,5 +264,43 @@ describe('localNotebookStore', () => {
       expect(nbs.find((n) => n.id === local.id)?.name).toBe('Local NB');
       expect(nbs.find((n) => n.id === 'server-nb-3')?.name).toBe('Remote');
     });
+    it('sync with server IDs removes orphan remote notebooks', async () => {
+      const { upsertNotebook, deleteNotebook } = await import('../stores/localNotebookStore');
+
+      // Simulate the old bug: createNotebook made a random-UUID entry for a remote notebook
+      const orphan = await createNotebook('OneDrive NB', 'onedrive', { rootPath: '/docs' });
+
+      // Server knows this notebook under a different ID
+      const serverId = 'server-correct-id';
+      await upsertNotebook({
+        id: serverId,
+        name: 'OneDrive NB',
+        sourceType: 'onedrive' as const,
+        sourceConfig: { rootPath: '/docs' },
+        sortOrder: 100,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+
+      // Before cleanup: both entries exist
+      let nbs = await listNotebooks();
+      const oneDriveNbs = nbs.filter((n) => n.name === 'OneDrive NB');
+      expect(oneDriveNbs).toHaveLength(2);
+
+      // Simulate sync cleanup: remove remote notebooks not in server ID set
+      const serverIds = new Set([serverId]);
+      for (const nb of nbs) {
+        if (nb.sourceType && nb.sourceType !== 'local' && !serverIds.has(nb.id)) {
+          await deleteNotebook(nb.id);
+        }
+      }
+
+      // After cleanup: only the server-ID entry remains
+      nbs = await listNotebooks();
+      expect(nbs.filter((n) => n.name === 'OneDrive NB')).toHaveLength(1);
+      expect(nbs.find((n) => n.name === 'OneDrive NB')!.id).toBe(serverId);
+      // Orphan with random UUID is gone
+      expect(nbs.find((n) => n.id === orphan.id)).toBeUndefined();
+    });
   });
 });
