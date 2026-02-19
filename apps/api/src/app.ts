@@ -15,6 +15,7 @@ import githubRoutes from './routes/github.js';
 import onedriveRoutes from './routes/onedrive.js';
 import googledriveRoutes from './routes/googledrive.js';
 import webhookRoutes from './routes/webhooks.js';
+import twoFactorRoutes from './routes/two-factor.js';
 
 // Register source adapters (side-effect imports)
 import './services/sources/github.js';
@@ -48,6 +49,7 @@ app.get('/api/health', async (_req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/auth/2fa', twoFactorRoutes);
 app.use('/auth/oauth', oauthRoutes);
 app.use('/auth/settings', settingsRoutes);
 app.use('/api/notebooks', notebookRoutes);

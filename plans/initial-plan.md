@@ -493,13 +493,17 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 5.1 Two-Factor Authentication
 
-- [ ] 2FA setup flow (§7.2 Security):
+- [x] 2FA setup flow (§7.2 Security):
   - Enable: choose TOTP (scan QR code) or emailed codes → verify first code → save recovery codes
   - Disable: require current 2FA verification
-- [ ] 2FA sign-in flow: after password verification, prompt for TOTP code or emailed code
-- [ ] Recovery codes: bcrypt-hashed, one-time use, 10 codes generated
-- [ ] TOTP secrets: encrypted with envelope encryption (same KMS scheme as OAuth tokens)
-- [ ] API endpoints (§9.1): `/auth/2fa/setup`, `/auth/2fa/enable`, `/auth/2fa/disable`, `/auth/2fa/verify`, `/auth/2fa/recovery`
+- [x] 2FA sign-in flow: after password verification, prompt for TOTP code or emailed code
+- [x] Recovery codes: bcrypt-hashed, one-time use, 10 codes generated
+- [x] TOTP secrets: encrypted with envelope encryption (same KMS scheme as OAuth tokens)
+- [x] API endpoints (§9.1): `/auth/2fa/setup`, `/auth/2fa/enable`, `/auth/2fa/disable`, `/auth/2fa/verify`, `/auth/2fa/send-code`, `/auth/2fa/send-disable-code`, `/auth/2fa/status`
+- [x] Frontend: TwoFactorSetup component in AccountModal (setup, QR scan, recovery codes, disable)
+- [x] Frontend: WelcomeScreen 2FA verification view (TOTP, email, recovery code modes)
+- [x] Frontend: useAuth hook with 2FA methods (verify2fa, send2faEmailCode, setup2fa, enable2fa, disable2fa)
+- [x] Tests: 13 API tests (two-factor.test.ts)
 
 ### 5.2 Admin Console
 
@@ -531,12 +535,24 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] Verify DOMPurify sanitization covers all Markdown XSS vectors (raw HTML, `javascript:` URIs, SVG scripts, `data:` URIs)
 - [ ] Audit: ensure no tokens, secrets, or sensitive data can leak through error responses, logs, or client-side state
 
+### 5.3b Session Hardening (§2.6)
+
+- [ ] "Remember Me" checkbox on sign-in: default 24hr session, 30-day with "Remember Me"
+  - Set `expires_at` on sessions table based on checkbox
+  - Auth middleware checks `expires_at` and rejects expired sessions
+- [ ] Refresh token rotation: each use of a refresh token issues a new one and invalidates the old
+  - Add `token_family` column to sessions for reuse detection
+  - If a revoked refresh token is reused (theft indicator), invalidate all sessions in that token family
+- [ ] Idle timeout (optional, configurable in settings): after N minutes of inactivity, require re-authentication
+  - Track `last_active_at` on session; middleware checks against idle threshold
+  - Default: off (user can enable in Settings)
+
 ### 5.4 Cookie Consent Banner
 
 - [ ] Custom cookie consent banner (§13.3): "Accept All", "Reject All", "Manage Preferences"
 - [ ] Consent stored in first-party cookie (works pre-auth)
-- [ ] PostHog initialized only after analytics consent
 - [ ] Respect "Do Not Track" header
+- [ ] PostHog initialization hook prepared (actual PostHog integration deferred to Phase 7)
 
 ### 5.5 Legal Pages
 
@@ -546,9 +562,11 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 5.6 Phase 5 Validation
 
-- **Technical:** 2FA works end-to-end; admin console fully functional; CSP doesn't break editor features; CORS correctly blocks unauthorized origins
-- **UX:** You can enable 2FA on your account, sign in with a TOTP code, access the admin console, view system health, and manage feature flags. Cookie consent banner appears for new visitors. Legal pages are readable.
-- **Feedback points:** 2FA setup flow, admin console usability, cookie banner positioning, legal page content
+- **Technical:** 2FA works end-to-end; admin console fully functional; CSP doesn't break editor features; CORS correctly blocks unauthorized origins; session expiry and refresh token rotation work correctly; reuse detection invalidates token families
+- **UX:** You can enable 2FA on your account, sign in with a TOTP code, access the admin console, view system health, and manage feature flags. Cookie consent banner appears for new visitors. Legal pages are readable. "Remember Me" extends session duration.
+- **Feedback points:** 2FA setup flow, admin console usability, cookie banner positioning, legal page content, session duration behavior
+
+> **Deferred:** Accessibility audit (WCAG 2.1 AA) is deferred to a future version. PostHog analytics integration is in Phase 7.
 
 ---
 

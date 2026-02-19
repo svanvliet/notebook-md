@@ -6,6 +6,7 @@ import { generateToken, hashToken } from '../lib/crypto.js';
 import { sendMagicLink, sendVerificationEmail, sendPasswordResetEmail } from '../lib/email.js';
 import { auditLog } from '../lib/audit.js';
 import { createSession, rotateRefreshToken, revokeSession, revokeAllUserSessions } from '../services/session.js';
+import { get2faStatus, createChallengeToken } from '../services/two-factor.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 
@@ -188,6 +189,22 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
       userAgent: req.headers['user-agent'],
     });
     res.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
+
+  // Check if 2FA is enabled
+  const twoFactorStatus = await get2faStatus(user.id);
+  if (twoFactorStatus.enabled) {
+    // Don't create session yet — issue a challenge token
+    const challengeToken = createChallengeToken(user.id, req.body.rememberMe ?? false);
+    await auditLog({
+      userId: user.id,
+      action: '2fa_challenge_issued',
+      details: { method: twoFactorStatus.method },
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    });
+    res.json({ requires2fa: true, challengeToken, method: twoFactorStatus.method });
     return;
   }
 
@@ -542,8 +559,10 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
     avatar_url: string | null;
     created_at: Date;
     password_hash: string | null;
+    totp_enabled: boolean;
+    totp_secret_enc: string | null;
   }>(
-    'SELECT id, display_name, email, email_verified, avatar_url, created_at, password_hash FROM users WHERE id = $1',
+    'SELECT id, display_name, email, email_verified, avatar_url, created_at, password_hash, totp_enabled, totp_secret_enc FROM users WHERE id = $1',
     [req.userId!],
   );
 
@@ -562,6 +581,8 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
       avatarUrl: user.avatar_url,
       createdAt: user.created_at,
       hasPassword: !!user.password_hash,
+      twoFactorEnabled: user.totp_enabled,
+      twoFactorMethod: user.totp_enabled ? (user.totp_secret_enc ? 'totp' : 'email') : null,
     },
   });
 });

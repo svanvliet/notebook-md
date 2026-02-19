@@ -51,6 +51,23 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   logger.info('Verification email sent', { email });
 }
 
+export async function send2faCode(email: string, code: string): Promise<void> {
+  await transporter.sendMail({
+    from: FROM,
+    to: email,
+    subject: 'Your Notebook.md verification code',
+    text: `Your verification code is: ${code}\n\nThis code expires in 5 minutes. If you didn't request this, please secure your account.`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="color: #1a1a1a;">Your verification code</h2>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; text-align: center; padding: 24px; background: #f3f4f6; border-radius: 8px; margin: 16px 0;">${code}</div>
+        <p style="color: #666; font-size: 14px;">This code expires in 5 minutes. If you didn't request this, please secure your account.</p>
+      </div>
+    `,
+  });
+  logger.info('2FA code email sent', { email });
+}
+
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
   const url = `${BASE_URL}/app/reset-password?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({

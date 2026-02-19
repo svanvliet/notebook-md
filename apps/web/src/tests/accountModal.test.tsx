@@ -33,6 +33,10 @@ function renderModal(userOverrides: Partial<User> = {}, props: Record<string, un
         onSignOut: noop,
         onProviderUnlinked: noop,
         onClose: noop,
+        onSetup2fa: (async () => null) as () => Promise<{ secret: string; uri: string } | null>,
+        onEnable2fa: (async () => null) as (code: string, method: 'totp' | 'email') => Promise<{ recoveryCodes: string[] } | null>,
+        onDisable2fa: (async () => false) as (code: string) => Promise<boolean>,
+        onSendDisable2faCode: (async () => false) as () => Promise<boolean>,
         ...props,
       })
     )

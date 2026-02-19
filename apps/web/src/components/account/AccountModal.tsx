@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { User } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { GitHubIcon, OneDriveIcon, GoogleDriveIcon } from '../icons/Icons';
+import { TwoFactorSetup } from './TwoFactorSetup';
 
 interface LinkedProvider {
   provider: string;
@@ -22,9 +23,14 @@ interface AccountModalProps {
   onSignOut: () => void;
   onProviderUnlinked: (provider: string) => void;
   onClose: () => void;
+  // 2FA
+  onSetup2fa: () => Promise<{ secret: string; uri: string } | null>;
+  onEnable2fa: (code: string, method: 'totp' | 'email') => Promise<{ recoveryCodes: string[] } | null>;
+  onDisable2fa: (code: string) => Promise<boolean>;
+  onSendDisable2faCode: () => Promise<boolean>;
 }
 
-export function AccountModal({ user, onUpdateProfile, onChangePassword, onDeleteAccount, onSignOut, onProviderUnlinked, onClose }: AccountModalProps) {
+export function AccountModal({ user, onUpdateProfile, onChangePassword, onDeleteAccount, onSignOut, onProviderUnlinked, onClose, onSetup2fa, onEnable2fa, onDisable2fa, onSendDisable2faCode }: AccountModalProps) {
   const { addToast } = useToast();
   const [displayName, setDisplayName] = useState(user.displayName);
   const [saving, setSaving] = useState(false);
@@ -221,6 +227,21 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Two-Factor Authentication */}
+          <div className="border-t border-gray-200 dark:border-gray-800 pt-4">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Two-Factor Authentication</h3>
+            <TwoFactorSetup
+              twoFactorEnabled={user.twoFactorEnabled ?? false}
+              twoFactorMethod={user.twoFactorMethod ?? null}
+              onSetup={onSetup2fa}
+              onEnable={onEnable2fa}
+              onDisable={onDisable2fa}
+              onSendDisableCode={onSendDisable2faCode}
+              onSuccess={(msg) => addToast(msg, 'success')}
+              onError={(msg) => addToast(msg, 'error')}
+            />
           </div>
 
           {/* Linked Accounts */}

@@ -172,6 +172,10 @@ export default function App() {
           onOAuth={handleOAuth}
           error={oauthError ?? auth.error}
           onClearError={() => { setOauthError(null); auth.clearError(); }}
+          twoFactorChallenge={auth.twoFactorChallenge}
+          onVerify2fa={auth.verify2fa}
+          onSend2faEmailCode={auth.send2faEmailCode}
+          onCancel2fa={auth.cancel2fa}
         />
         {/* Dev shortcut to skip auth */}
         {process.env.NODE_ENV !== 'production' && (
@@ -323,6 +327,10 @@ export default function App() {
           onSignOut={auth.signOut}
           onProviderUnlinked={nb.handleProviderUnlinked}
           onClose={() => setShowAccount(false)}
+          onSetup2fa={auth.setup2fa}
+          onEnable2fa={auth.enable2fa}
+          onDisable2fa={auth.disable2fa}
+          onSendDisable2faCode={auth.sendDisable2faCode}
         />
       )}
 

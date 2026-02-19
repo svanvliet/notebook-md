@@ -9,11 +9,16 @@ interface WelcomeScreenProps {
   onOAuth: (provider: string) => void;
   error: string | null;
   onClearError: () => void;
+  // 2FA
+  twoFactorChallenge: { challengeToken: string; method: 'totp' | 'email' } | null;
+  onVerify2fa: (code: string, method?: 'totp' | 'email' | 'recovery') => Promise<boolean>;
+  onSend2faEmailCode: () => Promise<boolean>;
+  onCancel2fa: () => void;
 }
 
 type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
-export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
   const [view, setView] = useState<View>(error ? 'signin' : 'main');
   const [email, setEmail] = useState('');
@@ -21,6 +26,9 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
   const [displayName, setDisplayName] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [twoFaCode, setTwoFaCode] = useState('');
+  const [twoFaMode, setTwoFaMode] = useState<'totp' | 'email' | 'recovery'>('totp');
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
 
   const switchView = (v: View) => {
     setView(v);
@@ -32,8 +40,40 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
     e.preventDefault();
     setLoading(true);
     onClearError();
-    await onSignIn(email, password, rememberMe);
+    const ok = await onSignIn(email, password, rememberMe);
+    // If 2FA is needed, twoFactorChallenge will be set by useAuth
+    if (!ok && !error) {
+      // Reset code state for 2FA
+      setTwoFaCode('');
+      setEmailCodeSent(false);
+    }
     setLoading(false);
+  };
+
+  const handleVerify2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twoFaCode) return;
+    setLoading(true);
+    onClearError();
+    await onVerify2fa(twoFaCode, twoFaMode);
+    setLoading(false);
+  };
+
+  const handleSendEmailCode = async () => {
+    setLoading(true);
+    const ok = await onSend2faEmailCode();
+    if (ok) {
+      setEmailCodeSent(true);
+      setTwoFaMode('email');
+    }
+    setLoading(false);
+  };
+
+  const handleCancel2fa = () => {
+    onCancel2fa();
+    setTwoFaCode('');
+    setTwoFaMode('totp');
+    setEmailCodeSent(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -64,6 +104,101 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
       <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
     )},
   ];
+
+  // 2FA verification screen
+  if (twoFactorChallenge) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
+        <div className="flex flex-col items-center w-full max-w-sm px-6">
+          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mb-6 shadow-lg">
+            <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Two-factor authentication</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6 text-center text-sm">
+            {twoFaMode === 'totp' && 'Enter the 6-digit code from your authenticator app.'}
+            {twoFaMode === 'email' && (emailCodeSent ? 'Enter the code sent to your email.' : 'Click below to receive a code via email.')}
+            {twoFaMode === 'recovery' && 'Enter one of your recovery codes.'}
+          </p>
+
+          <form onSubmit={handleVerify2fa} className="w-full space-y-3">
+            {(twoFaMode !== 'email' || emailCodeSent) && (
+              <input
+                type="text"
+                inputMode={twoFaMode === 'recovery' ? 'text' : 'numeric'}
+                pattern={twoFaMode === 'recovery' ? undefined : '[0-9]*'}
+                maxLength={twoFaMode === 'recovery' ? 10 : 6}
+                placeholder={twoFaMode === 'recovery' ? 'xxxx-xxxx' : '000000'}
+                value={twoFaCode}
+                onChange={e => setTwoFaCode(twoFaMode === 'recovery' ? e.target.value : e.target.value.replace(/\D/g, ''))}
+                autoFocus
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 text-center tracking-widest font-mono text-lg"
+              />
+            )}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {twoFaMode === 'email' && !emailCodeSent ? (
+              <button
+                type="button"
+                onClick={handleSendEmailCode}
+                disabled={loading}
+                className="w-full px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-sm transition-colors"
+              >
+                {loading ? 'Sending...' : 'Send code to my email'}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={loading || !twoFaCode}
+                className="w-full px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-sm transition-colors"
+              >
+                {loading ? 'Verifying...' : 'Verify'}
+              </button>
+            )}
+          </form>
+
+          <div className="w-full mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 space-y-2">
+            {twoFaMode === 'totp' && (
+              <button
+                onClick={handleSendEmailCode}
+                disabled={loading}
+                className="w-full text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+              >
+                Send code to my email instead
+              </button>
+            )}
+            {twoFaMode === 'email' && twoFactorChallenge.method === 'totp' && (
+              <button
+                onClick={() => { setTwoFaMode('totp'); setTwoFaCode(''); onClearError(); }}
+                className="w-full text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Use authenticator app instead
+              </button>
+            )}
+            {twoFaMode !== 'recovery' ? (
+              <button
+                onClick={() => { setTwoFaMode('recovery'); setTwoFaCode(''); onClearError(); }}
+                className="w-full text-xs text-gray-500 dark:text-gray-400 hover:underline"
+              >
+                Use a recovery code
+              </button>
+            ) : (
+              <button
+                onClick={() => { setTwoFaMode(twoFactorChallenge.method); setTwoFaCode(''); onClearError(); }}
+                className="w-full text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Back to {twoFactorChallenge.method === 'totp' ? 'authenticator code' : 'email code'}
+              </button>
+            )}
+            <button
+              onClick={handleCancel2fa}
+              className="w-full text-xs text-gray-500 dark:text-gray-400 hover:underline"
+            >
+              Cancel and sign in with a different account
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Magic link sent confirmation
   if (view === 'magic-link-sent') {
