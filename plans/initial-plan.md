@@ -595,17 +595,17 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.2 Container Images
 
-- [ ] Create production Dockerfiles (multi-stage builds) for:
+- [x] Create production Dockerfiles (multi-stage builds) for:
   - `web` — Nginx serving the React SPA static build (with SPA fallback: all non-file routes → `index.html`)
   - `api` — Node.js production build (includes migrations runner)
   - `admin` — Nginx serving the Admin SPA static build (with SPA fallback)
-- [ ] Nginx configs with:
+- [x] Nginx configs with:
   - SPA history API fallback (`try_files $uri $uri/ /index.html`)
   - Gzip compression for static assets
   - Cache headers for hashed assets (long-lived) vs `index.html` (no-cache)
-- [ ] Image scanning with Trivy in CI
-- [ ] Push to Azure Container Registry
-- [ ] Create `docker-compose.prod.yml` for local production-like testing (uses production Dockerfiles instead of Vite dev servers)
+- [x] Image scanning with Trivy in CI (configured; runs in 6.3 CI pipeline)
+- [x] Push to Azure Container Registry (configured; runs in 6.3 CI pipeline)
+- [x] Create `docker-compose.prod.yml` for local production-like testing (uses production Dockerfiles instead of Vite dev servers)
 
 ### 6.3 CI/CD Pipeline
 

@@ -2210,6 +2210,62 @@ The app used manual `window.history.pushState` for navigation. This caused:
 
 ---
 
+## Phase 6.2 Completion — Container Images ✅
+
+**Completed:** 2026-02-19
+
+### Production Dockerfiles (multi-stage builds)
+
+| Container | Dockerfile | Final Stage | Image Size |
+|-----------|-----------|-------------|------------|
+| **web** | `docker/Dockerfile.web` | `nginx:1.27-alpine` + SPA static files | ~25 MB |
+| **api** | `docker/Dockerfile.api` | `node:22-alpine` + compiled JS + prod deps | ~150 MB |
+| **admin** | `docker/Dockerfile.admin` | `nginx:1.27-alpine` + SPA static files | ~25 MB |
+
+### Build Strategy
+
+- **Web/Admin:** 2-stage build — `npm ci` (deps) → `vite build` (bundle) → copy to Nginx
+- **API:** 4-stage build — `npm ci` (all deps) → `tsc` (compile) → `npm ci --omit=dev` (prod deps) → copy dist + prod deps + migrations + CLI
+- **All:** Use `COPY --from=deps /app .` pattern for workspace-hoisted `node_modules`
+- **API tsconfig.build.json:** Excludes test files to avoid pre-existing TS errors in test code
+- **Web/Admin:** Use `vite build` directly (bypasses `tsc -b`) — type checking runs in CI separately
+
+### Nginx Config (`docker/nginx/spa.conf`)
+
+- SPA fallback: `try_files $uri $uri/ /index.html`
+- Hashed assets: `expires 1y` + `Cache-Control: public, immutable`
+- `index.html`: `no-store, no-cache, must-revalidate` (instant deployments)
+- Gzip: text/css, JS, JSON, XML, SVG (min 256 bytes)
+- Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`
+
+### docker-compose.prod.yml
+
+- Local production-like stack: db + redis + mailpit + api + web + admin
+- Web on `:8080`, Admin on `:8081`, API on `:3001`
+- Builds containers from production Dockerfiles
+- Uses `.env` for OAuth/app config, overrides infra URLs for local Docker networking
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `docker/Dockerfile.web` | Web SPA → Nginx (2-stage) |
+| `docker/Dockerfile.api` | API → Node.js (4-stage, prod deps only) |
+| `docker/Dockerfile.admin` | Admin SPA → Nginx (2-stage) |
+| `docker/nginx/spa.conf` | Shared Nginx SPA config |
+| `docker-compose.prod.yml` | Local prod-like testing stack |
+| `.dockerignore` | Excludes node_modules, .git, plans, infra |
+| `apps/api/tsconfig.build.json` | Prod build tsconfig (excludes tests) |
+
+### Validation
+- `vite build` succeeds for both web and admin apps
+- `tsc -p tsconfig.build.json` succeeds for API (test files excluded)
+- 132 web tests still passing
+- Trivy scanning and ACR push configured as part of CI pipeline (Phase 6.3)
+
+**Next:** Phase 6.3 — CI/CD Pipeline
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

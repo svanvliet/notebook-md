@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.env
+.env.*
+*.md
+!README.md
+plans/
+reviews/
+requirements/
+infra/
+.github/
+docker/secrets/
+**/.DS_Store

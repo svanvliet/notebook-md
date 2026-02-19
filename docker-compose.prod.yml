@@ -1,0 +1,71 @@
+# Production-like local testing with built containers.
+# Usage: docker compose -f docker-compose.prod.yml up --build
+#
+# Requires: .env file at repo root with all production env vars.
+# This stack uses the same PostgreSQL/Redis/Mailpit as dev for local testing.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notebookmd
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: notebookmd
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://notebookmd:localdev@db:5432/notebookmd
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      CORS_ORIGIN: http://localhost:8080
+      ADMIN_ORIGIN: http://localhost:8081
+    depends_on:
+      - db
+      - redis
+      - mailpit
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.admin
+    ports:
+      - "8081:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata_prod:
