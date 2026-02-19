@@ -28,6 +28,7 @@ NC='\033[0m' # No Color
 LOG_DIR="$SCRIPT_DIR/.dev-logs"
 API_PID_FILE="$LOG_DIR/api.pid"
 WEB_PID_FILE="$LOG_DIR/web.pid"
+ADMIN_PID_FILE="$LOG_DIR/admin.pid"
 SMEE_PID_FILE="$LOG_DIR/smee.pid"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ print_urls() {
   echo ""
   echo -e "${BOLD}  URLs:${NC}"
   echo -e "    ${CYAN}Web App${NC}        http://localhost:5173"
+  echo -e "    ${CYAN}Admin Console${NC}  http://localhost:5174"
   echo -e "    ${CYAN}API Server${NC}     http://localhost:3001"
   echo -e "    ${CYAN}API Health${NC}     http://localhost:3001/api/health"
   echo -e "    ${CYAN}Mailpit UI${NC}     http://localhost:8025"
@@ -56,6 +58,7 @@ print_urls() {
   echo -e "${BOLD}  Logs:${NC}"
   echo -e "    ${GREEN}API${NC}            $LOG_DIR/api.log"
   echo -e "    ${GREEN}Web${NC}            $LOG_DIR/web.log"
+  echo -e "    ${GREEN}Admin${NC}          $LOG_DIR/admin.log"
   echo -e "    ${GREEN}Smee${NC}           $LOG_DIR/smee.log"
   echo -e "    ${GREEN}Docker${NC}         docker compose logs -f"
   echo ""
@@ -99,6 +102,14 @@ do_stop() {
     echo "  Stopping web dev server (PID $pid)"
     kill "$pid" 2>/dev/null || true
     rm -f "$WEB_PID_FILE"
+  fi
+
+  # Stop admin dev server
+  if is_running "$ADMIN_PID_FILE"; then
+    local pid; pid=$(cat "$ADMIN_PID_FILE")
+    echo "  Stopping admin dev server (PID $pid)"
+    kill "$pid" 2>/dev/null || true
+    rm -f "$ADMIN_PID_FILE"
   fi
 
   # Stop smee proxy
@@ -157,6 +168,13 @@ do_status() {
     echo -e "  ${RED}●${NC} web (stopped)"
   fi
 
+  # Admin
+  if is_running "$ADMIN_PID_FILE"; then
+    echo -e "  ${GREEN}●${NC} admin (PID $(cat "$ADMIN_PID_FILE"))"
+  else
+    echo -e "  ${RED}●${NC} admin (stopped)"
+  fi
+
   # Smee
   if is_running "$SMEE_PID_FILE"; then
     echo -e "  ${GREEN}●${NC} smee webhook proxy (PID $(cat "$SMEE_PID_FILE"))"
@@ -191,7 +209,7 @@ do_start() {
   fi
 
   # ── 1. Docker services ──────────────────────────────────────────────────
-  echo -e "${BOLD}[1/5] Starting Docker services...${NC}"
+  echo -e "${BOLD}[1/6] Starting Docker services...${NC}"
   docker compose up -d
 
   # Wait for Docker health checks
@@ -224,7 +242,7 @@ do_start() {
 
   # ── 2. Run migrations ───────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[2/5] Running database migrations...${NC}"
+  echo -e "${BOLD}[2/6] Running database migrations...${NC}"
   DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd" \
     npx --workspace=apps/api node-pg-migrate up --migrations-dir apps/api/migrations --migration-file-language sql 2>&1 | \
     grep -E "(Migrating|complete|already)" || echo "  Migrations up to date"
@@ -239,7 +257,7 @@ do_start() {
 
   # ── 3. Start API server ─────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[3/5] Starting API server...${NC}"
+  echo -e "${BOLD}[3/6] Starting API server...${NC}"
   npx --workspace=apps/api tsx watch src/index.ts > "$LOG_DIR/api.log" 2>&1 &
   echo $! > "$API_PID_FILE"
   echo "  API server starting (PID $(cat "$API_PID_FILE"))..."
@@ -249,14 +267,23 @@ do_start() {
 
   # ── 4. Start web dev server ─────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[4/5] Starting web dev server...${NC}"
+  echo -e "${BOLD}[4/6] Starting web dev server...${NC}"
   npx --workspace=apps/web vite --host > "$LOG_DIR/web.log" 2>&1 &
   echo $! > "$WEB_PID_FILE"
   echo "  Web dev server starting (PID $(cat "$WEB_PID_FILE"))..."
 
   wait_for_service "Web" "http://localhost:5173" 15
 
-  # ── 5. Start webhook proxy (smee.io) if configured ────────────────────
+  # ── 5. Start admin dev server ──────────────────────────────────────────
+  echo ""
+  echo -e "${BOLD}[5/6] Starting admin dev server...${NC}"
+  npx --workspace=apps/admin vite --host > "$LOG_DIR/admin.log" 2>&1 &
+  echo $! > "$ADMIN_PID_FILE"
+  echo "  Admin dev server starting (PID $(cat "$ADMIN_PID_FILE"))..."
+
+  wait_for_service "Admin" "http://localhost:5174" 15
+
+  # ── 6. Start webhook proxy (smee.io) if configured ────────────────────
   # Load WEBHOOK_PROXY_URL from .env
   WEBHOOK_PROXY_URL=""
   if [ -f .env ]; then
@@ -265,7 +292,7 @@ do_start() {
 
   if [ -n "$WEBHOOK_PROXY_URL" ]; then
     echo ""
-    echo -e "${BOLD}[5/5] Starting webhook proxy (smee.io)...${NC}"
+    echo -e "${BOLD}[6/6] Starting webhook proxy (smee.io)...${NC}"
     npx smee -u "$WEBHOOK_PROXY_URL" -t http://localhost:3001/webhooks/github -p 3001 > "$LOG_DIR/smee.log" 2>&1 &
     echo $! > "$SMEE_PID_FILE"
     echo "  Smee proxy starting (PID $(cat "$SMEE_PID_FILE"))..."
@@ -289,7 +316,7 @@ do_start() {
   echo ""
 
   # Tail logs
-  local logfiles=("$LOG_DIR/api.log" "$LOG_DIR/web.log")
+  local logfiles=("$LOG_DIR/api.log" "$LOG_DIR/web.log" "$LOG_DIR/admin.log")
   [ -f "$LOG_DIR/smee.log" ] && logfiles+=("$LOG_DIR/smee.log")
   tail -f "${logfiles[@]}" 2>/dev/null || true
 }

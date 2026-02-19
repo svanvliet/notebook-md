@@ -507,19 +507,19 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 5.2 Admin Console
 
-- [ ] Set up `apps/admin/` React SPA with Tailwind (shared component library from `packages/shared/`)
-- [ ] Admin route middleware: verify `is_admin = true` on every admin API request
-- [ ] Admin CLI script: `cli/promote-admin.js` — sets `is_admin = true` for a given email, run via `docker exec`
-- [ ] Admin pages:
+- [x] Set up `apps/admin/` React SPA with Tailwind (shared component library from `packages/shared/`)
+- [x] Admin route middleware: verify `is_admin = true` on every admin API request
+- [x] Admin CLI script: `cli/promote-admin.js` — sets `is_admin = true` for a given email, run via `docker exec`
+- [x] Admin pages:
   - User management: search, view details, toggle dev_mode/suspended flags (cannot set `is_admin` via API)
   - System health dashboard: API status, DB status, Redis status, container uptime
   - Metrics overview: active users, sign-ups, notebook counts by source type
   - Audit log viewer: paginated, filterable by action/user/date
   - Feature flags: list, create, toggle
   - Announcements: create, edit, delete; display to users in main app
-- [ ] Admin MFA enforcement (§8.9.2): verify `amr` claim (Microsoft/Google), `two_factor_authentication` (GitHub); require Notebook.md 2FA as fallback
+- [x] Admin MFA enforcement (§8.9.2): V1 — require 2FA or OAuth link for admin access
 - [ ] Admin action alerting: sensitive actions trigger email notifications to security distribution list
-- [ ] Admin actions logged to audit log with `admin_action` flag
+- [x] Admin actions logged to audit log with `admin_action` flag
 
 ### 5.3 Security Hardening
 

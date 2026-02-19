@@ -9,6 +9,8 @@ const MAILPIT_API = process.env.MAILPIT_API ?? 'http://localhost:8025/api/v1';
 
 /** Clean all user-created data between tests. Preserves schema. */
 export async function cleanDb() {
+  await query('DELETE FROM announcements');
+  await query('DELETE FROM feature_flags');
   await query('DELETE FROM audit_log');
   await query('DELETE FROM email_verification_tokens');
   await query('DELETE FROM magic_link_tokens');

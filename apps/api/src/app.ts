@@ -16,6 +16,7 @@ import onedriveRoutes from './routes/onedrive.js';
 import googledriveRoutes from './routes/googledrive.js';
 import webhookRoutes from './routes/webhooks.js';
 import twoFactorRoutes from './routes/two-factor.js';
+import adminRoutes from './routes/admin.js';
 
 // Register source adapters (side-effect imports)
 import './services/sources/github.js';
@@ -57,6 +58,7 @@ app.use('/api/sources', sourcesRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/onedrive', onedriveRoutes);
 app.use('/api/googledrive', googledriveRoutes);
+app.use('/admin', adminRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
