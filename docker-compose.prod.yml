@@ -38,6 +38,17 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    command: npx node-pg-migrate up --migrations-dir migrations --migration-file-language sql
+    environment:
+      DATABASE_URL: postgresql://notebookmd:localdev@db:5432/notebookmd
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -59,6 +70,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       mailpit:
         condition: service_started
 
