@@ -435,9 +435,60 @@ Users should be able to print or export the current document as a clean PDF:
 ### 5.5 Toast Notifications
 
 - System messages, errors, and sync conflicts displayed as toast notifications (top-right or bottom-right)
-- Toasts auto-dismiss after a duration (e.g., 5 seconds for info, persistent for errors until dismissed)
-- Toast types: info, success, warning, error
-- Stacking behavior for multiple simultaneous toasts
+- Toasts auto-dismiss after a duration (e.g., 5 seconds for info/success, persistent for errors until dismissed)
+- Toast types: info, success, warning, error — each with distinct color and icon
+- Stacking behavior for multiple simultaneous toasts (newest on top, max ~5 visible)
+
+#### 5.5.1 Notification Catalog
+
+The following events should produce toast notifications:
+
+**Success (auto-dismiss ~4s, green):**
+- File saved / auto-saved
+- Notebook created (local)
+- Remote notebook added (OneDrive, Google Drive, GitHub)
+- Notebook deleted
+- File or folder created
+- File imported
+- File or folder deleted
+- File moved
+- File copied (cross-notebook)
+- Changes published to main (GitHub)
+- Profile updated
+- Password changed
+- Provider linked to account
+- Provider unlinked from account
+- Email verified
+- Settings saved
+
+**Info (auto-dismiss ~4s, blue):**
+- No pending changes to publish (GitHub)
+- Magic link sent — check your email
+- Password reset email sent
+- Signed out
+
+**Warning (auto-dismiss ~6s, amber):**
+- File too large (exceeds 10 MB upload limit)
+- File move not supported for remote notebooks
+- File copy not supported to remote notebooks
+- Insufficient scope — re-authorize provider
+
+**Error (persistent until dismissed, red):**
+- Failed to load files
+- Failed to add notebook
+- Failed to create file or folder
+- Failed to open file
+- Failed to save / auto-save failed
+- Failed to publish changes (GitHub)
+- Failed to move file
+- Failed to copy file
+- Sign-in failed (invalid credentials)
+- Sign-up failed (account already exists)
+- OAuth error (provider conflict, account exists with password)
+- Provider link failed
+- Provider unlink failed (only sign-in method remaining)
+- Password change failed
+- Network or API error
 
 ### 5.6 Responsive Design
 
