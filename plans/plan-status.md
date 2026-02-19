@@ -1890,6 +1890,18 @@ Migrated all API callers to `apiFetch`: `github.ts`, `onedrive.ts`, `googledrive
 
 ---
 
+## Additional Admin Polish ✅
+
+**Completed:** 2026-02-19
+**Commit:** `10e37fb`
+
+- Removed redundant API health card (always green — if API is down, the page can't load)
+- Added latency (ms) to DB and Redis health cards — each ping is individually timed
+- Moved API uptime to a status summary line above the cards
+- Health grid changed from 3 columns to 2
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
