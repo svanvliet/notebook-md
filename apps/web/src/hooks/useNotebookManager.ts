@@ -100,7 +100,9 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
           const res = await fetch('/api/notebooks', { credentials: 'include' });
           if (res.ok) {
             const { notebooks: serverNbs } = await res.json();
+            const serverIds = new Set<string>();
             for (const snb of serverNbs) {
+              serverIds.add(snb.id);
               await upsertNotebook({
                 id: snb.id,
                 name: snb.name,
@@ -110,6 +112,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
                 createdAt: new Date(snb.createdAt).getTime(),
                 updatedAt: new Date(snb.updatedAt).getTime(),
               });
+            }
+            // Remove orphan remote notebooks from IndexedDB (stale local copies)
+            const localNbs = await listNotebooks();
+            for (const lnb of localNbs) {
+              if (lnb.sourceType && lnb.sourceType !== 'local' && !serverIds.has(lnb.id)) {
+                await deleteNb(lnb.id);
+              }
             }
           }
         } catch {
@@ -305,14 +314,18 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
           });
           if (!res.ok) throw new Error('Failed to create notebook');
           const { notebook } = await res.json();
-          // Also store locally for the tree to display
-          const nb = await createNotebook(
+          // Store locally using the server's id so there's no id mismatch
+          const now = Date.now();
+          const nb = {
+            id: notebook.id,
             name,
-            sourceType as NotebookMeta['sourceType'],
+            sourceType: sourceType as NotebookMeta['sourceType'],
             sourceConfig,
-          );
-          // Override the id with the server's id
-          nb.id = notebook.id;
+            sortOrder: now,
+            createdAt: now,
+            updatedAt: now,
+          };
+          await upsertNotebook(nb);
           setNotebooks((prev) => [...prev, nb]);
           setFiles((prev) => ({ ...prev, [nb.id]: [] }));
           toast?.(`Added ${sourceType} notebook "${name}"`, 'success');
