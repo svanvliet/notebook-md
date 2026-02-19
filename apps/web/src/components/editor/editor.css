@@ -1,5 +1,11 @@
 /* Tiptap editor styles */
 
+/* Editor font from settings */
+.tiptap {
+  font-family: var(--editor-font-family, inherit);
+  font-size: var(--editor-font-size, 16px);
+}
+
 /* Placeholder */
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

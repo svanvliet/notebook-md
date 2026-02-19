@@ -1,6 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { User } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
+import { GitHubIcon, OneDriveIcon, GoogleDriveIcon } from '../icons/Icons';
+
+interface LinkedProvider {
+  provider: string;
+  providerEmail: string;
+}
+
+const PROVIDER_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+  microsoft: { label: 'Microsoft', icon: OneDriveIcon },
+  google: { label: 'Google', icon: GoogleDriveIcon },
+  github: { label: 'GitHub', icon: GitHubIcon },
+};
 
 interface AccountModalProps {
   user: User;
@@ -26,6 +38,48 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
   // Delete account
   const [showDelete, setShowDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+
+  // Linked providers
+  const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([]);
+  const [unlinking, setUnlinking] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/auth/oauth/linked', { credentials: 'include' });
+        if (res.ok) {
+          const { providers } = await res.json();
+          setLinkedProviders(providers);
+        }
+      } catch { /* offline */ }
+    })();
+  }, []);
+
+  const handleUnlink = async (provider: string) => {
+    if (!confirm(`Unlink ${PROVIDER_META[provider]?.label ?? provider} from your account?`)) return;
+    setUnlinking(provider);
+    try {
+      const res = await fetch(`/auth/oauth/${provider}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        addToast(data.error ?? 'Failed to unlink provider', 'error');
+        return;
+      }
+      setLinkedProviders((prev) => prev.filter((p) => p.provider !== provider));
+      addToast(`${PROVIDER_META[provider]?.label ?? provider} unlinked`, 'success');
+    } catch {
+      addToast('Failed to unlink provider', 'error');
+    } finally {
+      setUnlinking(null);
+    }
+  };
+
+  const handleLinkProvider = (provider: string) => {
+    window.location.href = `/auth/oauth/${provider}?returnTo=/&linkToUser=${user.id}`;
+  };
 
   const handleSaveProfile = async () => {
     if (displayName === user.displayName) return;
@@ -143,6 +197,54 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Linked Accounts */}
+          <div className="border-t border-gray-200 dark:border-gray-800 pt-4">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Linked Accounts</h3>
+            <div className="space-y-2">
+              {linkedProviders.map((lp) => {
+                const meta = PROVIDER_META[lp.provider];
+                const Icon = meta?.icon;
+                return (
+                  <div key={lp.provider} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                    {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{meta?.label ?? lp.provider}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{lp.providerEmail}</div>
+                    </div>
+                    <button
+                      onClick={() => handleUnlink(lp.provider)}
+                      disabled={unlinking === lp.provider}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                    >
+                      {unlinking === lp.provider ? 'Unlinking…' : 'Unlink'}
+                    </button>
+                  </div>
+                );
+              })}
+              {linkedProviders.length === 0 && (
+                <p className="text-xs text-gray-400 dark:text-gray-500">No linked providers</p>
+              )}
+            </div>
+            {/* Link a new provider */}
+            <div className="mt-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Link a new provider:</p>
+              <div className="flex gap-2">
+                {Object.entries(PROVIDER_META)
+                  .filter(([key]) => !linkedProviders.some((lp) => lp.provider === key))
+                  .map(([key, { label, icon: Icon }]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleLinkProvider(key)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  ))}
+              </div>
+            </div>
           </div>
 
           {/* Danger Zone */}

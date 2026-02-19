@@ -359,6 +359,31 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Ephemeral messages in the status bar (save confirmations, sync status) — `flash()` already handles this
 - [x] Auto-dismiss after 5 seconds — `flash()` auto-clears after 2s; all other messages moved to toasts in 4.6
 
+### 4.7.5 Settings & Account Polish
+
+#### Account Modal — Provider Management
+- [x] Fetch linked providers via `GET /auth/oauth/linked` on modal open
+- [x] Display list of linked providers with icons and unlink buttons
+- [x] Unlink provider via `DELETE /auth/oauth/:provider` with confirmation
+- [x] Block unlink if it's the last sign-in method (API returns 400)
+- [x] Add "Link Provider" button to initiate OAuth flow from Account Settings
+
+#### Settings — Editor Font & Size
+- [x] Thread `settings` (fontFamily, fontSize) from App → DocumentPane → MarkdownEditor
+- [x] Apply fontFamily and fontSize to the Tiptap editor via CSS variables
+- [x] Font preview in dropdown: render each font option in its own typeface
+- [x] Added Merriweather and Source Sans 3 to font options (6 total)
+- [x] Google Fonts loaded via index.html for Inter, JetBrains Mono, Merriweather, Source Sans 3
+
+#### Settings — Spell Check
+- [x] Wire `settings.spellCheck` to the Tiptap editor's `spellcheck` attribute
+- [x] Wire `settings.spellCheck` to the source textarea's `spellCheck` prop
+- [x] Sync spellcheck on setting change via useEffect
+
+#### Settings — Remaining Toggles
+- [ ] Wire `settings.tabSize` to code block indentation (future)
+- [ ] Wire `settings.lineNumbers` to source view display (future)
+
 ### 4.8 Tier 2: Web Unit Tests (§8.15)
 
 - [ ] Install Vitest + React Testing Library + jsdom + fake-indexeddb + msw in `apps/web`

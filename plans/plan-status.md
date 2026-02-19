@@ -1343,6 +1343,45 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Phase 4.7.5: Settings & Account Polish ✅
+
+**Completed:** 2026-02-19
+
+#### Editor Font & Size
+- Threaded `fontFamily`, `fontSize`, `spellCheck` from `App.tsx` → `DocumentPane` → `MarkdownEditor`
+- Applied via CSS custom properties `--editor-font-family` and `--editor-font-size` on `.tiptap`
+- SettingsModal font dropdown replaced with button list — each option renders in its own typeface as a live preview
+- Added Merriweather and Source Sans 3 to font options (6 total)
+- Google Fonts loaded via `index.html` for Inter, JetBrains Mono, Merriweather, Source Sans 3
+
+#### Spell Check
+- Wired `spellCheck` setting to Tiptap editor `spellcheck` attribute (init + dynamic sync via useEffect)
+- Wired to source textarea's `spellCheck` prop (was hardcoded `false`, now respects setting)
+
+#### Account Modal — Provider Management
+- Fetches linked providers via `GET /auth/oauth/linked` on modal open
+- Displays each provider with icon (GitHub/OneDrive/Google Drive), label, and email
+- Unlink button with confirmation dialog and toast feedback
+- Blocks unlink if it's the last sign-in method (API returns 400, shown as error toast)
+- "Link a new provider" section shows unlinked providers with buttons to initiate OAuth flow
+
+**Files created:**
+- `apps/web/src/tests/appSettings.test.ts` — 6 settings validation tests
+
+**Files modified:**
+- `apps/web/src/App.tsx` — Thread settings to DocumentPane
+- `apps/web/src/components/layout/DocumentPane.tsx` — Accept and pass fontFamily/fontSize/spellCheck
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — Apply settings via CSS vars + spellcheck attr
+- `apps/web/src/components/editor/editor.css` — `.tiptap` font from CSS custom properties
+- `apps/web/src/components/settings/SettingsModal.tsx` — Font preview buttons, 2 new fonts
+- `apps/web/src/components/account/AccountModal.tsx` — Linked Accounts section with unlink/link
+- `apps/web/index.html` — Google Fonts imports
+- `plans/initial-plan.md` — Phase 4.7.5 checklist updated
+
+**Tests: 6 new (62 web total)**
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

@@ -47,16 +47,29 @@ export function SettingsModal({ settings, onUpdate, displayMode, onDisplayModeCh
           {/* Font Family */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Font Family</label>
-            <select
-              value={settings.fontFamily}
-              onChange={e => onUpdate({ fontFamily: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
-            >
-              <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">System Default</option>
-              <option value="'Inter', sans-serif">Inter</option>
-              <option value="'Georgia', serif">Georgia</option>
-              <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
-            </select>
+            <div className="space-y-1">
+              {([
+                { value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: 'System Default' },
+                { value: "'Inter', sans-serif", label: 'Inter' },
+                { value: "'Georgia', serif", label: 'Georgia' },
+                { value: "'JetBrains Mono', monospace", label: 'JetBrains Mono' },
+                { value: "'Merriweather', serif", label: 'Merriweather' },
+                { value: "'Source Sans 3', sans-serif", label: 'Source Sans 3' },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => onUpdate({ fontFamily: value })}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    settings.fontFamily === value
+                      ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200'
+                      : 'bg-gray-50 dark:bg-gray-800 border border-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  style={{ fontFamily: value }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Font Size */}

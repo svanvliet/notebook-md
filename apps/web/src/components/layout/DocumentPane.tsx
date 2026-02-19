@@ -19,6 +19,10 @@ interface DocumentPaneProps {
   /** Whether the active notebook has unpublished changes on a working branch */
   showPublish?: boolean;
   onPublish?: () => void;
+  /** Editor settings */
+  fontFamily?: string;
+  fontSize?: number;
+  spellCheck?: boolean;
 }
 
 export function DocumentPane({
@@ -30,6 +34,9 @@ export function DocumentPane({
   onWordCountChange,
   showPublish,
   onPublish,
+  fontFamily,
+  fontSize,
+  spellCheck,
 }: DocumentPaneProps) {
   const { t } = useTranslation();
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -90,6 +97,9 @@ export function DocumentPane({
             content={activeTab.content}
             onChange={(html) => onContentChange(activeTab.id, html)}
             onWordCountChange={onWordCountChange}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            spellCheck={spellCheck}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-600">

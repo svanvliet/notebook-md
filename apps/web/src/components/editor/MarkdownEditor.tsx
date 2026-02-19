@@ -27,6 +27,9 @@ interface MarkdownEditorProps {
   content: string;
   onChange: (html: string) => void;
   onWordCountChange?: (words: number, chars: number) => void;
+  fontFamily?: string;
+  fontSize?: number;
+  spellCheck?: boolean;
 }
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -97,7 +100,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamily, fontSize, spellCheck: spellCheckProp }: MarkdownEditorProps) {
   const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
@@ -119,6 +122,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     editorProps: {
       attributes: {
         class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-8 py-6',
+        spellcheck: spellCheckProp === false ? 'false' : 'true',
       },
     },
     onUpdate: ({ editor }) => {
@@ -146,6 +150,13 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     // Only trigger when content prop changes, not when editor types
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
+
+  // Sync spellcheck attribute when setting changes
+  useEffect(() => {
+    if (!editor) return;
+    const el = editor.view.dom;
+    el.setAttribute('spellcheck', spellCheckProp === false ? 'false' : 'true');
+  }, [editor, spellCheckProp]);
 
   // Keyboard shortcut: Cmd/Ctrl+Shift+M for raw toggle, Cmd/Ctrl+Shift+S for split
   useEffect(() => {
@@ -355,8 +366,13 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
     }
   }, []);
 
+  const editorStyle = {
+    '--editor-font-family': fontFamily || 'inherit',
+    '--editor-font-size': fontSize ? `${fontSize}px` : '16px',
+  } as React.CSSProperties;
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={editorStyle}>
       {/* Toolbar */}
       <div data-print="hide" className="border-b border-gray-200 dark:border-gray-800 px-3 py-1.5 flex items-center justify-between bg-white dark:bg-gray-950 shrink-0">
         <EditorToolbar editor={editor} />
@@ -428,7 +444,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
             className={`resize-none font-mono text-sm p-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none border-r border-gray-200 dark:border-gray-800 ${
               viewMode === 'split' ? 'w-1/2' : 'w-full h-full'
             }`}
-            spellCheck={false}
+            spellCheck={spellCheckProp !== false}
           />
         )}
         {/* WYSIWYG pane — shown in wysiwyg-only or split mode */}

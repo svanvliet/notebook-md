@@ -245,6 +245,9 @@ export default function App() {
           onWordCountChange={handleWordCountChange}
           showPublish={!!(nb.activeTab && nb.hasWorkingBranch(nb.activeTab.notebookId))}
           onPublish={() => nb.activeTab && nb.handlePublish(nb.activeTab.notebookId)}
+          fontFamily={settings.fontFamily}
+          fontSize={settings.fontSize}
+          spellCheck={settings.spellCheck}
         />
       </div>
       <StatusBar
