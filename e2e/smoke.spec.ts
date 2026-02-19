@@ -25,15 +25,22 @@ test.describe('Smoke Tests', () => {
     await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
   });
 
-  test('sign-out returns to welcome screen', async ({ page }) => {
+  test('sign-out returns to welcome screen', async ({ page, request }) => {
     const email = `smoke-signout-${Date.now()}@test.local`;
-    await page.goto('/');
+    const password = 'TestPass123!';
 
-    // Sign up first
-    await page.getByRole('button', { name: 'Sign Up' }).click();
+    // Create account via API to avoid UI timing issues
+    const signupRes = await request.post('/auth/signup', {
+      data: { email, password },
+    });
+    expect(signupRes.ok()).toBeTruthy();
+
+    // Sign in via UI
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Sign In' }).click();
     await page.getByPlaceholder('Email address').fill(email);
-    await page.getByPlaceholder('Password (min 8 characters)').fill('TestPass123!');
-    await page.getByRole('button', { name: 'Create Account' }).click();
+    await page.getByPlaceholder('Password').fill(password);
+    await page.getByRole('button', { name: 'Sign In' }).click();
     await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
 
     // Sign out via account dropdown
