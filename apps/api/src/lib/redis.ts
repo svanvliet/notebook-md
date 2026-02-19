@@ -1,14 +1,35 @@
 import Redis from 'ioredis';
 
-export const redis = new Redis({
-  host: process.env.REDIS_HOST ?? 'localhost',
-  port: Number(process.env.REDIS_PORT ?? 6379),
-  maxRetriesPerRequest: 3,
-  lazyConnect: true,
-});
+const redisUrl = process.env.REDIS_URL;
 
+export const redis = redisUrl
+  ? new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+      retryStrategy(times) {
+        if (times > 10) return null; // stop retrying after 10 attempts
+        return Math.min(times * 500, 5000);
+      },
+    })
+  : new Redis({
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: Number(process.env.REDIS_PORT ?? 6379),
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+      retryStrategy(times) {
+        if (times > 10) return null;
+        return Math.min(times * 500, 5000);
+      },
+    });
+
+let lastErrorTime = 0;
 redis.on('error', (err) => {
-  console.error('[redis] Connection error:', err.message);
+  const now = Date.now();
+  // Throttle error logs to once per 5 seconds
+  if (now - lastErrorTime > 5000) {
+    console.error('[redis] Connection error:', err.message);
+    lastErrorTime = now;
+  }
 });
 
 export async function redisHealthCheck(): Promise<boolean> {

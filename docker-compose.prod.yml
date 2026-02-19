@@ -16,11 +16,21 @@ services:
     volumes:
       - pgdata_prod:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notebookmd"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   mailpit:
     image: axllent/mailpit
@@ -45,9 +55,12 @@ services:
       CORS_ORIGIN: http://localhost:8080
       ADMIN_ORIGIN: http://localhost:8081
     depends_on:
-      - db
-      - redis
-      - mailpit
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
 
   web:
     build:
