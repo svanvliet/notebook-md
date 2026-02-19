@@ -311,11 +311,12 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 - [x] Image/media insert via toolbar and slash command:
   - Option 1: provide a URL → insert Markdown image/link
-  - Option 2: upload file → store in `assets/` subfolder (relative to the `.md` file's folder) → insert relative reference
+  - Option 2: upload file → currently base64-encoded inline
+- [ ] **DEFERRED:** Upload file → store in `assets/` subfolder with relative reference (instead of base64 inline)
 - [x] 10 MB per-file upload limit with user-friendly error message
 - [x] Inline preview: images rendered at natural size in WYSIWYG view; videos rendered as embedded player
 - [x] Supported formats: `.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.webp`, `.mp4`, `.webm`
-- [x] Auto-create `assets/` folder if it doesn't exist
+- [x] Auto-create `assets/` folder if it doesn't exist (utility created, not yet wired to upload flow)
 
 ### 4.5 Find and Replace
 

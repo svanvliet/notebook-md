@@ -15,6 +15,17 @@ const turndown = new TurndownService({
 
 turndown.use(gfm);
 
+// Keep video elements as raw HTML in markdown output
+turndown.addRule('video', {
+  filter: 'video',
+  replacement: (_content, node) => {
+    const el = node as HTMLVideoElement;
+    const src = el.getAttribute('src') || '';
+    const attrs = ['controls', 'autoplay', 'loop', 'muted'].filter((a) => el.hasAttribute(a)).join(' ');
+    return `\n\n<video src="${src}" ${attrs} style="max-width:100%"></video>\n\n`;
+  },
+});
+
 // Strip Tiptap's table wrapper div so GFM plugin can process <table> directly
 turndown.addRule('tableWrapper', {
   filter: (node) =>

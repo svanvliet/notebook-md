@@ -125,6 +125,11 @@ describe('markdownConverter', () => {
       const md = htmlToMarkdown('<mark>highlighted</mark>');
       expect(md).toBe('==highlighted==');
     });
+
+    it('preserves video elements as HTML in markdown', () => {
+      const md = htmlToMarkdown('<video src="https://example.com/video.mp4" controls style="max-width:100%"></video>');
+      expect(md).toContain('https://example.com/video.mp4');
+    });
   });
 
   describe('full roundtrip (MD → HTML → MD)', () => {

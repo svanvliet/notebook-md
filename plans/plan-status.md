@@ -1214,8 +1214,9 @@ These will need backend API additions for each source type's file management ope
 - Image URLs → inserted via `setImage()`
 
 **Slash commands updated:**
-- Image command: now offers URL or "upload" option, with 10 MB limit on uploads
-- New Video command (🎬): same URL/upload pattern for .mp4/.webm files
+- Image and Video commands open a clean centered modal (not browser prompt)
+- Modal has URL field, alt text (images), "Upload file" button, Cancel/Insert
+- Uses custom DOM event (`notebook-media-insert`) dispatched from SlashCommands → handled in MarkdownEditor
 - Total slash commands: 24
 
 **Drag-and-drop updated:**
@@ -1231,10 +1232,12 @@ These will need backend API additions for each source type's file management ope
 **Video styling:**
 - `.tiptap video` CSS: max-width 100%, auto height, rounded corners, vertical margin
 
-**Assets folder auto-creation:**
+**Assets folder auto-creation (utility only):**
 - `ensureAssetsFolder(notebookId, parentPath)` in localNotebookStore
 - Creates `assets/` folder under given parent if it doesn't exist (idempotent)
 - Returns the assets path for use by callers
+
+**Current behavior:** Uploaded files are base64-encoded inline in the Markdown. This works but inflates file size for large images.
 
 **Supported formats:**
 - Images: `.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.webp`
@@ -1243,13 +1246,27 @@ These will need backend API additions for each source type's file management ope
 
 **Files modified:**
 - `apps/web/src/components/editor/EditorToolbar.tsx` — ImageIcon, MediaInsertMenu, insertMedia/uploadMedia handlers, toolbar button
-- `apps/web/src/components/editor/SlashCommands.ts` — Updated Image command, added Video command
-- `apps/web/src/components/editor/MarkdownEditor.tsx` — Video in drag-drop, DOMPurify video allowlist
+- `apps/web/src/components/editor/SlashCommands.ts` — Updated Image/Video to use custom event + modal
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — MediaInsertModal, video in drag-drop, DOMPurify video allowlist
 - `apps/web/src/components/editor/editor.css` — Video styles
 - `apps/web/src/stores/localNotebookStore.ts` — `ensureAssetsFolder()`
 
 **Tests: 3 new (43 web total, 195 overall)**
 - `ensureAssetsFolder`: creates at root, idempotent (no duplicate), creates under parent path
+
+---
+
+### Deferred: Media Asset Storage
+
+**Status:** Deferred — pending user decision on approach
+
+Currently uploaded images/videos are base64-encoded inline in the Markdown source. The `ensureAssetsFolder()` utility exists but is not wired to the upload flow.
+
+**To implement later:**
+- Thread `notebookId` and `parentPath` into the editor/upload handlers
+- On upload: call `ensureAssetsFolder()` → `createFile()` to store the binary in `assets/`
+- Insert a relative path (`assets/filename.png`) instead of the base64 blob
+- Consider: user may prefer inline base64 for portability vs. assets folder for file size
 
 ---
 
