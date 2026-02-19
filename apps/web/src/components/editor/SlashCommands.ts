@@ -136,30 +136,7 @@ export const slashCommands: SlashCommand[] = [
     description: 'Insert an image from URL or file',
     icon: '🖼',
     action: (editor) => {
-      const choice = prompt('Enter image URL, or type "upload" to choose a file:');
-      if (!choice) return;
-      if (choice.toLowerCase() === 'upload') {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.jpg,.jpeg,.png,.svg,.gif,.webp';
-        input.onchange = () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          if (file.size > 10 * 1024 * 1024) {
-            alert(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = () => {
-            editor.chain().focus().setImage({ src: reader.result as string, alt: file.name }).run();
-          };
-          reader.readAsDataURL(file);
-        };
-        input.click();
-      } else {
-        const alt = prompt('Alt text (optional):') || '';
-        editor.chain().focus().setImage({ src: choice, alt }).run();
-      }
+      window.dispatchEvent(new CustomEvent('notebook-media-insert', { detail: { type: 'image', editor } }));
     },
   },
   {
@@ -167,33 +144,7 @@ export const slashCommands: SlashCommand[] = [
     description: 'Insert a video from URL or file',
     icon: '🎬',
     action: (editor) => {
-      const choice = prompt('Enter video URL, or type "upload" to choose a file:');
-      if (!choice) return;
-      if (choice.toLowerCase() === 'upload') {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.mp4,.webm';
-        input.onchange = () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          if (file.size > 10 * 1024 * 1024) {
-            alert(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = () => {
-            editor.chain().focus().insertContent(
-              `<video src="${reader.result}" controls style="max-width:100%"></video>`,
-            ).run();
-          };
-          reader.readAsDataURL(file);
-        };
-        input.click();
-      } else {
-        editor.chain().focus().insertContent(
-          `<video src="${choice}" controls style="max-width:100%"></video>`,
-        ).run();
-      }
+      window.dispatchEvent(new CustomEvent('notebook-media-insert', { detail: { type: 'video', editor } }));
     },
   },
   {

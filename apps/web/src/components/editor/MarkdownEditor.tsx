@@ -28,12 +28,80 @@ interface MarkdownEditorProps {
   onWordCountChange?: (words: number, chars: number) => void;
 }
 
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.svg,.gif,.webp';
+const VIDEO_ACCEPT = '.mp4,.webm';
+const VIDEO_EXTS = new Set(['mp4', 'webm']);
+
+function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
+  mediaType: 'image' | 'video';
+  onClose: () => void;
+  onInsertUrl: (url: string, alt: string) => void;
+  onUploadFile: (file: File) => void;
+}) {
+  const [url, setUrl] = useState('');
+  const [alt, setAlt] = useState('');
+  const accept = mediaType === 'video' ? VIDEO_ACCEPT : IMAGE_ACCEPT;
+  const label = mediaType === 'video' ? 'Video' : 'Image';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Insert {label}</h3>
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{label} URL</label>
+            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..."
+              className="w-full h-8 px-2.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus onKeyDown={(e) => { if (e.key === 'Enter' && url) { onInsertUrl(url, alt); onClose(); } if (e.key === 'Escape') onClose(); }} />
+          </div>
+          {mediaType === 'image' && (
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Alt text (optional)</label>
+              <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Description"
+                className="w-full h-8 px-2.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onKeyDown={(e) => { if (e.key === 'Enter' && url) { onInsertUrl(url, alt); onClose(); } if (e.key === 'Escape') onClose(); }} />
+            </div>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <button onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = accept;
+                input.onchange = () => {
+                  const file = input.files?.[0];
+                  if (!file) return;
+                  if (file.size > MAX_UPLOAD_SIZE) {
+                    alert(`File too large. Maximum size is 10 MB (selected: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+                    return;
+                  }
+                  onUploadFile(file);
+                  onClose();
+                };
+                input.click();
+              }}
+              className="h-8 px-3 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload file
+            </button>
+            <div className="flex-1" />
+            <button onClick={onClose} className="h-8 px-3 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400">Cancel</button>
+            <button onClick={() => { if (url) { onInsertUrl(url, alt); onClose(); } }} disabled={!url}
+              className="h-8 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">Insert</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MarkdownEditor({ content, onChange, onWordCountChange }: MarkdownEditorProps) {
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
   const [viewMode, setViewMode] = useState<ViewMode>('wysiwyg');
   const [rawContent, setRawContent] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [mediaModal, setMediaModal] = useState<{ type: 'image' | 'video' } | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const wysiwygScrollRef = useRef<HTMLDivElement>(null);
@@ -197,6 +265,16 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
       document.removeEventListener('scroll', close, true);
     };
   }, [contextMenu]);
+
+  // Listen for media insert events from slash commands
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { type } = (e as CustomEvent).detail;
+      setMediaModal({ type });
+    };
+    window.addEventListener('notebook-media-insert', handler);
+    return () => window.removeEventListener('notebook-media-insert', handler);
+  }, []);
 
   // Handle image files dropped into the editor
   const handleEditorDrop = useCallback(
@@ -380,6 +458,39 @@ export function MarkdownEditor({ content, onChange, onWordCountChange }: Markdow
           </div>
         )}
       </div>
+
+      {/* Media insert modal (from slash commands) */}
+      {mediaModal && editor && (
+        <MediaInsertModal
+          mediaType={mediaModal.type}
+          onClose={() => setMediaModal(null)}
+          onInsertUrl={(url, alt) => {
+            const ext = url.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
+            if (VIDEO_EXTS.has(ext) || mediaModal.type === 'video') {
+              editor.chain().focus().insertContent(
+                `<video src="${url}" controls style="max-width:100%"></video>`,
+              ).run();
+            } else {
+              editor.chain().focus().setImage({ src: url, alt: alt || undefined }).run();
+            }
+          }}
+          onUploadFile={(file) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result as string;
+              const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+              if (VIDEO_EXTS.has(ext)) {
+                editor.chain().focus().insertContent(
+                  `<video src="${base64}" controls style="max-width:100%"></video>`,
+                ).run();
+              } else {
+                editor.chain().focus().setImage({ src: base64, alt: file.name }).run();
+              }
+            };
+            reader.readAsDataURL(file);
+          }}
+        />
+      )}
     </div>
   );
 }
