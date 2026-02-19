@@ -111,11 +111,14 @@ describe('Admin Console API', () => {
       expect(res.body.activeSessions).toBeDefined();
     });
 
-    it('should suspend a user', async () => {
+    it('should suspend a user and revoke their sessions', async () => {
       const cookies = await createAdmin();
-      await createRegularUser('suspend@test.com');
+      const userCookies = await createRegularUser('suspend@test.com');
       const listRes = await request.get('/admin/users?search=suspend@test.com').set('Cookie', cookies);
       const userId = listRes.body.users[0].id;
+
+      // User can access their account before suspension
+      await request.get('/auth/me').set('Cookie', userCookies).expect(200);
 
       await request
         .patch(`/admin/users/${userId}`)
@@ -125,6 +128,10 @@ describe('Admin Console API', () => {
 
       const detailRes = await request.get(`/admin/users/${userId}`).set('Cookie', cookies);
       expect(detailRes.body.user.isSuspended).toBe(true);
+
+      // User's session is revoked — they get 401 (session invalid)
+      const meRes = await request.get('/auth/me').set('Cookie', userCookies);
+      expect([401, 403]).toContain(meRes.status);
     });
 
     it('should prevent self-modification', async () => {

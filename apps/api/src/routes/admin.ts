@@ -215,6 +215,14 @@ router.patch('/users/:id', async (req: Request, res: Response) => {
 
   await query('UPDATE users SET is_suspended = $1 WHERE id = $2', [!!isSuspended, targetId]);
 
+  // Revoke all active sessions when suspending so the user is logged out immediately
+  if (isSuspended) {
+    await query(
+      "UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
+      [targetId],
+    );
+  }
+
   await auditLog({
     userId: req.userId!,
     action: 'admin_action',
