@@ -20,10 +20,11 @@ interface AccountModalProps {
   onChangePassword: (current: string, next: string) => Promise<string | null>;
   onDeleteAccount: (password?: string) => Promise<boolean>;
   onSignOut: () => void;
+  onProviderUnlinked: (provider: string) => void;
   onClose: () => void;
 }
 
-export function AccountModal({ user, onUpdateProfile, onChangePassword, onDeleteAccount, onSignOut, onClose }: AccountModalProps) {
+export function AccountModal({ user, onUpdateProfile, onChangePassword, onDeleteAccount, onSignOut, onProviderUnlinked, onClose }: AccountModalProps) {
   const { addToast } = useToast();
   const [displayName, setDisplayName] = useState(user.displayName);
   const [saving, setSaving] = useState(false);
@@ -70,6 +71,7 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
       }
       setLinkedProviders((prev) => prev.filter((p) => p.provider !== provider));
       addToast(`${PROVIDER_META[provider]?.label ?? provider} unlinked`, 'success');
+      onProviderUnlinked(provider);
     } catch {
       addToast('Failed to unlink provider', 'error');
     } finally {

@@ -367,6 +367,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Unlink provider via `DELETE /auth/oauth/:provider` with confirmation
 - [x] Block unlink if it's the last sign-in method (API returns 400)
 - [x] Add "Link Provider" button to initiate OAuth flow from Account Settings
+- [x] Server: delete provider's notebooks and GitHub installations on unlink
+- [x] Client: close tabs, remove notebooks from IndexedDB and state on unlink
+- [x] Client: clear working branch refs for GitHub notebooks on unlink
 
 #### Settings — Editor Font & Size
 - [x] Thread `settings` (fontFamily, fontSize) from App → DocumentPane → MarkdownEditor

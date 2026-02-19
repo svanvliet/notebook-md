@@ -308,6 +308,7 @@ export default function App() {
           onChangePassword={auth.changePassword}
           onDeleteAccount={auth.deleteAccount}
           onSignOut={auth.signOut}
+          onProviderUnlinked={nb.handleProviderUnlinked}
           onClose={() => setShowAccount(false)}
         />
       )}

@@ -239,6 +239,30 @@ export async function unlinkProvider(
     throw new Error('Cannot unlink your only sign-in method. Add a password or link another provider first.');
   }
 
+  // Map OAuth provider to notebook source_type(s)
+  const providerSourceTypes: Record<string, string[]> = {
+    microsoft: ['onedrive'],
+    google: ['google-drive'],
+    github: ['github'],
+  };
+  const sourceTypes = providerSourceTypes[provider] ?? [];
+
+  // Delete notebooks tied to this provider
+  if (sourceTypes.length > 0) {
+    const deleted = await query<{ id: string; name: string }>(
+      `DELETE FROM notebooks WHERE user_id = $1 AND source_type = ANY($2) RETURNING id, name`,
+      [userId, sourceTypes],
+    );
+    for (const nb of deleted.rows) {
+      await auditLog({ userId, action: 'remove_notebook', details: { notebookId: nb.id, reason: 'provider_unlinked', provider }, ipAddress: opts.ip, userAgent: opts.userAgent });
+    }
+  }
+
+  // For GitHub, also remove installations
+  if (provider === 'github') {
+    await query('DELETE FROM github_installations WHERE user_id = $1', [userId]);
+  }
+
   await query(
     'DELETE FROM identity_links WHERE user_id = $1 AND provider = $2',
     [userId, provider],

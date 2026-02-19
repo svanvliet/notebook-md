@@ -9,6 +9,8 @@ import {
   getFile,
   moveFile,
   ensureAssetsFolder,
+  deleteNotebook,
+  upsertNotebook,
   setStorageScope,
 } from '../stores/localNotebookStore';
 
@@ -301,6 +303,99 @@ describe('localNotebookStore', () => {
       expect(nbs.find((n) => n.name === 'OneDrive NB')!.id).toBe(serverId);
       // Orphan with random UUID is gone
       expect(nbs.find((n) => n.id === orphan.id)).toBeUndefined();
+    });
+  });
+
+  describe('provider unlink cleanup', () => {
+    it('deleteNotebook removes notebooks by sourceType for provider unlink', async () => {
+      // Simulate notebooks from different providers
+      await upsertNotebook({
+        id: 'gh-1',
+        name: 'GitHub Repo',
+        sourceType: 'github' as const,
+        sourceConfig: { owner: 'user', repo: 'repo' },
+        sortOrder: 100,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+      await upsertNotebook({
+        id: 'od-1',
+        name: 'OneDrive Folder',
+        sourceType: 'onedrive' as const,
+        sourceConfig: { rootPath: '/docs' },
+        sortOrder: 101,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+      await createNotebook('Local NB', 'local');
+
+      let nbs = await listNotebooks();
+      expect(nbs).toHaveLength(3);
+
+      // Simulate GitHub provider unlink: delete all github notebooks
+      const githubNbs = nbs.filter((n) => n.sourceType === 'github');
+      for (const nb of githubNbs) {
+        await deleteNotebook(nb.id);
+      }
+
+      nbs = await listNotebooks();
+      expect(nbs).toHaveLength(2);
+      expect(nbs.find((n) => n.sourceType === 'github')).toBeUndefined();
+      expect(nbs.find((n) => n.sourceType === 'onedrive')).toBeDefined();
+      expect(nbs.find((n) => n.sourceType === 'local')).toBeDefined();
+    });
+
+    it('deleteNotebook also removes files belonging to deleted notebooks', async () => {
+      await upsertNotebook({
+        id: 'gh-2',
+        name: 'GitHub Files',
+        sourceType: 'github' as const,
+        sourceConfig: { owner: 'user', repo: 'repo' },
+        sortOrder: 100,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+      await createFile('gh-2', '', 'readme.md', 'file', '# Hello');
+
+      let files = await listFiles('gh-2');
+      expect(files).toHaveLength(1);
+
+      await deleteNotebook('gh-2');
+
+      files = await listFiles('gh-2');
+      expect(files).toHaveLength(0);
+    });
+
+    it('unlink of one provider does not affect other providers', async () => {
+      await upsertNotebook({
+        id: 'gd-1',
+        name: 'Google Drive',
+        sourceType: 'google-drive' as const,
+        sourceConfig: { folderId: 'abc' },
+        sortOrder: 100,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+      await upsertNotebook({
+        id: 'od-2',
+        name: 'OneDrive',
+        sourceType: 'onedrive' as const,
+        sourceConfig: { rootPath: '/docs' },
+        sortOrder: 101,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+
+      // Unlink google: remove google-drive notebooks
+      let nbs = await listNotebooks();
+      const googleNbs = nbs.filter((n) => n.sourceType === 'google-drive');
+      for (const nb of googleNbs) {
+        await deleteNotebook(nb.id);
+      }
+
+      nbs = await listNotebooks();
+      expect(nbs).toHaveLength(1);
+      expect(nbs[0].sourceType).toBe('onedrive');
     });
   });
 });

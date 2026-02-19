@@ -984,6 +984,63 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     }
   }, [notebooks, toast]);
 
+  // --- Provider unlink cleanup ---
+  const PROVIDER_SOURCE_MAP: Record<string, string[]> = {
+    microsoft: ['onedrive'],
+    google: ['google-drive'],
+    github: ['github'],
+  };
+
+  const handleProviderUnlinked = useCallback(async (provider: string) => {
+    const sourceTypes = PROVIDER_SOURCE_MAP[provider] ?? [];
+    if (sourceTypes.length === 0) return;
+
+    const affected = notebooks.filter((n) => n.sourceType && sourceTypes.includes(n.sourceType));
+    if (affected.length === 0) return;
+
+    const affectedIds = new Set(affected.map((n) => n.id));
+
+    // Close tabs from affected notebooks
+    setTabs((prev) => prev.filter((t) => !affectedIds.has(t.notebookId)));
+    setActiveTabId((prev) => {
+      if (prev) {
+        const tab = tabs.find((t) => t.id === prev);
+        if (tab && affectedIds.has(tab.notebookId)) {
+          const remaining = tabs.filter((t) => !affectedIds.has(t.notebookId));
+          return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+        }
+      }
+      return prev;
+    });
+
+    // Remove from local store and state
+    for (const nb of affected) {
+      await deleteNb(nb.id);
+    }
+    setNotebooks((prev) => prev.filter((n) => !affectedIds.has(n.id)));
+    setFiles((prev) => {
+      const next = { ...prev };
+      for (const id of affectedIds) delete next[id];
+      return next;
+    });
+
+    // Clear working branch refs for GitHub
+    if (provider === 'github') {
+      for (const id of affectedIds) {
+        delete workingBranches.current[id];
+        delete branchCreating.current[id];
+        delete defaultBranches.current[id];
+      }
+      setPublishableNotebooks((prev) => {
+        const next = new Set(prev);
+        for (const id of affectedIds) next.delete(id);
+        return next;
+      });
+    }
+
+    toast?.(`Removed ${affected.length} notebook${affected.length > 1 ? 's' : ''} linked to ${provider}`, 'info');
+  }, [notebooks, tabs, toast]);
+
   return {
     notebooks,
     files,
@@ -1016,5 +1073,6 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleMoveFile,
     handleCopyFile,
     handleReorderNotebooks,
+    handleProviderUnlinked,
   };
 }
