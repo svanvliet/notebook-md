@@ -1410,6 +1410,41 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Provider Token Revocation on Unlink
+
+**Completed:** 2026-02-19
+
+**What:** When a user unlinks a provider, we now revoke OAuth tokens and delete GitHub App installations at the provider level — not just locally.
+
+**Implementation (`apps/api/src/services/provider-revocation.ts`):**
+- `revokeGitHubToken()` — `DELETE /applications/{client_id}/token` with Basic Auth
+- `deleteGitHubInstallation()` — `DELETE /app/installations/{id}` with App JWT
+- `revokeGoogleToken()` — `POST https://oauth2.googleapis.com/revoke` with token as form data
+- `revokeMicrosoftToken()` — `POST /oauth2/v2.0/revoke` with refresh token + client credentials
+- `revokeProviderTokens()` — dispatcher that routes to the correct provider handler
+
+**Integration in `unlinkProvider()` (`account-link.ts`):**
+- Before deleting records, fetches encrypted tokens from `identity_links` and decrypts them
+- For GitHub, also gathers `installation_id`s from `github_installations`
+- Calls `revokeProviderTokens()` fire-and-forget (doesn't block unlink on revocation failure)
+
+**Design decisions:**
+- Best-effort / fire-and-forget — revocation failures are logged but never block the unlink
+- Prefers refresh token over access token for Google/Microsoft (revoking refresh token invalidates access tokens too)
+- GitHub App installations are deleted in parallel via `Promise.allSettled`
+
+**Files created:**
+- `apps/api/src/services/provider-revocation.ts` — Revocation functions for all 3 providers
+- `apps/api/src/tests/provider-revocation.test.ts` — 15 unit tests with mocked fetch
+
+**Files modified:**
+- `apps/api/src/services/account-link.ts` — Added revocation step before record deletion
+- `plans/initial-plan.md` — Added revocation checklist items
+
+**Tests: 15 new API unit tests (170 API total)**
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

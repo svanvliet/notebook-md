@@ -2,7 +2,8 @@ import { query, getClient } from '../db/pool.js';
 import type { OAuthUserProfile, OAuthTokens } from './oauth/types.js';
 import { auditLog } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
-import { encryptOptional } from '../lib/encryption.js';
+import { encryptOptional, decryptOptional } from '../lib/encryption.js';
+import { revokeProviderTokens } from './provider-revocation.js';
 
 interface LinkResult {
   userId: string;
@@ -246,6 +247,33 @@ export async function unlinkProvider(
     github: ['github'],
   };
   const sourceTypes = providerSourceTypes[provider] ?? [];
+
+  // --- Revoke tokens with the provider (best-effort) ---
+  const link = await query<{ access_token_enc: string | null; refresh_token_enc: string | null }>(
+    'SELECT access_token_enc, refresh_token_enc FROM identity_links WHERE user_id = $1 AND provider = $2',
+    [userId, provider],
+  );
+  if (link.rows.length > 0) {
+    const tokens = {
+      accessToken: decryptOptional(link.rows[0].access_token_enc),
+      refreshToken: decryptOptional(link.rows[0].refresh_token_enc),
+    };
+
+    // For GitHub, also gather installation IDs to delete at the provider
+    let installationIds: number[] | undefined;
+    if (provider === 'github') {
+      const instRows = await query<{ installation_id: number }>(
+        'SELECT installation_id FROM github_installations WHERE user_id = $1',
+        [userId],
+      );
+      installationIds = instRows.rows.map((r) => r.installation_id);
+    }
+
+    // Fire-and-forget: don't block unlink if revocation fails
+    revokeProviderTokens(provider, tokens, installationIds).catch((err) => {
+      logger.warn('Background provider revocation failed', { provider, error: (err as Error).message });
+    });
+  }
 
   // Delete notebooks tied to this provider
   if (sourceTypes.length > 0) {
