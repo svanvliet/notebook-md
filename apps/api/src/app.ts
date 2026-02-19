@@ -25,6 +25,11 @@ import './services/sources/googledrive.js';
 
 const app = express();
 
+// Trust proxy when behind Nginx/Front Door (enables correct client IP for rate limiting)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Webhooks need raw body for signature verification — mount BEFORE json parser
 app.use('/webhooks/github', express.text({ type: 'application/json' }), webhookRoutes);
 
