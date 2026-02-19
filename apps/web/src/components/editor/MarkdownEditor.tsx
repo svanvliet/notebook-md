@@ -119,6 +119,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const wysiwygScrollRef = useRef<HTMLDivElement>(null);
   const syncingScroll = useRef(false);
   const syncingFromSource = useRef(false);
+  const scrollSource = useRef<'source' | 'wysiwyg' | null>(null);
 
   const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
 
@@ -265,25 +266,31 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     [viewMode, editor, onChange],
   );
 
-  // Synchronized scrolling between panes
+  // Synchronized scrolling between panes — only sync FROM the pane the user is interacting with
+  const scrollEndTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
   const handleSourceScroll = useCallback(() => {
-    if (syncingScroll.current || !sourceRef.current || !wysiwygScrollRef.current) return;
-    syncingScroll.current = true;
+    if (scrollSource.current === 'wysiwyg') return;
+    if (!sourceRef.current || !wysiwygScrollRef.current) return;
+    scrollSource.current = 'source';
     const src = sourceRef.current;
     const pct = src.scrollTop / (src.scrollHeight - src.clientHeight || 1);
     const target = wysiwygScrollRef.current;
     target.scrollTop = pct * (target.scrollHeight - target.clientHeight);
-    requestAnimationFrame(() => { syncingScroll.current = false; });
+    clearTimeout(scrollEndTimer.current);
+    scrollEndTimer.current = setTimeout(() => { scrollSource.current = null; }, 150);
   }, []);
 
   const handleWysiwygScroll = useCallback(() => {
-    if (syncingScroll.current || !sourceRef.current || !wysiwygScrollRef.current) return;
-    syncingScroll.current = true;
+    if (scrollSource.current === 'source') return;
+    if (!sourceRef.current || !wysiwygScrollRef.current) return;
+    scrollSource.current = 'wysiwyg';
     const target = wysiwygScrollRef.current;
     const pct = target.scrollTop / (target.scrollHeight - target.clientHeight || 1);
     const src = sourceRef.current;
     src.scrollTop = pct * (src.scrollHeight - src.clientHeight);
-    requestAnimationFrame(() => { syncingScroll.current = false; });
+    clearTimeout(scrollEndTimer.current);
+    scrollEndTimer.current = setTimeout(() => { scrollSource.current = null; }, 150);
   }, []);
 
   // Update word count on initial load
@@ -484,7 +491,10 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       <div className="flex-1 overflow-hidden flex">
         {/* Source pane — shown in source-only or split mode */}
         {(viewMode === 'source' || viewMode === 'split') && (
-          <div className={`source-pane relative border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}>
+          <div
+            className={`source-pane relative border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}
+            onMouseEnter={() => { scrollSource.current = null; }}
+          >
             {lineNumbers && (
               <>
                 {/* Hidden mirror for measuring wrapped line heights */}
@@ -558,6 +568,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
             className={`relative editor-wrapper overflow-auto ${
               viewMode === 'split' ? 'w-1/2' : 'w-full'
             }`}
+            onMouseEnter={() => { scrollSource.current = null; }}
             onContextMenu={handleContextMenu}
             onScroll={viewMode === 'split' ? handleWysiwygScroll : undefined}
             onDrop={handleEditorDrop}
