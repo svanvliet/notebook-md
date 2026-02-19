@@ -70,6 +70,7 @@ export interface SaveLocationRequest {
 export function useNotebookManager(userId?: string | null) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
+  const [loadingNotebooks, setLoadingNotebooks] = useState<Set<string>>(new Set());
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -213,29 +214,30 @@ export function useNotebookManager(userId?: string | null) {
     if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
       const entries = await listFiles(notebookId);
       setFiles((prev) => ({ ...prev, [notebookId]: entries }));
-    } else if (nb.sourceType === 'github') {
+    } else {
+      setLoadingNotebooks((prev) => new Set(prev).add(notebookId));
       try {
-        const rootPath = nb.sourceConfig.rootPath as string;
-        const allEntries = await fetchGitHubTreeRecursive(rootPath, notebookId, '', '');
-        setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+        if (nb.sourceType === 'github') {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          const allEntries = await fetchGitHubTreeRecursive(rootPath, notebookId, '', '');
+          setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+        } else if (nb.sourceType === 'onedrive') {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          const allEntries = await fetchOneDriveTreeRecursive(rootPath, notebookId, '', '');
+          setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+        } else if (nb.sourceType === 'google-drive') {
+          const rootFolderId = nb.sourceConfig.rootPath as string;
+          const allEntries = await fetchGoogleDriveTreeRecursive(rootFolderId, notebookId, '', '');
+          setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+        }
       } catch (err) {
         flash(`Failed to load files: ${(err as Error).message}`);
-      }
-    } else if (nb.sourceType === 'onedrive') {
-      try {
-        const rootPath = nb.sourceConfig.rootPath as string;
-        const allEntries = await fetchOneDriveTreeRecursive(rootPath, notebookId, '', '');
-        setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
-      } catch (err) {
-        flash(`Failed to load files: ${(err as Error).message}`);
-      }
-    } else if (nb.sourceType === 'google-drive') {
-      try {
-        const rootFolderId = nb.sourceConfig.rootPath as string;
-        const allEntries = await fetchGoogleDriveTreeRecursive(rootFolderId, notebookId, '', '');
-        setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
-      } catch (err) {
-        flash(`Failed to load files: ${(err as Error).message}`);
+      } finally {
+        setLoadingNotebooks((prev) => {
+          const next = new Set(prev);
+          next.delete(notebookId);
+          return next;
+        });
       }
     }
   }, [notebooks, flash]);
@@ -944,6 +946,7 @@ export function useNotebookManager(userId?: string | null) {
   return {
     notebooks,
     files,
+    loadingNotebooks,
     tabs,
     activeTabId,
     activeTab,

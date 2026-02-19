@@ -1142,6 +1142,13 @@ Commits: `2287fc5`, `a5ab990`
 - New `handleCopyFile` in useNotebookManager with `onCopyFile` prop threading
 - 3 new tests: single file copy, folder with children copy, copy to subfolder (40 web total, 192 overall)
 
+**Remote notebook loading indicator:**
+- Added `loadingNotebooks` state (`Set<string>`) to `useNotebookManager` tracking which notebooks are fetching files
+- `refreshFiles()` sets loading before remote API calls, clears in `finally` block
+- When a notebook is loading, shows an animated spinning circle + "Loading…" text instead of "Empty notebook"
+- "Empty notebook" only appears after loading completes with zero files
+- Loading state threaded via `loadingNotebooks` prop: `useNotebookManager` → `App.tsx` → `NotebookPane` → `NotebookTree`
+
 ---
 
 ### Follow-up: Remote Notebook Drag-and-Drop

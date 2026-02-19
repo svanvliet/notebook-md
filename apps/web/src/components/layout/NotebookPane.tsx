@@ -23,6 +23,7 @@ interface NotebookPaneProps {
   onResizeMouseDown: (e: React.MouseEvent) => void;
   notebooks: NotebookMeta[];
   files: Record<string, FileEntry[]>;
+  loadingNotebooks?: Set<string>;
   onCreateNotebook: () => void;
   onDeleteNotebook: (id: string) => void;
   onRenameNotebook: (id: string, name: string) => void;
@@ -46,6 +47,7 @@ export function NotebookPane({
   onResizeMouseDown,
   notebooks,
   files,
+  loadingNotebooks,
   onCreateNotebook,
   onDeleteNotebook,
   onRenameNotebook,
@@ -158,6 +160,7 @@ export function NotebookPane({
           <NotebookTree
             notebooks={notebooks}
             files={files}
+            loadingNotebooks={loadingNotebooks}
             onCreateNotebook={onCreateNotebook}
             onDeleteNotebook={onDeleteNotebook}
             onRenameNotebook={onRenameNotebook}

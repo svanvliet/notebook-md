@@ -205,6 +205,7 @@ export default function App() {
           onResizeMouseDown={sidebar.onMouseDown}
           notebooks={nb.notebooks}
           files={nb.files}
+          loadingNotebooks={nb.loadingNotebooks}
           onCreateNotebook={() => setShowAddNotebook(true)}
           onDeleteNotebook={nb.handleDeleteNotebook}
           onRenameNotebook={nb.handleRenameNotebook}
