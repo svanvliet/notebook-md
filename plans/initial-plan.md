@@ -576,11 +576,13 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 **Goal:** Deploy the app to Azure. Set up the full infrastructure, CI/CD pipeline, DNS, monitoring, and run the first production deployment.
 
+> **Note on E2E tests:** The full Playwright E2E test suite (30+ test cases) has been moved to Phase 7. Phase 6 includes only Playwright setup and a minimal smoke test suite to validate the deployment pipeline. This keeps the deployment phase focused and avoids blocking production readiness on comprehensive E2E coverage.
+
 ### 6.1 Infrastructure as Code
 
 - [ ] Set up Terraform (or Pulumi) project for Azure resources:
   - Resource group (East US 2)
-  - Azure Container Apps environment
+  - Azure Container Apps environment (with 3 container apps: web, api, admin)
   - Azure Container Registry (private)
   - Azure Database for PostgreSQL Flexible Server (Burstable B1ms, zone-redundant HA)
   - Azure Cache for Redis (Basic C0)
@@ -589,105 +591,95 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - Azure Monitor / Application Insights workspace
 - [ ] Configure managed identity for Container Apps → Key Vault access
 - [ ] Migrate token encryption from local dev key to Azure Key Vault (envelope encryption with KMS-managed key)
+- [ ] Configure environment variables per container app (CORS_ORIGIN, ADMIN_ORIGIN, DATABASE_URL, REDIS_URL, etc.)
 
 ### 6.2 Container Images
 
 - [ ] Create production Dockerfiles (multi-stage builds) for:
-  - `web` — Nginx serving the React SPA static build
-  - `api` — Node.js production build
-  - `admin` — Nginx serving the Admin SPA static build
+  - `web` — Nginx serving the React SPA static build (with SPA fallback: all non-file routes → `index.html`)
+  - `api` — Node.js production build (includes migrations runner)
+  - `admin` — Nginx serving the Admin SPA static build (with SPA fallback)
+- [ ] Nginx configs with:
+  - SPA history API fallback (`try_files $uri $uri/ /index.html`)
+  - Gzip compression for static assets
+  - Cache headers for hashed assets (long-lived) vs `index.html` (no-cache)
 - [ ] Image scanning with Trivy in CI
 - [ ] Push to Azure Container Registry
+- [ ] Create `docker-compose.prod.yml` for local production-like testing (uses production Dockerfiles instead of Vite dev servers)
 
 ### 6.3 CI/CD Pipeline
 
 - [ ] GitHub Actions workflows:
-  - **Build & Test** (every push/PR): lint, type-check, API integration tests (Tier 1), web unit tests (Tier 2), build Docker images
-  - **E2E Tests** (PR to `main`): Playwright E2E tests (Tier 3) against full Docker Compose stack
+  - **Build & Test** (every push/PR): lint, type-check, run API integration tests (Tier 1, needs PostgreSQL + Redis service containers), run web unit tests (Tier 2), build Docker images
+  - **E2E Smoke** (PR to `main`): Playwright smoke tests against Docker Compose stack (auth + basic notebook operations)
   - **Production Deploy** (`v*` tag + manual approval): push images to ACR, deploy new Container Apps revision
   - **Rollback** (manual trigger): shift traffic to previous revision
 - [ ] GitHub Environment `production` with protection rules (manual approval)
 - [ ] Environment-scoped secrets for Azure credentials
 - [ ] Branch protection on `main`: require PR reviews, no direct pushes, all CI checks must pass
-- [ ] Dependabot configuration
+- [ ] Dependabot configuration for npm and Docker base images
 
-### 6.4 Tier 3: E2E Browser Tests (§8.15)
+### 6.4 E2E Smoke Tests (Playwright Setup)
 
 - [ ] Install Playwright in the repo root (shared across apps)
-- [ ] Configure `playwright.config.ts` with `webServer` pointing to Docker Compose + API + Web
-- [ ] Configure multi-browser testing: Chromium, Firefox, WebKit
-- [ ] Test suite: Authentication flows
-  - [ ] Sign-up with email + password → lands in app with empty notebook state
-  - [ ] Sign-in with existing account → sees previously created notebooks
+- [ ] Configure `playwright.config.ts` with `webServer` pointing to Docker Compose stack
+- [ ] Smoke test suite (minimal set to validate deployment):
+  - [ ] Welcome screen loads, sign-up form visible
+  - [ ] Sign-up with email + password → lands in app
+  - [ ] Sign-in with existing account → sees app
   - [ ] Sign-out → returns to welcome screen
-  - [ ] Magic link flow (using Mailpit API to extract link)
-  - [ ] OAuth flow with mock provider
-- [ ] Test suite: Notebook & file management
-  - [ ] Create notebook → appears in tree
-  - [ ] Create file → opens in tab, file appears in tree
-  - [ ] Create folder → appears in tree, can create files inside
-  - [ ] Rename notebook/folder/file → tree and tab labels update
-  - [ ] Delete notebook/file → removed from tree, tab closed
-  - [ ] Import file from desktop → save location picker → file appears
-- [ ] Test suite: Editor
-  - [ ] Type text → renders in WYSIWYG view
-  - [ ] Toolbar actions: heading, bold, italic, list, code block, table
-  - [ ] Slash commands: type `/` → command palette appears → select command
-  - [ ] Toggle source view → shows Markdown → toggle back
-  - [ ] Table editing: insert row/column, delete row/column, floating toolbar
-  - [ ] Link insertion and editing via toolbar and context menu
-- [ ] Test suite: Settings & preferences
-  - [ ] Change display mode (light/dark/system) → UI updates
-  - [ ] Change font size → editor text updates
-  - [ ] Settings persist across sign-out and sign-in
-- [ ] Test suite: Data isolation
-  - [ ] User A's notebooks not visible to User B
-  - [ ] Dev-skip user sees separate data from authenticated users
+  - [ ] Legal pages accessible at `/terms` and `/privacy`
+  - [ ] Cookie consent banner appears for new visitors
 - [ ] Add `test:e2e` script to root `package.json`
+
+> **Full E2E suite** (editor, notebook management, settings, data isolation, multi-browser) is deferred to Phase 7.4.
 
 ### 6.5 DNS & SSL
 
 - [ ] Configure GoDaddy DNS records:
-  - `notebookmd.io` → Azure Front Door
+  - `notebookmd.io` → Azure Front Door (web app)
   - `api.notebookmd.io` → Azure Container Apps (API)
   - `admin.notebookmd.io` → Azure Container Apps (Admin)
 - [ ] SPF, DKIM, DMARC records for `noreply@notebookmd.io` (transactional email)
 - [ ] Azure-managed TLS certificates via Front Door
+- [ ] Verify CORS config: API accepts origins `https://notebookmd.io` and `https://admin.notebookmd.io`
 
 ### 6.6 Monitoring & Alerting
 
 - [ ] Application Insights: request tracing, dependency tracking, exception logging
-- [ ] Azure Monitor availability tests (ping API and web endpoints)
+- [ ] Azure Monitor availability tests (ping API health endpoint and web/admin URLs)
 - [ ] Alerts: error rate spikes, health check failures, high latency → email notification
 - [ ] Structured logs → Log Analytics workspace
-- [ ] Sentry integration for client-side error tracking (free tier)
+- [ ] Sentry integration for client-side error tracking (free tier) — captures React errors, network failures
 
 ### 6.7 Transactional Email
 
 - [ ] Set up SendGrid account (free tier: 100 emails/day)
 - [ ] Configure sender domain verification for `noreply@notebookmd.io`
-- [ ] Switch API email transport from Mailpit to SendGrid in production config
+- [ ] Switch API email transport from Mailpit to SendGrid in production config (env-based: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`)
 
 ### 6.8 Database
 
-- [ ] Run production migrations
+- [ ] Run production migrations (001–003)
 - [ ] Enable automated daily backups with 35-day PITR
 - [ ] Enable geo-redundant backup storage
-- [ ] Promote first admin account via CLI
+- [ ] Promote first admin account via CLI (`node cli/promote-admin.js <email>`)
 
 ### 6.9 First Deployment
 
 - [ ] Tag `v0.1.0`, trigger CI/CD pipeline
 - [ ] Approve production deployment
 - [ ] Verify app is accessible at `notebookmd.io`
-- [ ] Smoke test: sign up, create notebook, edit document, save
+- [ ] Smoke test: sign up, create local notebook, edit document, verify cookie consent, check legal pages
 - [ ] Verify admin console at `admin.notebookmd.io`
+- [ ] Verify OAuth flows work with production redirect URIs
+- [ ] Verify transactional email (magic link, email verification, 2FA codes)
 
 ### 6.10 Phase 6 Validation
 
-- **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end (Tier 1 + Tier 2 on push, Tier 3 E2E on PR to main); monitoring captures real traffic; auto-scaling responds to load
+- **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end (Tier 1 + Tier 2 on push, E2E smoke on PR to main); monitoring captures real traffic; auto-scaling responds to load; SPA fallback works for all client-side routes
 - **UX:** The production app is indistinguishable from the local dev experience
-- **Feedback points:** Page load speed, cold-start latency, OAuth redirect timing
+- **Feedback points:** Page load speed, cold-start latency, OAuth redirect timing, email delivery speed
 
 ---
 
@@ -721,20 +713,59 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] Color contrast verification in light and dark modes
 - [ ] Reduced motion support (`prefers-reduced-motion`)
 
-### 7.4 Responsive Design Polish
+### 7.4 Full E2E Test Suite (Tier 3)
+
+Expands the Playwright smoke tests from Phase 6.4 into comprehensive browser-level coverage:
+
+- [ ] Configure multi-browser testing: Chromium, Firefox, WebKit
+- [ ] Test suite: Authentication flows
+  - [ ] Sign-up with email + password → lands in app with empty notebook state
+  - [ ] Sign-in with existing account → sees previously created notebooks
+  - [ ] Magic link flow (using Mailpit API to extract link)
+  - [ ] OAuth flow with mock provider
+  - [ ] 2FA sign-in flow (TOTP + email code)
+- [ ] Test suite: Notebook & file management
+  - [ ] Create notebook → appears in tree
+  - [ ] Create file → opens in tab, file appears in tree
+  - [ ] Create folder → appears in tree, can create files inside
+  - [ ] Rename notebook/folder/file → tree and tab labels update
+  - [ ] Delete notebook/file → removed from tree, tab closed
+  - [ ] Import file from desktop → save location picker → file appears
+  - [ ] Drag-and-drop file import
+- [ ] Test suite: Editor
+  - [ ] Type text → renders in WYSIWYG view
+  - [ ] Toolbar actions: heading, bold, italic, list, code block, table
+  - [ ] Slash commands: type `/` → command palette appears → select command
+  - [ ] Toggle source view → shows Markdown → toggle back
+  - [ ] Table editing: insert row/column, delete row/column, floating toolbar
+  - [ ] Link insertion and editing via toolbar and context menu
+- [ ] Test suite: Settings & preferences
+  - [ ] Change display mode (light/dark/system) → UI updates
+  - [ ] Change font size → editor text updates
+  - [ ] Settings persist across sign-out and sign-in
+- [ ] Test suite: Navigation
+  - [ ] Legal pages accessible, back button preserves app state
+  - [ ] Modal back-button integration (Settings, Account, Add Notebook)
+  - [ ] Cookie consent banner interaction
+- [ ] Test suite: Data isolation
+  - [ ] User A's notebooks not visible to User B
+  - [ ] Dev-skip user sees separate data from authenticated users
+- [ ] Wire full E2E suite into CI (PR to `main`)
+
+### 7.5 Responsive Design Polish
 
 - [ ] Test on tablet (768px–1024px) and phone (< 768px) viewports
 - [ ] Notebook pane: auto-collapse on narrow viewports, overlay when opened
 - [ ] Touch-friendly tap targets (min 44px)
 - [ ] Mobile-optimized toolbar (collapsible or scrollable)
 
-### 7.5 Canary Deployment Process
+### 7.6 Canary Deployment Process
 
 - [ ] Document the canary deployment workflow: tag → deploy canary revision (0% traffic) → manual test via revision URL → traffic split (5%) → monitor → promote to 100%
 - [ ] Test rollback procedure: shift traffic back to previous revision
 - [ ] Run at least one canary deployment cycle before announcing public availability
 
-### 7.6 Pre-Launch Checklist
+### 7.7 Pre-Launch Checklist
 
 - [ ] All OAuth provider apps configured for production redirect URIs
 - [ ] GitHub App ("Notebook.md") published and accessible for installation
@@ -747,7 +778,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [ ] Load test: simulate 100 concurrent users
 - [ ] README.md updated with final feature list
 
-### 7.7 Phase 7 Validation
+### 7.8 Phase 7 Validation
 
 - **Technical:** App meets all performance, accessibility, and security benchmarks. Monitoring is live. Analytics are flowing. Canary process is validated.
 - **UX:** The app is polished, responsive, and accessible. You're confident in the experience for public users.
