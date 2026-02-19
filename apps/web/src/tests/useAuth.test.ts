@@ -194,4 +194,35 @@ describe('useAuth', () => {
     });
     expect(result.current.error).toContain('Network error');
   });
+
+  it('logs out when auth:session-invalid event is dispatched', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
+    const { result } = renderHook(() => useAuth());
+    await act(async () => {});
+    expect(result.current.user).toBeTruthy();
+
+    await act(async () => {
+      window.dispatchEvent(new Event('auth:session-invalid'));
+    });
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe('Your session has ended.');
+  });
+
+  it('re-validates session on visibility change', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
+    const { result } = renderHook(() => useAuth());
+    await act(async () => {});
+    expect(result.current.user).toBeTruthy();
+
+    // Simulate tab becoming visible with invalid session
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await act(async () => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      // Allow the async handler to complete
+      await new Promise(r => setTimeout(r, 10));
+    });
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe('Your session has ended.');
+  });
 });

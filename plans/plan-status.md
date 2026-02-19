@@ -1799,6 +1799,97 @@ Phase 4 is complete. All editor features verified, 282 tests passing (105 web + 
 
 ---
 
+## Phase 5.2 Polish — Admin Console Bug Fixes & Session Enforcement ✅
+
+**Completed:** 2026-02-19
+**Commits:** `f862b46`, `26efb23`, `7d47b1b`, `eea72df`, `070b818`, `9e713da`, `d31572f`, `1b093b1`
+
+### Bug fixes
+
+1. **`/auth/me` missing `isAdmin`/`isSuspended` fields** — Admin hook couldn't determine admin status. Added both fields to the `/auth/me` query and response.
+2. **Admin error page redirect loop** — "Go to Notebook.md" link pointed to `/` (admin app) instead of `http://localhost:5173` (web app).
+3. **Dashboard crash (`metrics.sessions.active`)** — Frontend `Metrics` type didn't match actual API response shape. Aligned type and component to match `{ users: { active24h, active7d, signupsToday }, notebooks: { [source]: count }, twoFactor: { enabled, total } }`.
+4. **User detail modal crash (`identityLinks.map`)** — API returns `linkedProviders` but frontend expected `identityLinks`. Fixed prop type and mapping.
+5. **Suspended users not logged out** — Suspending a user now revokes all their active sessions immediately (`UPDATE sessions SET revoked_at = now()`).
+
+### Session validation architecture
+
+Replaced initial 30-second polling heartbeat (not scalable) with an efficient event-driven approach:
+
+- **`apiFetch` wrapper** (`api/apiFetch.ts`) — Shared fetch function used by all API modules. Automatically includes `credentials: 'include'` and dispatches `auth:session-invalid` window event on 401/403 responses.
+- **Active users** — Any API call (save, load notebooks, settings sync, OAuth operations) that returns 401/403 triggers immediate logout. Zero overhead.
+- **Idle users** — `visibilitychange` listener re-validates session when user returns to the tab.
+- **Event bus** — `useAuth` listens for `auth:session-invalid` events and clears user state with "Your session has ended" message.
+
+Migrated all API callers to `apiFetch`: `github.ts`, `onedrive.ts`, `googledrive.ts`, `useNotebookManager.ts`, `useSettings.ts`, `AccountModal.tsx`.
+
+### Dev tooling additions
+
+- `./dev.sh promote-admin <email>` — Convenience command to promote a user to admin
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `apps/web/src/api/apiFetch.ts` | Shared fetch wrapper with session invalidation |
+| `apps/web/src/tests/apiFetch.test.ts` | 7 tests for apiFetch (401/403 dispatch, headers, passthrough) |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/auth.ts` | Added `isAdmin`/`isSuspended` to `/auth/me` |
+| `apps/api/src/routes/admin.ts` | Revoke sessions on user suspension |
+| `apps/api/src/tests/admin.test.ts` | Updated suspend test to verify session revocation |
+| `apps/admin/src/hooks/useAdmin.ts` | Fixed `Metrics` and `getUser` types |
+| `apps/admin/src/pages/DashboardPage.tsx` | Aligned with actual API response shape |
+| `apps/admin/src/pages/UsersPage.tsx` | Fixed `identityLinks` → `linkedProviders` |
+| `apps/admin/src/App.tsx` | Fixed redirect link |
+| `apps/web/src/hooks/useAuth.ts` | Added `isAdmin` to User, visibility-change + event-bus session validation |
+| `apps/web/src/hooks/useSettings.ts` | Migrated to `apiFetch` |
+| `apps/web/src/hooks/useNotebookManager.ts` | Migrated to `apiFetch` |
+| `apps/web/src/api/github.ts` | Migrated to `apiFetch` |
+| `apps/web/src/api/onedrive.ts` | Migrated to `apiFetch` |
+| `apps/web/src/api/googledrive.ts` | Migrated to `apiFetch` |
+| `apps/web/src/components/account/AccountModal.tsx` | Migrated to `apiFetch` |
+| `apps/web/src/components/layout/TitleBar.tsx` | Admin Site link for admin users |
+| `apps/web/src/tests/useAuth.test.ts` | 2 new tests (event bus logout, visibility change) |
+| `dev.sh` | Added `promote-admin` command |
+
+### Test inventory
+
+| Package | File | Tests |
+|---------|------|-------|
+| Web | slashCommands.test.tsx | 25 |
+| Web | welcomeScreen.test.tsx | 14 |
+| Web | appRouting.test.tsx | 12 |
+| Web | statusBar.test.tsx | 11 |
+| Web | sourceManager.test.ts | 11 |
+| Web | accountModal.test.tsx | 10 |
+| Web | toolbar.test.tsx | 8 |
+| Web | useSettings.test.ts | 8 |
+| Web | apiFetch.test.ts | 7 |
+| Web | notebookManager.test.ts | 7 |
+| Web | useAuth.test.ts | 13 |
+| API | auth.test.ts | 33 |
+| API | github-routes.test.ts | 23 |
+| API | provider-revocation.test.ts | 22 |
+| API | path-validation.test.ts | 19 |
+| API | onedrive-routes.test.ts | 20 |
+| API | googledrive-routes.test.ts | 20 |
+| API | admin.test.ts | 17 |
+| API | encryption.test.ts | 14 |
+| API | two-factor.test.ts | 13 |
+| API | notebooks.test.ts | 13 |
+| API | oauth.test.ts | 10 |
+| API | sessions.test.ts | 8 |
+| API | webhook.test.ts | 8 |
+| API | circuit-breaker.test.ts | 8 |
+| API | settings.test.ts | 7 |
+| **Total** | **26 files** | **321** |
+
+**Next:** Phase 5.3 — Security Hardening
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
