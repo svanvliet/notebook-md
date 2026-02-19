@@ -14,9 +14,12 @@ import { createAppJWT } from '../lib/github-app.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Revoke a GitHub OAuth access token.
- * Uses Basic Auth with client_id:client_secret per GitHub docs.
- * https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-token
+ * Revoke a GitHub OAuth authorization grant.
+ * This removes the app's authorization entirely — the user will need to
+ * re-authorize the app on their next OAuth flow (consent screen appears).
+ * Uses DELETE /applications/{client_id}/grant (not /token, which only
+ * invalidates a single token without revoking the grant).
+ * https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-authorization
  */
 export async function revokeGitHubToken(accessToken: string): Promise<boolean> {
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -27,7 +30,7 @@ export async function revokeGitHubToken(accessToken: string): Promise<boolean> {
   }
 
   try {
-    const res = await fetch(`https://api.github.com/applications/${clientId}/token`, {
+    const res = await fetch(`https://api.github.com/applications/${clientId}/grant`, {
       method: 'DELETE',
       headers: {
         Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,

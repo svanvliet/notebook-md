@@ -26,14 +26,14 @@ beforeEach(() => {
 });
 
 describe('revokeGitHubToken', () => {
-  it('calls GitHub DELETE /applications/{client_id}/token with Basic Auth', async () => {
+  it('calls GitHub DELETE /applications/{client_id}/grant with Basic Auth', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, status: 204 });
 
     const result = await revokeGitHubToken('ghp_test123');
 
     expect(result).toBe(true);
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://api.github.com/applications/test-gh-client/token',
+      'https://api.github.com/applications/test-gh-client/grant',
       expect.objectContaining({
         method: 'DELETE',
         body: JSON.stringify({ access_token: 'ghp_test123' }),
