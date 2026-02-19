@@ -207,4 +207,62 @@ describe('localNotebookStore', () => {
       expect(folder!.type).toBe('folder');
     });
   });
+
+  describe('upsertNotebook', () => {
+    it('inserts a new notebook by id', async () => {
+      const { upsertNotebook } = await import('../stores/localNotebookStore');
+      const nb = {
+        id: 'server-nb-1',
+        name: 'Remote NB',
+        sourceType: 'github' as const,
+        sourceConfig: { owner: 'test', repo: 'repo' },
+        sortOrder: 100,
+        createdAt: 100,
+        updatedAt: 200,
+      };
+      await upsertNotebook(nb);
+      const nbs = await listNotebooks();
+      const found = nbs.find((n) => n.id === 'server-nb-1');
+      expect(found).toBeDefined();
+      expect(found!.name).toBe('Remote NB');
+      expect(found!.sourceType).toBe('github');
+    });
+
+    it('updates existing notebook without duplicating', async () => {
+      const { upsertNotebook } = await import('../stores/localNotebookStore');
+      const nb = {
+        id: 'server-nb-2',
+        name: 'Original',
+        sourceType: 'onedrive' as const,
+        sourceConfig: {},
+        sortOrder: 100,
+        createdAt: 100,
+        updatedAt: 200,
+      };
+      await upsertNotebook(nb);
+      await upsertNotebook({ ...nb, name: 'Updated' });
+
+      const nbs = await listNotebooks();
+      const matching = nbs.filter((n) => n.id === 'server-nb-2');
+      expect(matching).toHaveLength(1);
+      expect(matching[0].name).toBe('Updated');
+    });
+
+    it('does not overwrite local notebooks', async () => {
+      const { upsertNotebook } = await import('../stores/localNotebookStore');
+      const local = await createNotebook('Local NB', 'local');
+      await upsertNotebook({
+        id: 'server-nb-3',
+        name: 'Remote',
+        sourceType: 'github' as const,
+        sourceConfig: {},
+        sortOrder: 999,
+        createdAt: 999,
+        updatedAt: 999,
+      });
+      const nbs = await listNotebooks();
+      expect(nbs.find((n) => n.id === local.id)?.name).toBe('Local NB');
+      expect(nbs.find((n) => n.id === 'server-nb-3')?.name).toBe('Remote');
+    });
+  });
 });

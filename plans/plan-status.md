@@ -1270,6 +1270,25 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 
 ---
 
+### Bug Fix: Remote Notebook Sync on Login
+
+**Fixed:** 2026-02-19
+
+**Problem:** Remote notebooks (OneDrive, Google Drive, GitHub) only appeared in the browser where they were originally added. Logging in from a different browser showed an empty notebook pane because notebooks were only stored in browser-local IndexedDB.
+
+**Root cause:** When a remote notebook was created, it was saved to both the server DB and IndexedDB. But on login, only IndexedDB was read — no sync from server.
+
+**Fix:** Added a sync step in `useNotebookManager`'s login effect that fetches `GET /api/notebooks` and upserts each remote notebook into IndexedDB before rendering the pane. Gracefully degrades if offline.
+
+**Files modified:**
+- `apps/web/src/stores/localNotebookStore.ts` — Added `upsertNotebook()` for idempotent insert/update by id
+- `apps/web/src/hooks/useNotebookManager.ts` — Added server sync fetch before `listNotebooks()` in login effect
+
+**Tests: 3 new (47 web total)**
+- upsertNotebook: inserts new notebook, updates without duplicating, does not overwrite local notebooks
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
