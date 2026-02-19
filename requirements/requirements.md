@@ -504,6 +504,8 @@ The web app uses **React Router** (`react-router-dom`) with `BrowserRouter` for 
 - All client-side routes are defined in a central `Router.tsx` component
 - Routes: `/` (main app), `/terms` (Terms of Service), `/privacy` (Privacy Policy), `/app/*` (auth callbacks)
 - Unknown routes redirect to `/` via a catch-all route
+- **Background location pattern:** When navigating to legal pages from within the app, the main App component stays mounted (preserving all state — open tabs, expanded notebooks, editor content). The legal page renders as a full-screen overlay. Direct URL access renders the legal page standalone.
+- **Modal history integration:** Opening modals (Settings, Account, Add Notebook) pushes a browser history entry. Pressing the back button closes the modal naturally. Uses `useModalHistory` hook.
 - Legal pages and other standalone pages support browser back/forward navigation, direct URL access, and bookmarking
 - Auth callback routes (`/app/magic-link`, `/app/verify-email`, `/app/auth-error`) are handled by the main App component and cleaned up via `navigate(replace)`
 - Production deployment requires the web server to serve `index.html` for all non-API routes (SPA fallback)

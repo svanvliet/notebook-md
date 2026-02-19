@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 interface StatusBarProps {
   wordCount: number;
@@ -10,6 +10,7 @@ interface StatusBarProps {
 
 export function StatusBar({ wordCount, charCount, lastSaved, message }: StatusBarProps) {
   const { t } = useTranslation();
+  const location = useLocation();
 
   return (
     <footer data-print="hide" className="statusbar h-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex items-center px-3 text-xs text-gray-500 dark:text-gray-400 shrink-0 select-none">
@@ -23,8 +24,8 @@ export function StatusBar({ wordCount, charCount, lastSaved, message }: StatusBa
         </div>
       )}
       <div className="ml-auto flex items-center gap-3">
-        <Link to="/terms" className="hover:underline">Terms</Link>
-        <Link to="/privacy" className="hover:underline">Privacy</Link>
+        <Link to="/terms" state={{ backgroundLocation: location }} className="hover:underline">Terms</Link>
+        <Link to="/privacy" state={{ backgroundLocation: location }} className="hover:underline">Privacy</Link>
       </div>
     </footer>
   );

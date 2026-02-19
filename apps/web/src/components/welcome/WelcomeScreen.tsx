@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { NotebookIcon } from '../icons/Icons';
 
 interface WelcomeScreenProps {
@@ -21,6 +21,7 @@ type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
 export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
+  const location = useLocation();
   const [view, setView] = useState<View>(error ? 'signin' : 'main');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -368,9 +369,9 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
             </button>
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
               By creating an account, you agree to our{' '}
-              <Link to="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">Terms of Service</Link>
+              <Link to="/terms" state={{ backgroundLocation: location }} className="text-blue-600 dark:text-blue-400 hover:underline">Terms of Service</Link>
               {' '}and{' '}
-              <Link to="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">Privacy Policy</Link>.
+              <Link to="/privacy" state={{ backgroundLocation: location }} className="text-blue-600 dark:text-blue-400 hover:underline">Privacy Policy</Link>.
             </p>
             <div className="text-center">
               <button type="button" onClick={() => switchView('main')} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">

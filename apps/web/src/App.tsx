@@ -19,6 +19,7 @@ import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
 import { useToast } from './hooks/useToast';
 import { useCookieConsent } from './hooks/useCookieConsent';
+import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useNavigate } from 'react-router-dom';
 
@@ -42,6 +43,11 @@ export default function App() {
   const [showAddNotebook, setShowAddNotebook] = useState(false);
   const [initialSource, setInitialSource] = useState<string | null>(null);
   const [showOnboarding2fa, setShowOnboarding2fa] = useState(false);
+
+  // Integrate modals with browser history (back button closes them)
+  const closeSettings = useModalHistory(showSettings, () => setShowSettings(false));
+  const closeAccount = useModalHistory(showAccount, () => setShowAccount(false));
+  const closeAddNotebook = useModalHistory(showAddNotebook, () => { setShowAddNotebook(false); setInitialSource(null); });
 
   // Detect OAuth error from URL before auth init can clear it
   const [oauthError, setOauthError] = useState<string | null>(() => {
@@ -359,7 +365,7 @@ export default function App() {
           onUpdate={updateSettings}
           displayMode={mode}
           onDisplayModeChange={setMode}
-          onClose={() => setShowSettings(false)}
+          onClose={closeSettings}
         />
       )}
 
@@ -372,7 +378,7 @@ export default function App() {
           onDeleteAccount={auth.deleteAccount}
           onSignOut={auth.signOut}
           onProviderUnlinked={nb.handleProviderUnlinked}
-          onClose={() => setShowAccount(false)}
+          onClose={closeAccount}
           onSetup2fa={auth.setup2fa}
           onEnable2fa={auth.enable2fa}
           onDisable2fa={auth.disable2fa}
@@ -384,11 +390,10 @@ export default function App() {
       {showAddNotebook && (
         <AddNotebookModal
           onAdd={(name, sourceType, sourceConfig) => {
-            setShowAddNotebook(false);
-            setInitialSource(null);
+            closeAddNotebook();
             nb.handleAddNotebook(name, sourceType, sourceConfig);
           }}
-          onCancel={() => { setShowAddNotebook(false); setInitialSource(null); }}
+          onCancel={closeAddNotebook}
           userId={auth.user?.id}
           initialSource={initialSource}
         />

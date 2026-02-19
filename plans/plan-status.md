@@ -2071,6 +2071,58 @@ The app used manual `window.history.pushState` for navigation. This caused:
 
 ---
 
+## Navigation State Preservation ✅
+
+**Completed:** 2026-02-19
+
+### Problem
+
+1. Navigating from the app to `/terms` or `/privacy` unmounted `<App>`, losing all state (open tabs, expanded notebooks, editor content)
+2. Browser back button in the main app navigated away from the site (no history entries pushed during normal usage)
+3. Opening modals (Settings, Account) had no back-button integration
+
+### Solution
+
+**Background location pattern (legal pages):**
+- Router uses React Router's `location.state.backgroundLocation` pattern
+- When clicking Terms/Privacy links from within the app, the link passes the current location as `backgroundLocation` state
+- Router renders `<App>` at the background location (keeping it mounted with all state intact) AND renders the legal page as a full-screen overlay (`z-[90]`)
+- Direct URL access to `/terms` or `/privacy` (no background location) renders the legal page standalone — works for bookmarks and shared links
+- Back button removes the overlay, revealing the preserved app state
+
+**Modal history integration:**
+- Created `useModalHistory` hook: pushes a history entry when a modal opens, listens for `popstate` to close it
+- Returns `closeModal` function — when called from UI (X button), triggers `history.back()` which fires `popstate` → `onClose`
+- Applied to Settings, Account, and Add Notebook modals
+- Back button now closes modals naturally
+
+### Tests
+
+- 6 new tests in `modalHistory.test.ts`: pushes history on open, no push when closed, closes on popstate, closeModal calls history.back(), no response when closed, cleanup on close
+- 2 new tests in `routing.test.tsx`: standalone legal page (direct access), app + overlay (background location navigation)
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `apps/web/src/hooks/useModalHistory.ts` | Browser history integration for modals |
+| `apps/web/src/tests/modalHistory.test.ts` | Modal history hook tests |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/web/src/Router.tsx` | Background location overlay pattern |
+| `apps/web/src/App.tsx` | Wire useModalHistory for Settings, Account, Add Notebook modals |
+| `apps/web/src/components/layout/StatusBar.tsx` | Pass backgroundLocation state with Link |
+| `apps/web/src/components/welcome/WelcomeScreen.tsx` | Pass backgroundLocation state with Link |
+| `apps/web/src/tests/routing.test.tsx` | 2 new background location pattern tests |
+| `requirements/requirements.md` | Updated §5.7 with background location and modal history details |
+
+**Test inventory:** 337 tests across 29 files (207 API + 130 web)
+
+**Next:** Phase 5.6 — Phase 5 Validation
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

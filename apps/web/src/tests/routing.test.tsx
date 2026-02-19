@@ -3,7 +3,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import type { Location } from 'react-router-dom';
 import { TermsPage } from '../components/legal/TermsPage';
 import { PrivacyPage } from '../components/legal/PrivacyPage';
 
@@ -96,5 +97,52 @@ describe('Router — StatusBar links', () => {
     const privacyLink = screen.getByText('Privacy');
     expect(termsLink.getAttribute('href')).toBe('/terms');
     expect(privacyLink.getAttribute('href')).toBe('/privacy');
+  });
+});
+
+describe('Router — Background location overlay pattern', () => {
+  function OverlayRouter() {
+    const location = useLocation();
+    const bg = location.state?.backgroundLocation as Location | undefined;
+
+    return (
+      <>
+        <Routes location={bg || location}>
+          <Route path="/" element={<div data-testid="app">App Content</div>} />
+          <Route path="/terms" element={<TermsPage />} />
+        </Routes>
+        {bg && (
+          <Routes>
+            <Route path="/terms" element={<div data-testid="overlay"><TermsPage /></div>} />
+          </Routes>
+        )}
+      </>
+    );
+  }
+
+  it('renders standalone legal page when accessed directly', () => {
+    render(
+      <MemoryRouter initialEntries={['/terms']}>
+        <OverlayRouter />
+      </MemoryRouter>,
+    );
+    // Should render TermsPage without the app underneath
+    expect(screen.getByText('Terms of Service')).toBeDefined();
+    expect(screen.queryByTestId('app')).toBeNull();
+    expect(screen.queryByTestId('overlay')).toBeNull();
+  });
+
+  it('renders app + overlay when navigated with backgroundLocation', () => {
+    const bgLocation = { pathname: '/', search: '', hash: '', state: null, key: 'default' };
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/terms', state: { backgroundLocation: bgLocation } }]}>
+        <OverlayRouter />
+      </MemoryRouter>,
+    );
+    // App should be mounted at background location
+    expect(screen.getByTestId('app')).toBeDefined();
+    // Overlay should show terms
+    expect(screen.getByTestId('overlay')).toBeDefined();
+    expect(screen.getByText('Terms of Service')).toBeDefined();
   });
 });
