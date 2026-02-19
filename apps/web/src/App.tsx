@@ -12,8 +12,6 @@ import { SettingsModal } from './components/settings/SettingsModal';
 import { AccountModal } from './components/account/AccountModal';
 import { AddNotebookModal } from './components/notebook/AddNotebookModal';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
-import { TermsPage } from './components/legal/TermsPage';
-import { PrivacyPage } from './components/legal/PrivacyPage';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
@@ -22,6 +20,7 @@ import { useSettings } from './hooks/useSettings';
 import { useToast } from './hooks/useToast';
 import { useCookieConsent } from './hooks/useCookieConsent';
 import { ToastContainer } from './components/common/ToastContainer';
+import { useNavigate } from 'react-router-dom';
 
 export default function App() {
   const { mode, setMode } = useDisplayMode();
@@ -31,40 +30,7 @@ export default function App() {
   const nb = useNotebookManager(auth.user?.id, addToast);
   const { settings, updateSettings } = useSettings(auth.isSignedIn);
   const cookieConsent = useCookieConsent();
-
-  // Legal page routing
-  const [currentPage, setCurrentPage] = useState<'app' | 'terms' | 'privacy'>(() => {
-    const path = window.location.pathname;
-    if (path === '/terms') return 'terms';
-    if (path === '/privacy') return 'privacy';
-    return 'app';
-  });
-
-  const navigateToLegal = useCallback((page: 'terms' | 'privacy') => {
-    setCurrentPage(page);
-    window.history.pushState({}, '', `/${page}`);
-  }, []);
-
-  const navigateBack = useCallback(() => {
-    setCurrentPage('app');
-    window.history.pushState({}, '', '/');
-  }, []);
-
-  // Handle browser back/forward for legal pages
-  useEffect(() => {
-    const onPopState = () => {
-      const path = window.location.pathname;
-      if (path === '/terms') setCurrentPage('terms');
-      else if (path === '/privacy') setCurrentPage('privacy');
-      else setCurrentPage('app');
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, []);
-
-  // Render legal pages before anything else
-  if (currentPage === 'terms') return <TermsPage onBack={navigateBack} />;
-  if (currentPage === 'privacy') return <PrivacyPage onBack={navigateBack} />;
+  const navigate = useNavigate();
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
@@ -84,7 +50,7 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const error = params.get('error');
       const provider = params.get('provider');
-      window.history.replaceState({}, '', '/');
+      // Will navigate after mount
       if (error === 'account_exists') {
         return `An account with this email already exists. Sign in with your email and password, then link ${provider ?? 'this provider'} from Account Settings.`;
       }
@@ -95,6 +61,14 @@ export default function App() {
     }
     return null;
   });
+
+  // Clean up auth callback URLs
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/app/auth-error') {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   // Show OAuth error as toast when user is already signed in (WelcomeScreen won't show)
   useEffect(() => {
@@ -112,7 +86,7 @@ export default function App() {
 
     if (path === '/app/magic-link' && magicToken) {
       auth.verifyMagicLink(magicToken).then(() => {
-        window.history.replaceState({}, '', '/');
+        navigate('/', { replace: true });
       });
     } else if (path === '/app/verify-email' && magicToken) {
       fetch(`/auth/verify-email`, {
@@ -120,7 +94,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: magicToken }),
       }).then(() => {
-        window.history.replaceState({}, '', '/');
+        navigate('/', { replace: true });
       });
     }
 
@@ -128,8 +102,8 @@ export default function App() {
     if (params.has('auth')) {
       params.delete('auth');
       params.delete('new');
-      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      const newUrl = params.toString() ? `/?${params.toString()}` : '/';
+      navigate(newUrl, { replace: true });
     }
 
     // Auto-open Add Notebook modal if returning from provider linking
@@ -139,8 +113,8 @@ export default function App() {
       params.delete('linked');
       setInitialSource(src);
       setShowAddNotebook(true);
-      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      const newUrl = params.toString() ? `/?${params.toString()}` : '/';
+      navigate(newUrl, { replace: true });
     }
   }, []);
 
@@ -222,7 +196,6 @@ export default function App() {
           onVerify2fa={auth.verify2fa}
           onSend2faEmailCode={auth.send2faEmailCode}
           onCancel2fa={auth.cancel2fa}
-          onNavigateToLegal={navigateToLegal}
         />
         {/* Dev shortcut to skip auth */}
         {process.env.NODE_ENV !== 'production' && (
@@ -337,7 +310,6 @@ export default function App() {
         charCount={charCount}
         lastSaved={lastSaved}
         message={nb.statusMessage}
-        onNavigateToLegal={navigateToLegal}
       />
 
       {cookieConsent.showBanner && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { NotebookIcon } from '../icons/Icons';
 
 interface WelcomeScreenProps {
@@ -14,12 +15,11 @@ interface WelcomeScreenProps {
   onVerify2fa: (code: string, method?: 'totp' | 'email' | 'recovery') => Promise<boolean>;
   onSend2faEmailCode: () => Promise<boolean>;
   onCancel2fa: () => void;
-  onNavigateToLegal?: (page: 'terms' | 'privacy') => void;
 }
 
 type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
-export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa, onNavigateToLegal }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
   const [view, setView] = useState<View>(error ? 'signin' : 'main');
   const [email, setEmail] = useState('');
@@ -368,9 +368,9 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
             </button>
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
               By creating an account, you agree to our{' '}
-              <button type="button" onClick={() => onNavigateToLegal?.('terms')} className="text-blue-600 dark:text-blue-400 hover:underline">Terms of Service</button>
+              <Link to="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">Terms of Service</Link>
               {' '}and{' '}
-              <button type="button" onClick={() => onNavigateToLegal?.('privacy')} className="text-blue-600 dark:text-blue-400 hover:underline">Privacy Policy</button>.
+              <Link to="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">Privacy Policy</Link>.
             </p>
             <div className="text-center">
               <button type="button" onClick={() => switchView('main')} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">

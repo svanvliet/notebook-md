@@ -1,8 +1,12 @@
-export function TermsPage({ onBack }: { onBack: () => void }) {
+import { useNavigate } from 'react-router-dom';
+
+export function TermsPage() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 py-12 px-4">
       <div className="max-w-3xl mx-auto">
-        <button onClick={onBack} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-6 block">
+        <button onClick={() => navigate(-1)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-6 block">
           ← Back to Notebook.md
         </button>
 

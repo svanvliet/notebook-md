@@ -1,7 +1,7 @@
 # Notebook.md — Product Requirements Document
 
-**Version:** 1.5  
-**Last Updated:** 2026-02-18  
+**Version:** 1.6  
+**Last Updated:** 2026-02-19  
 **Status:** Draft  
 **Domain:** notebookmd.io
 
@@ -496,6 +496,17 @@ The following events should produce toast notifications:
 - On narrow viewports (< 768px), the Notebook pane collapses by default and overlays the document pane when opened
 - Touch-friendly tap targets for mobile browsers
 - Full native mobile apps deferred to a future version
+
+### 5.7 Client-Side Routing
+
+The web app uses **React Router** (`react-router-dom`) with `BrowserRouter` for SPA navigation:
+
+- All client-side routes are defined in a central `Router.tsx` component
+- Routes: `/` (main app), `/terms` (Terms of Service), `/privacy` (Privacy Policy), `/app/*` (auth callbacks)
+- Unknown routes redirect to `/` via a catch-all route
+- Legal pages and other standalone pages support browser back/forward navigation, direct URL access, and bookmarking
+- Auth callback routes (`/app/magic-link`, `/app/verify-email`, `/app/auth-error`) are handled by the main App component and cleaned up via `navigate(replace)`
+- Production deployment requires the web server to serve `index.html` for all non-API routes (SPA fallback)
 
 ---
 
@@ -1384,3 +1395,12 @@ A Privacy Policy is required at launch, especially for GDPR compliance (EU users
 ---
 
 *This document will be maintained as the living source of truth for all Notebook.md requirements. It will be updated as decisions are made and the product evolves.*
+
+---
+
+## Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.6 | 2026-02-19 | Added §5.7 Client-Side Routing — React Router for SPA navigation |
+| 1.5 | 2026-02-18 | Session hardening, idle timeout, security headers |

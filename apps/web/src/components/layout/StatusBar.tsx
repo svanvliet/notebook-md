@@ -1,14 +1,14 @@
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 interface StatusBarProps {
   wordCount: number;
   charCount: number;
   lastSaved: string | null;
   message: string | null;
-  onNavigateToLegal?: (page: 'terms' | 'privacy') => void;
 }
 
-export function StatusBar({ wordCount, charCount, lastSaved, message, onNavigateToLegal }: StatusBarProps) {
+export function StatusBar({ wordCount, charCount, lastSaved, message }: StatusBarProps) {
   const { t } = useTranslation();
 
   return (
@@ -23,8 +23,8 @@ export function StatusBar({ wordCount, charCount, lastSaved, message, onNavigate
         </div>
       )}
       <div className="ml-auto flex items-center gap-3">
-        <button onClick={() => onNavigateToLegal?.('terms')} className="hover:underline">Terms</button>
-        <button onClick={() => onNavigateToLegal?.('privacy')} className="hover:underline">Privacy</button>
+        <Link to="/terms" className="hover:underline">Terms</Link>
+        <Link to="/privacy" className="hover:underline">Privacy</Link>
       </div>
     </footer>
   );

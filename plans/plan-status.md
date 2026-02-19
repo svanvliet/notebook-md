@@ -2019,7 +2019,53 @@ Migrated all API callers to `apiFetch`: `github.ts`, `onedrive.ts`, `googledrive
 | `apps/web/src/components/layout/StatusBar.tsx` | Terms/Privacy links in footer |
 | `plans/initial-plan.md` | Phase 5.4 + 5.5 checkboxes marked complete |
 
-**Test inventory:** 325 tests across 27 files (207 API + 118 web)
+**Test inventory:** 331 tests across 28 files (207 API + 124 web)
+
+**Next:** Phase 5.6 — Phase 5 Validation
+
+---
+
+## React Router Integration ✅
+
+**Completed:** 2026-02-19
+
+### Problem
+
+The app used manual `window.history.pushState` for navigation. This caused:
+1. "Back to Notebook.md" from legal pages led to a blank page (no SPA fallback)
+2. Browser back button navigated away from the site entirely (no history entries pushed during normal usage)
+3. Direct URL access to `/terms` or `/privacy` failed without server-side SPA fallback
+
+### Solution — React Router (`react-router-dom` ^7.1.0)
+
+- **`Router.tsx`** — Central route definitions: `/` (App), `/terms`, `/privacy`, `/app/*` (auth callbacks), `*` (catch-all → redirect to `/`)
+- **`main.tsx`** — Wraps app in `<BrowserRouter>` via Router component
+- **`App.tsx`** — Removed manual `currentPage` state, `navigateToLegal`, `navigateBack`, `popstate` listener. Uses `useNavigate()` for auth callback cleanup (`replaceState` → `navigate(replace)`)
+- **Legal pages** — Use `useNavigate()` with `navigate(-1)` for proper browser-history-aware back navigation
+- **StatusBar** — Uses `<Link to="/terms">` and `<Link to="/privacy">` instead of callback buttons
+- **WelcomeScreen** — Uses `<Link>` for Terms/Privacy links in sign-up form, removed `onNavigateToLegal` prop
+
+### Tests
+
+- 6 new tests in `routing.test.tsx`: TermsPage renders, PrivacyPage renders, back buttons call navigate(-1), catch-all fallback, StatusBar Link hrefs
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `apps/web/src/Router.tsx` | Central route definitions |
+| `apps/web/src/tests/routing.test.tsx` | Routing/navigation tests |
+
+### Files modified
+| File | Change |
+|------|--------|
+| `apps/web/src/main.tsx` | Wrap in `<Router>` instead of direct `<App>` |
+| `apps/web/src/App.tsx` | Remove manual routing state, use `useNavigate()` |
+| `apps/web/src/components/legal/TermsPage.tsx` | Use `useNavigate()` instead of `onBack` callback |
+| `apps/web/src/components/legal/PrivacyPage.tsx` | Use `useNavigate()` instead of `onBack` callback |
+| `apps/web/src/components/layout/StatusBar.tsx` | Use `<Link>` for legal links |
+| `apps/web/src/components/welcome/WelcomeScreen.tsx` | Use `<Link>` for legal links, remove `onNavigateToLegal` prop |
+| `requirements/requirements.md` | Added §5.7 Client-Side Routing (v1.6) |
+| `plans/initial-plan.md` | Added routing checkbox to 5.5 |
 
 **Next:** Phase 5.6 — Phase 5 Validation
 

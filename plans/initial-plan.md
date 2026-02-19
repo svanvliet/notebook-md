@@ -559,6 +559,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Terms of Service page at `/terms` — boilerplate for Van Vliet Ventures, LLC with liability limitation, indemnification, "as-is" warranty disclaimer
 - [x] Privacy Policy page at `/privacy` — data collected, data not collected (no document content), third-party services list, GDPR rights, contact info
 - [x] Link to Terms and Privacy from sign-up flow and app footer
+- [x] React Router (`react-router-dom`) for SPA navigation — proper back/forward, direct URL access, bookmarking (§5.7)
 
 ### 5.6 Phase 5 Validation
 

@@ -3,12 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { ToastProvider } from './hooks/useToast';
 import './i18n';
 import './index.css';
-import App from './App';
+import { Router } from './Router';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>
-      <App />
+      <Router />
     </ToastProvider>
   </StrictMode>,
 );
