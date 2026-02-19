@@ -76,12 +76,29 @@ export async function handleOAuthLogin(
       };
     }
 
-    // 2. Check if email matches an existing user
+    // 2. Check if email matches an existing user (by users.email OR identity_links.provider_email)
     if (profile.email && profile.emailVerified) {
-      const emailMatch = await client.query<{ id: string; email_verified: boolean; password_hash: string | null; display_name: string; email: string; avatar_url: string | null }>(
+      const emailLower = profile.email.toLowerCase();
+
+      // First check users.email
+      let emailMatch = await client.query<{ id: string; email_verified: boolean; password_hash: string | null; display_name: string; email: string; avatar_url: string | null }>(
         'SELECT id, email_verified, password_hash, display_name, email, avatar_url FROM users WHERE email = $1',
-        [profile.email.toLowerCase()],
+        [emailLower],
       );
+
+      // If no match on users.email, check identity_links.provider_email
+      if (emailMatch.rows.length === 0) {
+        const linkMatch = await client.query<{ user_id: string }>(
+          'SELECT DISTINCT user_id FROM identity_links WHERE lower(provider_email) = $1',
+          [emailLower],
+        );
+        if (linkMatch.rows.length === 1) {
+          emailMatch = await client.query<{ id: string; email_verified: boolean; password_hash: string | null; display_name: string; email: string; avatar_url: string | null }>(
+            'SELECT id, email_verified, password_hash, display_name, email, avatar_url FROM users WHERE id = $1',
+            [linkMatch.rows[0].user_id],
+          );
+        }
+      }
 
       if (emailMatch.rows.length > 0) {
         const existingUser = emailMatch.rows[0];
