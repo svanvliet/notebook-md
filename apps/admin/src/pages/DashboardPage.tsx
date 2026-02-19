@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { HealthStatus, Metrics } from '../hooks/useAdmin';
+import type { HealthStatus } from '../hooks/useAdmin';
+
+interface Metrics {
+  users: { total: number; active24h: number; active7d: number; signupsToday: number };
+  notebooks: Record<string, number>;
+  twoFactor: { enabled: number; total: number };
+}
 
 export default function DashboardPage({
   getHealth,
@@ -65,21 +71,23 @@ export default function DashboardPage({
           <h3 className="text-lg font-semibold mb-3">Platform Metrics</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard label="Total Users" value={metrics.users.total} />
+            <MetricCard label="Active (24h)" value={metrics.users.active24h} />
             <MetricCard label="Active (7d)" value={metrics.users.active7d} />
-            <MetricCard label="Active (30d)" value={metrics.users.active30d} />
-            <MetricCard label="Suspended" value={metrics.users.suspended} />
+            <MetricCard label="Signups Today" value={metrics.users.signupsToday} />
             <MetricCard label="2FA Enabled" value={metrics.twoFactor.enabled} />
-            <MetricCard label="Active Sessions" value={metrics.sessions.active} />
-            <MetricCard label="Notebooks" value={metrics.notebooks.total} />
-            <MetricCard label="Admins" value={metrics.users.admins} />
+            <MetricCard label="Total Notebooks" value={Object.values(metrics.notebooks).reduce((a, b) => a + b, 0)} />
           </div>
 
-          <h3 className="text-lg font-semibold mt-6 mb-3">Connected Providers</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <MetricCard label="GitHub" value={metrics.providers.github} />
-            <MetricCard label="Microsoft" value={metrics.providers.microsoft} />
-            <MetricCard label="Google" value={metrics.providers.google} />
-          </div>
+          {Object.keys(metrics.notebooks).length > 0 && (
+            <>
+              <h3 className="text-lg font-semibold mt-6 mb-3">Notebooks by Source</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {Object.entries(metrics.notebooks).map(([source, count]) => (
+                  <MetricCard key={source} label={source} value={count} />
+                ))}
+              </div>
+            </>
+          )}
         </section>
       )}
     </div>

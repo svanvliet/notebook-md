@@ -25,11 +25,9 @@ interface HealthStatus {
 }
 
 interface Metrics {
-  users: { total: number; active7d: number; active30d: number; suspended: number; admins: number };
-  twoFactor: { enabled: number; totp: number; email: number };
-  sessions: { active: number };
-  notebooks: { total: number };
-  providers: { github: number; microsoft: number; google: number };
+  users: { total: number; active24h: number; active7d: number; signupsToday: number };
+  notebooks: Record<string, number>;
+  twoFactor: { enabled: number; total: number };
 }
 
 interface AuditEntry {
