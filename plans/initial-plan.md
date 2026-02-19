@@ -318,7 +318,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Supported formats: `.jpg`, `.jpeg`, `.png`, `.svg`, `.gif`, `.webp`, `.mp4`, `.webm`
 - [x] Auto-create `assets/` folder if it doesn't exist (utility created, not yet wired to upload flow)
 
-### 4.5 Find and Replace
+### 4.5 Find and Replace — DEFERRED
 
 - [ ] `Cmd/Ctrl+F` opens find bar within the active document
 - [ ] Case-sensitive toggle, whole-word toggle
