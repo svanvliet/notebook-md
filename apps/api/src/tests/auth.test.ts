@@ -222,7 +222,7 @@ describe('Auth Flows', () => {
     const res = await request
       .put('/auth/password')
       .set('Cookie', `refresh_token=${token}`)
-      .send({ currentPassword: 'password123', newPassword: 'newpassword456' });
+      .send({ currentPassword: 'password123', newPassword: 'newpassword456', confirmPassword: 'newpassword456' });
     expect(res.status).toBe(200);
 
     // Old password should fail
@@ -241,7 +241,7 @@ describe('Auth Flows', () => {
     const res = await request
       .put('/auth/password')
       .set('Cookie', `refresh_token=${token}`)
-      .send({ currentPassword: 'wrongpassword', newPassword: 'newpassword456' });
+      .send({ currentPassword: 'wrongpassword', newPassword: 'newpassword456', confirmPassword: 'newpassword456' });
     expect(res.status).toBe(401);
   });
 

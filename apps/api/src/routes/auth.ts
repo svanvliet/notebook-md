@@ -541,8 +541,9 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
     email_verified: boolean;
     avatar_url: string | null;
     created_at: Date;
+    password_hash: string | null;
   }>(
-    'SELECT id, display_name, email, email_verified, avatar_url, created_at FROM users WHERE id = $1',
+    'SELECT id, display_name, email, email_verified, avatar_url, created_at, password_hash FROM users WHERE id = $1',
     [req.userId!],
   );
 
@@ -560,6 +561,7 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
       emailVerified: user.email_verified,
       avatarUrl: user.avatar_url,
       createdAt: user.created_at,
+      hasPassword: !!user.password_hash,
     },
   });
 });
@@ -611,10 +613,15 @@ router.put('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
 // PUT /auth/password — Change password (while signed in)
 // ---------------------------------------------------------------------------
 router.put('/password', authMutationLimiter, requireAuth, async (req: Request, res: Response) => {
-  const { currentPassword, newPassword } = req.body;
+  const { currentPassword, newPassword, confirmPassword } = req.body;
 
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: 'Current and new password are required' });
+  if (!newPassword) {
+    res.status(400).json({ error: 'New password is required' });
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    res.status(400).json({ error: 'Passwords do not match' });
     return;
   }
 
@@ -634,43 +641,48 @@ router.put('/password', authMutationLimiter, requireAuth, async (req: Request, r
     return;
   }
 
-  if (!userResult.rows[0].password_hash) {
-    res.status(400).json({ error: 'Account does not have a password. Set one via password reset.' });
-    return;
-  }
+  const hasExistingPassword = !!userResult.rows[0].password_hash;
 
-  const valid = await bcryptjs.compare(currentPassword, userResult.rows[0].password_hash);
-  if (!valid) {
-    res.status(401).json({ error: 'Current password is incorrect' });
-    return;
+  if (hasExistingPassword) {
+    // Changing existing password: require current password
+    if (!currentPassword) {
+      res.status(400).json({ error: 'Current password is required' });
+      return;
+    }
+    const valid = await bcryptjs.compare(currentPassword, userResult.rows[0].password_hash!);
+    if (!valid) {
+      res.status(401).json({ error: 'Current password is incorrect' });
+      return;
+    }
   }
+  // If no existing password, allow setting one without current password (OAuth-only accounts)
 
   const newHash = await bcryptjs.hash(newPassword, BCRYPT_COST);
   await query('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2', [newHash, req.userId!]);
 
   await auditLog({
     userId: req.userId,
-    action: 'password_changed',
+    action: hasExistingPassword ? 'password_changed' : 'password_added',
     ipAddress: getClientIp(req),
     userAgent: req.headers['user-agent'],
   });
 
-  res.json({ message: 'Password changed successfully' });
+  res.json({ message: hasExistingPassword ? 'Password changed successfully' : 'Password added successfully' });
 });
 
 // ---------------------------------------------------------------------------
 // DELETE /auth/account — Delete account
 // ---------------------------------------------------------------------------
 router.delete('/account', authMutationLimiter, requireAuth, async (req: Request, res: Response) => {
-  const { password } = req.body;
+  const { password, confirmation } = req.body;
 
-  // If user has a password, require it for deletion
   const userResult = await query<{ password_hash: string | null }>(
     'SELECT password_hash FROM users WHERE id = $1',
     [req.userId!],
   );
 
   if (userResult.rows[0]?.password_hash) {
+    // Has password: require password confirmation
     if (!password) {
       res.status(400).json({ error: 'Password required to delete account' });
       return;
@@ -678,6 +690,12 @@ router.delete('/account', authMutationLimiter, requireAuth, async (req: Request,
     const valid = await bcryptjs.compare(password, userResult.rows[0].password_hash);
     if (!valid) {
       res.status(401).json({ error: 'Incorrect password' });
+      return;
+    }
+  } else {
+    // OAuth-only account: require typed confirmation
+    if (confirmation !== 'DELETE') {
+      res.status(400).json({ error: 'Type DELETE to confirm account deletion' });
       return;
     }
   }

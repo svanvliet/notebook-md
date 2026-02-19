@@ -8,6 +8,7 @@ export interface User {
   email: string;
   emailVerified: boolean;
   avatarUrl: string | null;
+  hasPassword?: boolean;
   createdAt?: string;
 }
 
@@ -153,13 +154,13 @@ export function useAuth() {
     }
   }, []);
 
-  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string, confirmPassword: string) => {
     try {
       const res = await fetch(`${API_BASE}/auth/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
       });
       const data = await res.json();
       if (!res.ok) return data.error as string;
@@ -169,13 +170,13 @@ export function useAuth() {
     }
   }, []);
 
-  const deleteAccount = useCallback(async (password?: string) => {
+  const deleteAccount = useCallback(async (password?: string, confirmation?: string) => {
     try {
       const res = await fetch(`${API_BASE}/auth/account`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, confirmation }),
       });
       if (res.ok) {
         setState({ user: null, loading: false, error: null });
@@ -198,7 +199,7 @@ export function useAuth() {
   // Dev-only skip auth
   const devSkipAuth = useCallback(() => {
     setState({
-      user: { id: 'dev-user', displayName: 'Dev User', email: 'dev@localhost', emailVerified: true, avatarUrl: null },
+      user: { id: 'dev-user', displayName: 'Dev User', email: 'dev@localhost', emailVerified: true, avatarUrl: null, hasPassword: true },
       loading: false,
       error: null,
     });

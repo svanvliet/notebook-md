@@ -17,8 +17,8 @@ const PROVIDER_META: Record<string, { label: string; icon: React.ComponentType<{
 interface AccountModalProps {
   user: User;
   onUpdateProfile: (updates: { displayName?: string }) => Promise<boolean>;
-  onChangePassword: (current: string, next: string) => Promise<string | null>;
-  onDeleteAccount: (password?: string) => Promise<boolean>;
+  onChangePassword: (current: string, next: string, confirm: string) => Promise<string | null>;
+  onDeleteAccount: (password?: string, confirmation?: string) => Promise<boolean>;
   onSignOut: () => void;
   onProviderUnlinked: (provider: string) => void;
   onClose: () => void;
@@ -34,11 +34,13 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Delete account
   const [showDelete, setShowDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
   // Linked providers
   const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([]);
@@ -102,19 +104,30 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
       setPasswordError('Password must be at least 8 characters');
       return;
     }
-    const err = await onChangePassword(currentPassword, newPassword);
+    if (newPassword.length > 128) {
+      setPasswordError('Password must be at most 128 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+    const err = await onChangePassword(currentPassword, newPassword, confirmPassword);
     if (err) {
       setPasswordError(err);
     } else {
       setShowPasswordChange(false);
       setCurrentPassword('');
       setNewPassword('');
-      addToast('Password changed', 'success');
+      setConfirmPassword('');
+      addToast(user.hasPassword ? 'Password changed' : 'Password added', 'success');
     }
   };
 
   const handleDeleteAccount = async () => {
-    const ok = await onDeleteAccount(deletePassword || undefined);
+    const ok = user.hasPassword
+      ? await onDeleteAccount(deletePassword || undefined)
+      : await onDeleteAccount(undefined, deleteConfirmation || undefined);
     if (ok) onSignOut();
   };
 
@@ -170,17 +183,19 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
                 onClick={() => setShowPasswordChange(true)}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
               >
-                Change password
+                {user.hasPassword ? 'Change password' : 'Add a password'}
               </button>
             ) : (
               <div className="space-y-3">
-                <input
-                  type="password"
-                  placeholder="Current password"
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
-                />
+                {user.hasPassword && (
+                  <input
+                    type="password"
+                    placeholder="Current password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                  />
+                )}
                 <input
                   type="password"
                   placeholder="New password (min 8 characters)"
@@ -188,12 +203,19 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
                   onChange={e => setNewPassword(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
                 />
+                <input
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
                 {passwordError && <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>}
                 <div className="flex gap-2">
                   <button onClick={handleChangePassword} className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    Change Password
+                    {user.hasPassword ? 'Change Password' : 'Add Password'}
                   </button>
-                  <button onClick={() => { setShowPasswordChange(false); setPasswordError(null); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:underline">
+                  <button onClick={() => { setShowPasswordChange(false); setPasswordError(null); setConfirmPassword(''); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:underline">
                     Cancel
                   </button>
                 </div>
@@ -262,18 +284,35 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
             ) : (
               <div className="space-y-3 p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
                 <p className="text-sm text-red-700 dark:text-red-300">This action is permanent and cannot be undone. All your data will be deleted.</p>
-                <input
-                  type="password"
-                  placeholder="Enter your password to confirm"
-                  value={deletePassword}
-                  onChange={e => setDeletePassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-sm"
-                />
+                {user.hasPassword ? (
+                  <input
+                    type="password"
+                    placeholder="Enter your password to confirm"
+                    value={deletePassword}
+                    onChange={e => setDeletePassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-sm"
+                  />
+                ) : (
+                  <div>
+                    <label className="block text-xs text-red-600 dark:text-red-400 mb-1">Type DELETE to confirm</label>
+                    <input
+                      type="text"
+                      placeholder="DELETE"
+                      value={deleteConfirmation}
+                      onChange={e => setDeleteConfirmation(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-sm"
+                    />
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <button onClick={handleDeleteAccount} className="px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={user.hasPassword ? !deletePassword : deleteConfirmation !== 'DELETE'}
+                    className="px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
                     Delete My Account
                   </button>
-                  <button onClick={() => setShowDelete(false)} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:underline">
+                  <button onClick={() => { setShowDelete(false); setDeletePassword(''); setDeleteConfirmation(''); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:underline">
                     Cancel
                   </button>
                 </div>
