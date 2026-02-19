@@ -1452,6 +1452,7 @@ Currently uploaded images/videos are base64-encoded inline in the Markdown sourc
 **Bugs fixed:**
 1. **Margins** had no effect — now applied via CSS variable `--editor-margin` on `.tiptap` padding (narrow=2rem, regular=4rem, wide=12rem)
 2. **Line numbers** toggle did nothing — now renders a line number gutter alongside the source view textarea when enabled
+3. **Line numbers with word wrap** — initial textarea-based gutter had misaligned scrolling when word wrap was enabled (different `scrollHeight` between `wrap="off"` gutter and `wrap="soft"` content). Replaced with div-based gutter: a hidden mirror div measures each line's rendered height (including wrap), then individual line number divs are sized to match. `ResizeObserver` re-measures on width changes. `scrollTop` sync now works correctly because gutter total height matches content textarea exactly.
 3. **Show Word Count** setting was a toggle that didn't work — removed it entirely (word count always shows in status bar, which is the correct behavior)
 
 **Files modified:**
