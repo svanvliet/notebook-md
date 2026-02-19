@@ -1,0 +1,124 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which app to rollback (or "all")'
+        required: true
+        type: choice
+        options:
+          - all
+          - api
+          - web
+          - admin
+      revision:
+        description: 'Revision name to activate (leave empty for previous revision)'
+        required: false
+        type: string
+
+env:
+  RESOURCE_GROUP: rg-notebookmd-prod
+
+jobs:
+  rollback:
+    name: Rollback ${{ inputs.app }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Rollback API
+        if: inputs.app == 'all' || inputs.app == 'api'
+        run: |
+          if [ -n "${{ inputs.revision }}" ]; then
+            az containerapp revision activate \
+              --name ca-notebookmd-api \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision "${{ inputs.revision }}"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-api \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "${{ inputs.revision }}=100"
+          else
+            REVISIONS=$(az containerapp revision list \
+              --name ca-notebookmd-api \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --query "[?properties.active].name" -o tsv | tail -2 | head -1)
+            echo "Rolling back to: $REVISIONS"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-api \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "$REVISIONS=100"
+          fi
+
+      - name: Rollback Web
+        if: inputs.app == 'all' || inputs.app == 'web'
+        run: |
+          if [ -n "${{ inputs.revision }}" ]; then
+            az containerapp revision activate \
+              --name ca-notebookmd-web \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision "${{ inputs.revision }}"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-web \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "${{ inputs.revision }}=100"
+          else
+            REVISIONS=$(az containerapp revision list \
+              --name ca-notebookmd-web \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --query "[?properties.active].name" -o tsv | tail -2 | head -1)
+            echo "Rolling back to: $REVISIONS"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-web \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "$REVISIONS=100"
+          fi
+
+      - name: Rollback Admin
+        if: inputs.app == 'all' || inputs.app == 'admin'
+        run: |
+          if [ -n "${{ inputs.revision }}" ]; then
+            az containerapp revision activate \
+              --name ca-notebookmd-admin \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision "${{ inputs.revision }}"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-admin \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "${{ inputs.revision }}=100"
+          else
+            REVISIONS=$(az containerapp revision list \
+              --name ca-notebookmd-admin \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --query "[?properties.active].name" -o tsv | tail -2 | head -1)
+            echo "Rolling back to: $REVISIONS"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-admin \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "$REVISIONS=100"
+          fi
+
+      - name: Verify API health
+        if: inputs.app == 'all' || inputs.app == 'api'
+        run: |
+          for i in {1..12}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" https://api.notebookmd.io/api/health || true)
+            if [ "$status" = "200" ]; then
+              echo "✅ API is healthy after rollback"
+              exit 0
+            fi
+            echo "Waiting for API... (attempt $i)"
+            sleep 10
+          done
+          echo "⚠️ API health check timed out"
+          exit 1

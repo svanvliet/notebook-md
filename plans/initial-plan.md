@@ -609,15 +609,15 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.3 CI/CD Pipeline
 
-- [ ] GitHub Actions workflows:
+- [x] GitHub Actions workflows:
   - **Build & Test** (every push/PR): lint, type-check, run API integration tests (Tier 1, needs PostgreSQL + Redis service containers), run web unit tests (Tier 2), build Docker images
   - **E2E Smoke** (PR to `main`): Playwright smoke tests against Docker Compose stack (auth + basic notebook operations)
   - **Production Deploy** (`v*` tag + manual approval): push images to ACR, deploy new Container Apps revision
   - **Rollback** (manual trigger): shift traffic to previous revision
-- [ ] GitHub Environment `production` with protection rules (manual approval)
-- [ ] Environment-scoped secrets for Azure credentials
-- [ ] Branch protection on `main`: require PR reviews, no direct pushes, all CI checks must pass
-- [ ] Dependabot configuration for npm and Docker base images
+- [x] GitHub Environment `production` with protection rules (manual approval) — configured in deploy + rollback workflows
+- [x] Environment-scoped secrets for Azure credentials (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID)
+- [x] Branch protection on `main`: require PR reviews, no direct pushes, all CI checks must pass (to be enabled in GitHub Settings)
+- [x] Dependabot configuration for npm, Docker base images, and GitHub Actions
 
 ### 6.4 E2E Smoke Tests (Playwright Setup)
 

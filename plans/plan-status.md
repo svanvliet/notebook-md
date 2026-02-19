@@ -2266,6 +2266,62 @@ The app used manual `window.history.pushState` for navigation. This caused:
 
 ---
 
+## Phase 6.3 Completion — CI/CD Pipeline ✅
+
+**Completed:** 2026-02-19
+
+### GitHub Actions Workflows
+
+| Workflow | File | Trigger | Jobs |
+|----------|------|---------|------|
+| **Build & Test** | `ci.yml` | push/PR to main | lint → test-web → test-api → build-images (with Trivy scan) |
+| **Deploy** | `deploy.yml` | `v*` tag push | build-and-push → deploy (requires `production` environment approval) |
+| **Rollback** | `rollback.yml` | manual dispatch | rollback selected app(s) to previous or named revision |
+
+### CI Pipeline Details (`ci.yml`)
+- **Lint & Type Check:** `npm run lint` + `npm run typecheck` across all workspaces
+- **Web Tests:** 132 unit tests via vitest
+- **API Tests:** Integration tests with PostgreSQL 16 + Redis 7 service containers
+- **Docker Build:** All 3 images built and API scanned with Trivy (CRITICAL+HIGH, fail on findings)
+- **Concurrency:** Cancels in-progress runs for same branch
+
+### Deploy Pipeline Details (`deploy.yml`)
+- Triggered by semver tags (`v0.1.0`, `v1.0.0`, etc.)
+- Uses Azure OIDC authentication (federated identity — no stored secrets)
+- Pushes tagged images to ACR (`crnotebookmdprod.azurecr.io/{web,api,admin}:VERSION`)
+- Deploys via `azure/container-apps-deploy-action@v2`
+- Post-deploy health check: polls `/api/health` for up to 5 minutes
+- Requires manual approval via GitHub `production` environment
+
+### Rollback (`rollback.yml`)
+- Manual dispatch with app selector (all/api/web/admin)
+- Option to specify a revision name or auto-rollback to previous
+- Shifts 100% traffic to target revision
+- Post-rollback health verification
+
+### Dependabot (`.github/dependabot.yml`)
+- **npm:** Weekly on Monday, groups dev deps (minor+patch) and prod deps (patch only)
+- **Docker:** Weekly scan of base images in `docker/`
+- **GitHub Actions:** Weekly scan of action versions
+
+### Manual Setup Required
+After pushing these workflows, configure in GitHub Settings:
+1. **Repository → Environments:** Create `production` environment with required reviewers
+2. **Repository → Secrets:** Add `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+3. **Repository → Branch protection:** Enable for `main` — require PR, status checks, no force push
+
+### Files created
+| File | Purpose |
+|------|---------|
+| `.github/workflows/ci.yml` | Build & Test on every push/PR |
+| `.github/workflows/deploy.yml` | Production deploy on version tags |
+| `.github/workflows/rollback.yml` | Manual rollback workflow |
+| `.github/dependabot.yml` | Automated dependency updates |
+
+**Next:** Phase 6.4 — E2E Smoke Tests
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
