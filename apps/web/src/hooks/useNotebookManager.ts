@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   createNotebook,
   listNotebooks,
+  upsertNotebook,
   renameNotebook as renameNb,
   deleteNotebook as deleteNb,
   createFile,
@@ -89,6 +90,29 @@ export function useNotebookManager(userId?: string | null) {
   useEffect(() => {
     setStorageScope(userId ?? null);
     (async () => {
+      // Sync remote notebooks from server into IndexedDB
+      if (userId) {
+        try {
+          const res = await fetch('/api/notebooks', { credentials: 'include' });
+          if (res.ok) {
+            const { notebooks: serverNbs } = await res.json();
+            for (const snb of serverNbs) {
+              await upsertNotebook({
+                id: snb.id,
+                name: snb.name,
+                sourceType: snb.sourceType,
+                sourceConfig: snb.sourceConfig ?? {},
+                sortOrder: new Date(snb.createdAt).getTime(),
+                createdAt: new Date(snb.createdAt).getTime(),
+                updatedAt: new Date(snb.updatedAt).getTime(),
+              });
+            }
+          }
+        } catch {
+          // Offline or API error — continue with local data
+        }
+      }
+
       const nbs = await listNotebooks();
       setNotebooks(nbs);
       const fileMap: Record<string, FileEntry[]> = {};

@@ -84,6 +84,12 @@ export async function createNotebook(
   return notebook;
 }
 
+/** Insert or update a notebook by id (used to sync server notebooks into IndexedDB) */
+export async function upsertNotebook(notebook: NotebookMeta): Promise<void> {
+  const db = await getDb();
+  await db.put(NOTEBOOKS_STORE, notebook);
+}
+
 export async function listNotebooks(): Promise<NotebookMeta[]> {
   const db = await getDb();
   const notebooks = await db.getAll(NOTEBOOKS_STORE);
