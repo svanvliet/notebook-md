@@ -2503,6 +2503,73 @@ SendGrid email delivery will be verified during Phase 6.10 (validation) after `t
 
 ---
 
+## Phase 6.8 Completion — Database Production Readiness ✅
+
+**Completed:** 2026-02-20
+
+### Already Configured in Terraform
+- PostgreSQL 16 Flexible Server (`B_Standard_B1ms`, 32GB storage)
+- 35-day point-in-time recovery (PITR) backup retention
+- Geo-redundant backup storage enabled
+- Firewall rule for Azure services (Container Apps)
+
+### Deploy Workflow: Migration Job
+Added a database migration step to `.github/workflows/deploy.yml` that runs **before** the API deploys:
+- Creates a Container Apps Job using the same API Docker image
+- Runs `npx node-pg-migrate up` with `DATABASE_URL` from Key Vault
+- Waits for completion (up to 2 min), fails deploy if migration fails
+- Auto-deletes the job after completion
+- Uses managed identity for ACR pull and Key Vault access
+
+### CLI Tools
+- `cli/promote-admin.js` — already `DATABASE_URL`-aware, bundled in API Docker image
+- Run via `az containerapp exec` after first deploy
+
+**Commit:** `242f124`
+
+---
+
+## Phase 6.9 Prep — First Deployment Readiness ✅
+
+**Completed:** 2026-02-20
+
+### Bugs Caught & Fixed
+
+1. **Image naming mismatch (critical):** `container_apps.tf` referenced `notebookmd-api:latest` but `deploy.yml` pushes `api:0.1.0`. Fixed all 3 image references in `container_apps.tf` to use `api`, `web`, `admin`.
+
+2. **Redis version incompatibility:** azurerm provider doesn't support Redis 7 (`expected redis_version to be one of ["4" "6"]`). Changed to `"6"`.
+
+3. **OIDC federated credential:** Azure AD doesn't support tag wildcards in the `subject` field (`v*`). Added `environment: production` to the `build-and-push` job so both jobs use the same subject: `repo:svanvliet/notebook-md:environment:production`.
+
+4. **Migration command syntax:** `"--"` in `az containerapp job create --command` was being interpreted as az CLI's argument separator. Wrapped command in `/bin/sh -c "npx ..."`.
+
+### Created: `infra/DEPLOY.md`
+Comprehensive 11-step first deployment guide:
+1. Bootstrap Terraform state (storage account)
+2. Configure `terraform.tfvars` (secrets, OAuth creds)
+3. Provision ACR first (`-target` to solve chicken-and-egg)
+4. Build & push initial Docker images to ACR
+5. Full `terraform apply` (~15-20 min)
+6. Configure DNS at GoDaddy (validation TXT + CNAMEs)
+7. Set up Azure AD app + OIDC federated credential
+8. Configure GitHub secrets + production environment
+9. Tag `v0.1.0` → triggers deploy workflow
+10. Verify & smoke test
+11. Promote admin account
+
+Includes: cost estimate (~$70-85/mo), troubleshooting section.
+
+### Validation
+- `terraform validate` passes ✅
+- `terraform.lock.hcl` committed for reproducible provider versions
+- Deploy workflow checked: OIDC, migration, image push, Container Apps deploy, health check all consistent
+
+**Commit:** `f0d9c76`
+
+**Next:** User follows `infra/DEPLOY.md` manually → Phase 6.10 Validation
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

@@ -667,13 +667,19 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.9 First Deployment
 
-- [ ] Tag `v0.1.0`, trigger CI/CD pipeline
-- [ ] Approve production deployment
-- [ ] Verify app is accessible at `notebookmd.io`
-- [ ] Smoke test: sign up, create local notebook, edit document, verify cookie consent, check legal pages
-- [ ] Verify admin console at `admin.notebookmd.io`
-- [ ] Verify OAuth flows work with production redirect URIs
-- [ ] Verify transactional email (magic link, email verification, 2FA codes)
+- [x] Fix image naming: align `container_apps.tf` (`api`/`web`/`admin`) with `deploy.yml`
+- [x] Fix Redis version: `7` → `6` (azurerm provider compatibility)
+- [x] Fix OIDC: add `environment: production` to build job (no tag wildcards in federated creds)
+- [x] Fix migration command: wrap in `/bin/sh -c` to avoid az CLI arg parsing
+- [x] Create `infra/DEPLOY.md` deployment runbook (11 steps + troubleshooting)
+- [x] Terraform validates ✅
+- [ ] Follow `infra/DEPLOY.md`: bootstrap state, fill tfvars, provision ACR, push images, full apply
+- [ ] Configure DNS at GoDaddy (validation TXT + CNAMEs from terraform output)
+- [ ] Set up GitHub OIDC (Azure AD app + federated credential + repo secrets)
+- [ ] Tag `v0.1.0`, trigger deploy workflow, approve production deployment
+- [ ] Verify app at `notebookmd.io`, `api.notebookmd.io`, `admin.notebookmd.io`
+- [ ] Smoke test: sign up, verify email, create notebook, edit doc, cookie consent, legal pages
+- [ ] Promote admin account via `az containerapp exec`
 
 ### 6.10 Phase 6 Validation
 
