@@ -13,7 +13,7 @@ FROM --platform=linux/amd64 node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app .
 COPY . .
-ARG VITE_APP_URL=https://notebookmd.io
+ARG VITE_APP_URL=https://www.notebookmd.io
 ARG VITE_API_URL=https://api.notebookmd.io
 RUN printf "VITE_APP_URL=%s\nVITE_API_URL=%s\n" "$VITE_APP_URL" "$VITE_API_URL" > apps/admin/.env.production
 RUN npx --workspace=@notebook-md/admin vite build
