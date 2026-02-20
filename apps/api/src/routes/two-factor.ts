@@ -206,9 +206,10 @@ router.post('/verify', twoFactorLimiter, async (req: Request, res: Response) => 
     email_verified: boolean;
     avatar_url: string | null;
     password_hash: string | null;
+    is_admin: boolean;
     totp_enabled: boolean;
     totp_secret_enc: string | null;
-  }>('SELECT id, display_name, email, email_verified, avatar_url, password_hash, totp_enabled, totp_secret_enc FROM users WHERE id = $1', [payload.sub]);
+  }>('SELECT id, display_name, email, email_verified, avatar_url, password_hash, is_admin, totp_enabled, totp_secret_enc FROM users WHERE id = $1', [payload.sub]);
 
   if (userResult.rows.length === 0) {
     res.status(404).json({ error: 'User not found' });
@@ -224,6 +225,7 @@ router.post('/verify', twoFactorLimiter, async (req: Request, res: Response) => 
       emailVerified: user.email_verified,
       avatarUrl: user.avatar_url,
       hasPassword: !!user.password_hash,
+      isAdmin: user.is_admin,
       twoFactorEnabled: user.totp_enabled,
       twoFactorMethod: user.totp_enabled ? (user.totp_secret_enc ? 'totp' : 'email') : null,
     },

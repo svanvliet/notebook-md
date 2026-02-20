@@ -130,7 +130,7 @@ router.post('/signup', authMutationLimiter, async (req: Request, res: Response) 
   });
 
   res.status(201).json({
-    user: { id: userId, displayName: name, email: email.toLowerCase(), emailVerified: false, hasPassword: true, twoFactorEnabled: false, twoFactorMethod: null },
+    user: { id: userId, displayName: name, email: email.toLowerCase(), emailVerified: false, hasPassword: true, isAdmin: false, twoFactorEnabled: false, twoFactorMethod: null },
     sessionId: session.sessionId,
   });
 });
@@ -154,10 +154,11 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
     password_hash: string | null;
     avatar_url: string | null;
     is_suspended: boolean;
+    is_admin: boolean;
     totp_enabled: boolean;
     totp_secret_enc: string | null;
   }>(
-    'SELECT id, display_name, email, email_verified, password_hash, avatar_url, is_suspended, totp_enabled, totp_secret_enc FROM users WHERE email = $1',
+    'SELECT id, display_name, email, email_verified, password_hash, avatar_url, is_suspended, is_admin, totp_enabled, totp_secret_enc FROM users WHERE email = $1',
     [email.toLowerCase()],
   );
 
@@ -226,6 +227,7 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
       emailVerified: user.email_verified,
       avatarUrl: user.avatar_url,
       hasPassword: !!user.password_hash,
+      isAdmin: user.is_admin,
       twoFactorEnabled: user.totp_enabled,
       twoFactorMethod: user.totp_enabled ? (user.totp_secret_enc ? 'totp' : 'email') : null,
     },
@@ -302,10 +304,11 @@ router.post('/magic-link/verify', authMutationLimiter, async (req: Request, res:
     email_verified: boolean;
     avatar_url: string | null;
     password_hash: string | null;
+    is_admin: boolean;
     totp_enabled: boolean;
     totp_secret_enc: string | null;
   }>(
-    'SELECT id, display_name, email, email_verified, avatar_url, password_hash, totp_enabled, totp_secret_enc FROM users WHERE email = $1',
+    'SELECT id, display_name, email, email_verified, avatar_url, password_hash, is_admin, totp_enabled, totp_secret_enc FROM users WHERE email = $1',
     [magicLink.email],
   );
 
@@ -359,6 +362,7 @@ router.post('/magic-link/verify', authMutationLimiter, async (req: Request, res:
       emailVerified: user.email_verified,
       avatarUrl: user.avatar_url,
       hasPassword: !!user.password_hash,
+      isAdmin: user.is_admin,
       twoFactorEnabled: user.totp_enabled,
       twoFactorMethod: user.totp_enabled ? (user.totp_secret_enc ? 'totp' : 'email') : null,
     },
@@ -514,8 +518,9 @@ router.post('/refresh', authReadLimiter, async (req: Request, res: Response) => 
     email: string;
     email_verified: boolean;
     avatar_url: string | null;
+    is_admin: boolean;
   }>(
-    'SELECT id, display_name, email, email_verified, avatar_url FROM users WHERE id = $1',
+    'SELECT id, display_name, email, email_verified, avatar_url, is_admin FROM users WHERE id = $1',
     [result.userId],
   );
 
@@ -527,6 +532,7 @@ router.post('/refresh', authReadLimiter, async (req: Request, res: Response) => 
           email: userResult.rows[0].email,
           emailVerified: userResult.rows[0].email_verified,
           avatarUrl: userResult.rows[0].avatar_url,
+          isAdmin: userResult.rows[0].is_admin,
         }
       : null,
     sessionId: result.sessionId,
