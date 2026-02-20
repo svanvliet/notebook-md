@@ -2634,10 +2634,57 @@ Azure Redis Cache took ~21 minutes to provision — this is normal for the servi
 - GitHub secrets configured: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
 - `production` environment created in GitHub repo settings
 
-### v0.1.0 Tagged
-Tag pushed, deploy workflow triggered. Awaiting completion.
+### v0.1.0 Tagged & Deployed
+Tag pushed, deploy workflow triggered. Initial run failed on migration job (az CLI argument parsing). Fixed and redeployed.
 
-**Status:** Deploy workflow running — awaiting verification (Steps 10–11)
+### Deploy Workflow Fix: Migrations on Startup
+The Container Apps Job approach for running migrations had intractable az CLI argument parsing issues (`-c` and `--migrations-dir` treated as az CLI flags, not container args). Replaced with a simpler, battle-tested pattern: API container runs `npx node-pg-migrate up` on startup before `node dist/index.js`. node-pg-migrate uses advisory locks to prevent concurrent execution across replicas.
+
+**Commit:** `ee1aee8`
+
+### Azure PostgreSQL Extension Allow-listing
+Migration failed with: `extension "uuid-ossp" is not allow-listed for users in Azure Database for PostgreSQL`. Azure Flexible Server requires explicit allow-listing via the `azure.extensions` server parameter.
+
+**Fix:** Added `azurerm_postgresql_flexible_server_configuration.extensions` to `database.tf` with value `UUID-OSSP,PGCRYPTO`. Applied via `terraform apply -target`.
+
+**Commit:** `fc9a99c`
+
+### Docker ARM64 → AMD64
+Images built on Apple Silicon (arm64 Mac) were rejected by Azure Container Apps: `image OS/Arc must be linux/amd64 but found linux/arm64`. Fixed by adding `--platform=linux/amd64` to all `FROM` lines in all three Dockerfiles.
+
+**Commit:** `365dfcd`
+
+### Failed Container Apps Cleanup
+After the arm64 failure, Container Apps existed in Azure in `ProvisioningState: Failed` but weren't in Terraform state. `terraform import` failed because failed resources can't be read. Resolved by deleting via `az containerapp delete` and letting Terraform recreate.
+
+### www.notebookmd.io Custom Domain
+GoDaddy forwards root domain (`notebookmd.io`) to `www.notebookmd.io`, but `www` wasn't configured as a Front Door custom domain. Added:
+- `azurerm_cdn_frontdoor_custom_domain.www` for `www.notebookmd.io`
+- `azurerm_cdn_frontdoor_custom_domain_association.www` linked to web route
+- Added `www` domain ID to web route's `cdn_frontdoor_custom_domain_ids`
+- `domain_validation_www` output
+- Updated `dns-records.md` with www CNAME and validation TXT
+
+**Commit:** `5b44866`
+
+### Production OAuth Apps (Added to Plan)
+Added Phase 6.10 items for creating/updating production OAuth client registrations (Microsoft, Google, GitHub, GitHub App) with production redirect URIs.
+
+**Commit:** `ffd8de4`
+
+### Current Production Status
+- ✅ `api.notebookmd.io` — healthy, TLS working, DB + Redis connected
+- ✅ `admin.notebookmd.io` — serving, TLS working
+- ✅ `notebookmd.io` — TLS working, redirects to www
+- ⏳ `www.notebookmd.io` — domain validated, TLS certificate provisioning
+- ✅ Migrations (001–003) applied successfully
+- ✅ All infrastructure provisioned and running
+
+### Remaining Steps
+- [ ] Verify `www.notebookmd.io` TLS cert completes
+- [ ] Smoke test: sign up, create notebook, edit doc
+- [ ] Promote admin account
+- [ ] Phase 6.10: Production OAuth apps, full validation
 
 ---
 
