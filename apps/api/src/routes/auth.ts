@@ -748,4 +748,32 @@ router.delete('/account', authMutationLimiter, requireAuth, async (req: Request,
   res.json({ message: 'Account deleted' });
 });
 
+// ---------------------------------------------------------------------------
+// Dev-only: skip auth (creates a real session for a dev user)
+// ---------------------------------------------------------------------------
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/dev-login', async (req: Request, res: Response) => {
+    const devEmail = 'dev@localhost';
+    // Find or create the dev user
+    let result = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [devEmail]);
+    let userId: string;
+    if (result.rows.length > 0) {
+      userId = result.rows[0].id;
+    } else {
+      const hash = await bcryptjs.hash('devpassword', 10);
+      const ins = await query<{ id: string }>(
+        'INSERT INTO users (display_name, email, password_hash, email_verified) VALUES ($1, $2, $3, true) RETURNING id',
+        ['Dev User', devEmail, hash],
+      );
+      userId = ins.rows[0].id;
+    }
+    const session = await createSession(userId, {
+      ip: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    });
+    setRefreshCookie(res, session.refreshToken, false);
+    res.json({ user: { id: userId, displayName: 'Dev User', email: devEmail, emailVerified: true, avatarUrl: null, hasPassword: true } });
+  });
+}
+
 export default router;
