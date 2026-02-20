@@ -105,7 +105,7 @@ resource "azurerm_container_app" "api" {
       }
       env {
         name  = "APP_URL"
-        value = "https://${var.domain}"
+        value = "https://www.${var.domain}"
       }
       env {
         name  = "API_URL"
