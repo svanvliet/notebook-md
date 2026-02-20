@@ -2735,14 +2735,81 @@ The v0.1.0 tag was force-pushed multiple times as production issues were discove
 2. `17fea98` — Localhost URL fixes + migration-on-startup
 3. `c88f590` — Nginx prod config (no API proxy)
 4. `96d2658` — Web VITE_API_URL fix
-5. `2a3fdbb` — Admin VITE_API_URL fix (current)
+5. `2a3fdbb` — Admin VITE_API_URL fix
+6. `73e3871` — CORS fix (allow www.notebookmd.io)
+7. `7b4247b` — CI/CD improvements (current)
 
 ### Remaining Steps
-- [ ] Verify deploy completes and signup works
+- [ ] Verify CORS fix — signup from www.notebookmd.io
 - [ ] Verify `www.notebookmd.io` TLS cert
 - [ ] Smoke test full flow
 - [ ] Promote admin account
 - [ ] Phase 6.10: Production OAuth apps, full validation
+
+---
+
+## CORS Fix — www.notebookmd.io Origin
+
+**Date:** 2026-02-20
+
+GoDaddy redirects `notebookmd.io` → `www.notebookmd.io`, so users land on the `www` subdomain. The API's CORS config only allowed `https://notebookmd.io` as an origin, blocking all API calls from `www`.
+
+**Fix:**
+- `container_apps.tf`: `CORS_ORIGIN` now includes both origins: `https://notebookmd.io,https://www.notebookmd.io`
+- `apps/api/src/app.ts`: Updated to split `CORS_ORIGIN` on commas for multiple allowed origins: `(process.env.CORS_ORIGIN ?? '...').split(',')`
+
+Applied via `terraform apply` (env var change) + image rebuild (code change).
+
+**Commit:** `73e3871`
+
+---
+
+## CI/CD Pipeline Improvements
+
+**Date:** 2026-02-20
+
+Major rewrite of the deploy workflow and CI pipeline fix to address two problems:
+1. **Full rebuilds on every deploy** — all 3 images (web, api, admin) rebuilt even when only one app changed
+2. **No CI gate** — tagging could deploy broken code since Build & Test wasn't checked
+
+### Deploy Workflow (`deploy.yml`) — Changes
+
+**Preflight job (new):**
+- Compares files changed between current tag and previous tag via `git diff`
+- Sets output flags: `api-changed`, `web-changed`, `admin-changed`
+- Shared dependency changes (`packages/shared/`, `package-lock.json`) trigger all rebuilds
+- Verifies Build & Test workflow passed for the tagged commit before proceeding
+- Helpful error messages: distinguishes between CI running, CI failed, and no CI run found
+
+**Parallel selective builds (new):**
+- 3 separate build jobs (`build-api`, `build-web`, `build-admin`) instead of 1 sequential job
+- Each job has `if: needs.preflight.outputs.*-changed == 'true'` — skipped if unchanged
+- Docker layer caching: pulls `:latest` tag and uses `--cache-from` + `BUILDKIT_INLINE_CACHE=1`
+- Each job pushes both versioned tag and `:latest` tag for cache purposes
+
+**Deploy job (updated):**
+- Uses `always()` with explicit result checks to handle skipped build jobs
+- Conditionally deploys only changed images
+- Health check only runs if API was redeployed
+- Generates GitHub step summary with deploy table
+
+**New triggers:**
+- `workflow_dispatch` with `tag` input (manual deploys) and `force_rebuild` boolean (skip change detection)
+
+**Change detection patterns:**
+| Change in... | Rebuilds |
+|---|---|
+| `apps/api/`, `docker/Dockerfile.api` | API only |
+| `apps/web/`, `docker/Dockerfile.web`, `docker/nginx/` | Web only |
+| `apps/admin/`, `docker/Dockerfile.admin`, `docker/nginx/` | Admin only |
+| `packages/shared/`, `package-lock.json`, `package.json` | All three |
+
+### CI Workflow (`ci.yml`) — Changes
+- E2E smoke tests: removed `if: github.event_name == 'pull_request'` guard
+- Now runs on all main pushes AND PRs (previously only PRs)
+- Ensures E2E tests validate main before tagging for deploy
+
+**Commit:** `7b4247b`
 
 ---
 

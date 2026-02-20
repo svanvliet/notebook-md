@@ -610,10 +610,14 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 ### 6.3 CI/CD Pipeline
 
 - [x] GitHub Actions workflows:
-  - **Build & Test** (every push/PR): lint, type-check, run API integration tests (Tier 1, needs PostgreSQL + Redis service containers), run web unit tests (Tier 2), build Docker images
-  - **E2E Smoke** (PR to `main`): Playwright smoke tests against Docker Compose stack (auth + basic notebook operations)
-  - **Production Deploy** (`v*` tag + manual approval): push images to ACR, deploy new Container Apps revision
+  - **Build & Test** (every push/PR): lint, type-check, run API integration tests (Tier 1, needs PostgreSQL + Redis service containers), run web unit tests (Tier 2), build Docker images, E2E smoke tests
+  - **Production Deploy** (`v*` tag or manual `workflow_dispatch`): preflight (change detection + CI gate) → parallel selective builds → deploy only changed containers
   - **Rollback** (manual trigger): shift traffic to previous revision
+- [x] Selective builds: detect changed apps since previous tag, only build/deploy what changed
+- [x] CI gate: deploy workflow verifies Build & Test passed before building images
+- [x] Parallel build jobs: API, Web, Admin images build simultaneously (~3x faster)
+- [x] Docker layer caching via `--cache-from` latest tag
+- [x] Manual deploy trigger (`workflow_dispatch`) with `force_rebuild` option
 - [x] GitHub Environment `production` with protection rules (manual approval) — configured in deploy + rollback workflows
 - [x] Environment-scoped secrets for Azure credentials (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID)
 - [x] Branch protection on `main`: deferred — requires GitHub Team plan for private repos; revisit when repo goes public
@@ -642,7 +646,7 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - `admin.notebookmd.io` → Azure Container Apps (Admin)
 - [x] SPF, DKIM, DMARC records for `noreply@notebookmd.io` (transactional email)
 - [x] Azure-managed TLS certificates via Front Door
-- [x] Verify CORS config: API accepts origins `https://notebookmd.io` and `https://admin.notebookmd.io`
+- [x] Verify CORS config: API accepts origins `https://notebookmd.io`, `https://www.notebookmd.io`, and `https://admin.notebookmd.io` (comma-separated CORS_ORIGIN)
 
 ### 6.6 Monitoring & Alerting
 
