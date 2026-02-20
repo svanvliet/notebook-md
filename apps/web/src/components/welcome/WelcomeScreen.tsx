@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { NotebookIcon } from '../icons/Icons';
+import { MarketingNav, MarketingFooter } from '../marketing/MarketingLayout';
 
 interface WelcomeScreenProps {
   onSignIn: (email: string, password: string, rememberMe: boolean) => Promise<boolean>;
@@ -237,7 +238,9 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
+      <MarketingNav />
+      <div className="flex-1 flex flex-col items-center justify-center">
       <div className="flex flex-col items-center w-full max-w-sm px-6">
         {/* Logo */}
         <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mb-6 shadow-lg">
@@ -381,6 +384,8 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
           </form>
         )}
       </div>
+      </div>
+      <MarketingFooter />
     </div>
   );
 }

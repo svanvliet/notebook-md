@@ -3,6 +3,9 @@ import type { Location } from 'react-router-dom';
 import App from './App';
 import { TermsPage } from './components/legal/TermsPage';
 import { PrivacyPage } from './components/legal/PrivacyPage';
+import { FeaturesPage } from './components/marketing/FeaturesPage';
+import { AboutPage } from './components/marketing/AboutPage';
+import { ContactPage } from './components/marketing/ContactPage';
 
 function AppRoutes() {
   const location = useLocation();
@@ -13,6 +16,9 @@ function AppRoutes() {
       {/* When a background location exists, render main routes there (keeps App mounted) */}
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<App />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         {/* Auth callback routes — App handles these via useEffect */}
