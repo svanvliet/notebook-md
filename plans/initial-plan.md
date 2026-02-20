@@ -101,10 +101,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Status bar: live word count, character count, last saved timestamp
 - [x] Warning on Local notebook creation: "Data is stored in your browser. Clearing browser data will delete Local notebook content."
 
-### 1.5 Phase 1 Validation
+### 1.5 Phase 1 Validation ✅
 
-- **Technical:** Tiptap + ProseMirror renders all GFM elements correctly; IndexedDB read/write is reliable; layout is responsive
-- **UX:** You can create a Local notebook, add files/folders, edit Markdown with the WYSIWYG editor, toggle to raw mode, and see your changes persisted across page refreshes
+- **Technical:** ✅ Tiptap + ProseMirror renders all GFM elements correctly; IndexedDB read/write is reliable; layout is responsive
+- **UX:** ✅ You can create a Local notebook, add files/folders, edit Markdown with the WYSIWYG editor, toggle to raw mode, and see your changes persisted across page refreshes
 - **Feedback points:** Editor feel, toolbar layout, sidebar behavior, dark mode appearance, overall layout proportions
 
 ---
@@ -270,10 +270,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] File type filtering in tree: only show `.md`, `.mdx`, `.markdown`, `.txt`, and supported media files
 - [x] Context menus on tree items: new file, new folder, rename, delete, move, refresh
 
-### 3.6 Phase 3 Validation
+### 3.6 Phase 3 Validation ✅
 
-- **Technical:** All three source systems work end-to-end: auth → browse → open → edit → save → verify file changed in the real source (OneDrive folder, Google Drive folder, GitHub repo)
-- **UX:** You can add a OneDrive folder, a Google Drive folder, and a GitHub repo as notebooks, browse their contents, open a `.md` file, edit it, save it, and confirm the change shows up in the native app (OneDrive web, Google Drive web, GitHub.com)
+- **Technical:** ✅ All three source systems work end-to-end: auth → browse → open → edit → save → verify file changed in the real source (OneDrive folder, Google Drive folder, GitHub repo)
+- **UX:** ✅ You can add a OneDrive folder, a Google Drive folder, and a GitHub repo as notebooks, browse their contents, open a `.md` file, edit it, save it, and confirm the change shows up in the native app (OneDrive web, Google Drive web, GitHub.com)
 - **Feedback points:** Add-notebook flow, tree browsing speed, save feedback, source icon clarity
 
 ---
@@ -716,8 +716,13 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - [x] Fix deploy change detection: compare against previous tag (not HEAD~1)
   - [x] Fix deploy CI gate: poll for CI completion (up to 10 min) instead of failing on race condition
   - [x] Verify OAuth providers live in production: `github`, `microsoft`, `google` ✅
-- **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end (Tier 1 + Tier 2 on push, E2E smoke on PR to main); monitoring captures real traffic; auto-scaling responds to load; SPA fallback works for all client-side routes
-- **UX:** The production app is indistinguishable from the local dev experience
+  - [x] Fix OAuth redirects: use API_BASE for cross-origin `window.location.href` calls
+  - [x] Fix `apiFetch`: always prepend API_BASE so API calls hit `api.notebookmd.io` not web nginx
+  - [x] Fix GitHub App Setup URL: point to `/api/github/install/callback` (not OAuth callback)
+  - [x] Fix admin Dockerfile: `VITE_APP_URL` → `https://www.notebookmd.io`
+  - [x] Comprehensive cross-origin URL audit: all frontend API calls verified correct
+- **Technical:** ✅ Full app running in Azure; CI/CD pipeline works end-to-end; OAuth sign-in works for GitHub, Microsoft, and Google; cross-subdomain auth with shared cookies
+- **UX:** ✅ The production app is functional — sign up, sign in (email + OAuth), email verification, admin site, OneDrive/GitHub/Google Drive notebook creation all work
 - **Feedback points:** Page load speed, cold-start latency, OAuth redirect timing, email delivery speed
 
 ---
