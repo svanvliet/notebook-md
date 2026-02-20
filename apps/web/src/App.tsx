@@ -153,8 +153,17 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const dragCountRef = useRef(0);
 
+  // Always reset drag state when any drop happens (even if handled by a child)
+  useEffect(() => {
+    const resetDrag = () => {
+      dragCountRef.current = 0;
+      setDragOver(false);
+    };
+    window.addEventListener('drop', resetDrag, true);
+    return () => window.removeEventListener('drop', resetDrag, true);
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    // Don't show import overlay for internal tree drags
     if (e.dataTransfer.types.includes('text/notebook-file') || e.dataTransfer.types.includes('text/notebook-tree-item')) {
       return;
     }
@@ -171,7 +180,7 @@ export default function App() {
     }
   }, []);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = useCallback(() => {
     dragCountRef.current--;
     if (dragCountRef.current <= 0) {
       dragCountRef.current = 0;
@@ -182,11 +191,11 @@ export default function App() {
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       dragCountRef.current = 0;
+      setDragOver(false);
       // Ignore internal tree drags
       if (e.dataTransfer.types.includes('text/notebook-tree-item')) return;
       e.preventDefault();
       e.stopPropagation();
-      setDragOver(false);
       if (!e.dataTransfer.files?.length) return;
       for (const file of Array.from(e.dataTransfer.files)) {
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
