@@ -478,23 +478,45 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
   const handleDirectImport = useCallback(
     async (notebookId: string, parentPath: string, fileName: string, content: string) => {
       try {
-        const entry = await createFile(notebookId, parentPath, fileName, 'file', content);
+        const nb = notebooks.find((n) => n.id === notebookId);
+        const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
+        let entryPath = filePath;
+        let entryName = fileName;
+
+        if (nb?.sourceType === 'github') {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          const branch = await ensureWorkingBranch(notebookId, nb);
+          const result = await createGitHubFile(rootPath, filePath, content, branch);
+          entryPath = result.path;
+        } else if (nb?.sourceType === 'onedrive') {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          await createOneDriveFile(rootPath, filePath, content);
+        } else if (nb?.sourceType === 'google-drive') {
+          const rootFolderId = nb.sourceConfig.rootPath as string;
+          await createGoogleDriveFile(rootFolderId, filePath, content);
+        } else {
+          const entry = await createFile(notebookId, parentPath, fileName, 'file', content);
+          entryPath = entry.path;
+          entryName = entry.name;
+        }
+
         await refreshFiles(notebookId);
         toast?.(`Imported "${fileName}"`, 'success');
+
         // Auto-open the imported file
         const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
-        const tabId = `${notebookId}:${entry.path}`;
+        const tabId = `${notebookId}:${entryPath}`;
         setTabs((prev) => [...prev, {
-          id: tabId, notebookId, path: entry.path, name: entry.name,
+          id: tabId, notebookId, path: entryPath, name: entryName,
           content: htmlContent, savedContent: content,
-          hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+          hasUnsavedChanges: false, lastSaved: Date.now(),
         }]);
         setActiveTabId(tabId);
       } catch (err) {
         toast?.(`Failed to import "${fileName}": ${(err as Error).message}`, 'error');
       }
     },
-    [refreshFiles, toast],
+    [notebooks, ensureWorkingBranch, refreshFiles, toast],
   );
 
   const handleDeleteFile = useCallback(
