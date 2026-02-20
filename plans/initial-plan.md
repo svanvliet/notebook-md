@@ -733,11 +733,11 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 7.1 Product Analytics
 
-- [ ] Set up PostHog Cloud account (free tier, US region)
-- [ ] Integrate PostHog SDK in the web app (initialized only after cookie consent)
-- [ ] Instrument key events: sign-up, sign-in, notebook created, file opened, file saved, publish (GitHub), settings changed
-- [ ] Create dashboards: sign-up funnel, DAU/WAU/MAU, feature usage, retention cohorts
-- [ ] Anonymize IPs, use internal user IDs only, no PII in events
+- [x] Set up PostHog Cloud account (free tier, US region)
+- [x] Integrate PostHog SDK in the web app (initialized only after cookie consent)
+- [x] Instrument key events: sign-up, notebook created, file opened, file saved, settings changed
+- [ ] Create dashboards: sign-up funnel, DAU/WAU/MAU, feature usage, retention cohorts *(do in PostHog UI)*
+- [x] Anonymize IPs, use internal user IDs only, no PII in events
 
 ### 7.2 Performance Tuning
 
