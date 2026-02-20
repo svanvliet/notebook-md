@@ -114,6 +114,14 @@ export async function listGitHubFiles(rootPath: string, dirPath = '', branch?: s
   return data.entries;
 }
 
+/** Fetch entire repo tree in a single API call */
+export async function listGitHubTree(rootPath: string, branch?: string): Promise<GitHubFileEntry[]> {
+  const params = new URLSearchParams({ root: rootPath });
+  if (branch) params.set('branch', branch);
+  const data = await api<{ entries: GitHubFileEntry[] }>(`/api/sources/github/tree?${params}`);
+  return data.entries;
+}
+
 export async function readGitHubFile(rootPath: string, filePath: string, branch?: string): Promise<GitHubFileContent> {
   const params = new URLSearchParams({ root: rootPath });
   if (branch) params.set('branch', branch);

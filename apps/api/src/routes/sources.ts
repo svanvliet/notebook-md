@@ -19,7 +19,7 @@ const isTest = process.env.VITEST === 'true';
 
 const sourceRateLimit = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: isTest ? 10000 : 100, // 100 req/min per user
+  max: isTest ? 10000 : 300, // 300 req/min per user (tree browsing can burst)
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => req.userId ?? 'unknown',
@@ -96,6 +96,34 @@ async function resolveProvider(req: Request, res: Response): Promise<{ adapter: 
 
   return { adapter, accessToken };
 }
+
+// ── GET /api/sources/:provider/tree — List entire tree recursively ────────
+
+router.get('/:provider/tree', async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const branch = (req.query.branch as string) || undefined;
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  try {
+    const a = adapter!;
+    let rawEntries: Awaited<ReturnType<typeof a.listFiles>>;
+    if (a.listTree) {
+      rawEntries = await a.listTree(accessToken, rootPath, branch);
+    } else {
+      rawEntries = await a.listFiles(accessToken, rootPath, '', branch);
+    }
+    cb.onSuccess();
+    res.json({ entries: filterTreeEntries(rawEntries) });
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source tree failed', { provider: req.params.provider as string, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to load tree from ${req.params.provider as string}` });
+  }
+});
 
 // ── GET /api/sources/:provider/files — List directory ─────────────────────
 

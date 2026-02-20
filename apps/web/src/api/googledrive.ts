@@ -58,6 +58,13 @@ export async function listGoogleDriveFiles(rootFolderId: string, dirPath = ''): 
   return data.entries;
 }
 
+/** Fetch entire folder tree in a single API call */
+export async function listGoogleDriveTree(rootFolderId: string): Promise<GoogleDriveFileEntry[]> {
+  const params = new URLSearchParams({ root: rootFolderId });
+  const data = await api<{ entries: GoogleDriveFileEntry[] }>(`/api/sources/google-drive/tree?${params.toString()}`);
+  return data.entries;
+}
+
 export async function readGoogleDriveFile(rootFolderId: string, filePath: string): Promise<GoogleDriveFileContent> {
   return api(`/api/sources/google-drive/files/${encodeURIComponent(filePath)}?root=${encodeURIComponent(rootFolderId)}`);
 }

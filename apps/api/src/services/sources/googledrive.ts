@@ -102,6 +102,73 @@ const googleDriveAdapter: SourceAdapter = {
     }));
   },
 
+  async listTree(accessToken: string, rootFolderId: string): Promise<FileEntry[]> {
+    // BFS: collect all folder IDs under root, then fetch all files in batches
+    const allEntries: FileEntry[] = [];
+    const queue: Array<{ folderId: string; path: string }> = [{ folderId: rootFolderId, path: '' }];
+
+    while (queue.length > 0) {
+      // Process folder IDs in batches — query for children of all queued folders at once
+      const batch = queue.splice(0, 10); // Process up to 10 folders per query batch
+      const orClauses = batch.map((b) => `'${b.folderId}' in parents`).join(' or ');
+      const q = `(${orClauses}) and trashed=false`;
+      const fields = 'files(id,name,mimeType,size,modifiedTime,parents),nextPageToken';
+
+      // Build a map of folderId → path for resolving child paths
+      const folderPathMap = new Map(batch.map((b) => [b.folderId, b.path]));
+
+      let pageToken: string | null = null;
+
+      do {
+        let url = `${DRIVE_BASE}/files?q=${encodeURIComponent(q)}&fields=${fields}&pageSize=200&orderBy=folder,name`;
+        if (pageToken) url += `&pageToken=${pageToken}`;
+
+        const res = await fetch(url, { headers: headers(accessToken) });
+        if (!res.ok) {
+          const body = await res.text();
+          logger.error('Google Drive listTree failed', { status: res.status, body });
+          throw new Error(`Google Drive: failed to list tree (${res.status})`);
+        }
+
+        const data = (await res.json()) as {
+          files: Array<{
+            id: string;
+            name: string;
+            mimeType: string;
+            size?: string;
+            modifiedTime?: string;
+            parents?: string[];
+          }>;
+          nextPageToken?: string;
+        };
+
+        for (const item of data.files) {
+          const parentId = item.parents?.[0] ?? rootFolderId;
+          const parentDir = folderPathMap.get(parentId) ?? '';
+          const itemPath = parentDir ? `${parentDir}/${item.name}` : item.name;
+          const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
+
+          allEntries.push({
+            path: itemPath,
+            name: item.name,
+            type: isFolder ? 'folder' as const : 'file' as const,
+            size: item.size ? Number(item.size) : undefined,
+            lastModified: item.modifiedTime,
+            sha: item.id,
+          });
+
+          if (isFolder) {
+            queue.push({ folderId: item.id, path: itemPath });
+          }
+        }
+
+        pageToken = data.nextPageToken ?? null;
+      } while (pageToken);
+    }
+
+    return allEntries;
+  },
+
   async readFile(accessToken: string, rootFolderId: string, filePath: string): Promise<FileContent> {
     const fileId = await resolvePathToId(accessToken, rootFolderId, filePath);
     if (!fileId) {

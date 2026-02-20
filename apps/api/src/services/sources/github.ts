@@ -83,6 +83,59 @@ class GitHubAdapter implements SourceAdapter {
       }));
   }
 
+  async listTree(accessToken: string, rootPath: string, branch?: string): Promise<FileEntry[]> {
+    const { owner, repo, prefix } = parseRoot(rootPath);
+
+    // Resolve the tree SHA from the branch (default branch if not specified)
+    const ref = branch ?? 'HEAD';
+    const commitUrl = `${API_BASE}/repos/${owner}/${repo}/commits/${encodeURIComponent(ref)}`;
+    const commitRes = await fetch(commitUrl, { headers: headers(accessToken) });
+    if (!commitRes.ok) throw new Error(`GitHub Commits API: ${commitRes.status}`);
+    const commitData = (await commitRes.json()) as { commit: { tree: { sha: string } } };
+    const treeSha = commitData.commit.tree.sha;
+
+    // Fetch entire tree recursively in a single call
+    const treeUrl = `${API_BASE}/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`;
+    const treeRes = await fetch(treeUrl, { headers: headers(accessToken) });
+    if (!treeRes.ok) throw new Error(`GitHub Trees API: ${treeRes.status}`);
+
+    const treeData = (await treeRes.json()) as {
+      tree: Array<{
+        path: string;
+        mode: string;
+        type: 'blob' | 'tree';
+        sha: string;
+        size?: number;
+      }>;
+      truncated: boolean;
+    };
+
+    if (treeData.truncated) {
+      logger.warn('GitHub tree was truncated (repo too large), falling back to contents API');
+      return this.listFiles(accessToken, rootPath, '', branch);
+    }
+
+    return treeData.tree
+      .filter((item) => {
+        // Only include blobs (files) and trees (dirs)
+        if (item.type !== 'blob' && item.type !== 'tree') return false;
+        // If rootPath has a prefix (subfolder), only include items under it
+        if (prefix && !item.path.startsWith(prefix + '/')) return false;
+        return true;
+      })
+      .map((item) => {
+        const relativePath = prefix ? item.path.slice(prefix.length + 1) : item.path;
+        const name = relativePath.split('/').pop() ?? relativePath;
+        return {
+          path: relativePath,
+          name,
+          type: item.type === 'tree' ? 'folder' as const : 'file' as const,
+          size: item.size,
+          sha: item.sha,
+        };
+      });
+  }
+
   async readFile(accessToken: string, rootPath: string, filePath: string, branch?: string): Promise<FileContent> {
     const { owner, repo, prefix } = parseRoot(rootPath);
     const fullPath = joinPath(prefix, filePath);

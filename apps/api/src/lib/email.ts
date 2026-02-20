@@ -12,13 +12,14 @@ const transporter = nodemailer.createTransport({
     : {}),
 });
 
-const FROM = process.env.SMTP_FROM ?? process.env.EMAIL_FROM ?? 'Notebook.md <noreply@notebookmd.io>';
-const BASE_URL = process.env.APP_URL ?? 'http://localhost:5173';
+// Read env vars lazily (dotenv loads after ES module imports are resolved)
+const getFrom = () => process.env.SMTP_FROM ?? process.env.EMAIL_FROM ?? 'Notebook.md <noreply@notebookmd.io>';
+const getBaseUrl = () => process.env.APP_URL ?? 'http://localhost:5173';
 
 export async function sendMagicLink(email: string, token: string): Promise<void> {
-  const url = `${BASE_URL}/app/magic-link?token=${encodeURIComponent(token)}`;
+  const url = `${getBaseUrl()}/app/magic-link?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
-    from: FROM,
+    from: getFrom(),
     to: email,
     subject: 'Sign in to Notebook.md',
     text: `Click this link to sign in:\n\n${url}\n\nThis link expires in 15 minutes. If you didn't request this, you can safely ignore it.`,
@@ -35,9 +36,9 @@ export async function sendMagicLink(email: string, token: string): Promise<void>
 }
 
 export async function sendVerificationEmail(email: string, token: string): Promise<void> {
-  const url = `${BASE_URL}/app/verify-email?token=${encodeURIComponent(token)}`;
+  const url = `${getBaseUrl()}/app/verify-email?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
-    from: FROM,
+    from: getFrom(),
     to: email,
     subject: 'Verify your Notebook.md email',
     text: `Click this link to verify your email:\n\n${url}\n\nThis link expires in 24 hours.`,
@@ -55,7 +56,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
 
 export async function send2faCode(email: string, code: string): Promise<void> {
   await transporter.sendMail({
-    from: FROM,
+    from: getFrom(),
     to: email,
     subject: 'Your Notebook.md verification code',
     text: `Your verification code is: ${code}\n\nThis code expires in 5 minutes. If you didn't request this, please secure your account.`,
@@ -71,9 +72,9 @@ export async function send2faCode(email: string, code: string): Promise<void> {
 }
 
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
-  const url = `${BASE_URL}/app/reset-password?token=${encodeURIComponent(token)}`;
+  const url = `${getBaseUrl()}/app/reset-password?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
-    from: FROM,
+    from: getFrom(),
     to: email,
     subject: 'Reset your Notebook.md password',
     text: `Click this link to reset your password:\n\n${url}\n\nThis link expires in 1 hour. If you didn't request this, you can safely ignore it.`,

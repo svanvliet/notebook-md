@@ -15,8 +15,10 @@ import { createWorkingBranch, listBranches, publishBranch, deleteBranch } from '
 import { logger } from '../lib/logger.js';
 
 const router = Router();
-const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
-const GITHUB_APP_SLUG = process.env.GITHUB_APP_SLUG ?? 'notebook-md';
+
+// Read env vars lazily (dotenv loads after ES module imports are resolved)
+const getAppUrl = () => process.env.APP_URL ?? 'http://localhost:5173';
+const getGitHubAppSlug = () => process.env.GITHUB_APP_SLUG ?? 'notebook-md';
 
 // All routes require auth
 router.use(requireAuth);
@@ -24,9 +26,9 @@ router.use(requireAuth);
 // ── GET /api/github/install — Redirect user to install the GitHub App ─────
 
 router.get('/install', (req: Request, res: Response) => {
-  // state param lets us link the callback back to this user
   const state = req.userId!;
-  const installUrl = `https://github.com/apps/${GITHUB_APP_SLUG}/installations/new?state=${state}`;
+  const installUrl = `https://github.com/apps/${getGitHubAppSlug()}/installations/new?state=${state}`;
+  res.set('Cache-Control', 'no-store');
   res.json({ installUrl });
 });
 
@@ -37,7 +39,7 @@ router.get('/install/callback', async (req: Request, res: Response) => {
   const setupAction = req.query.setup_action as string;
 
   if (!installationId || isNaN(installationId)) {
-    res.redirect(`${APP_URL}/settings?error=missing_installation_id`);
+    res.redirect(`${getAppUrl()}/settings?error=missing_installation_id`);
     return;
   }
 
@@ -93,10 +95,10 @@ router.get('/install/callback', async (req: Request, res: Response) => {
       account: installData.account.login,
     });
 
-    res.redirect(`${APP_URL}/?source=github&github_installed=true&account=${installData.account.login}`);
+    res.redirect(`${getAppUrl()}/?source=github&github_installed=true&account=${installData.account.login}`);
   } catch (err) {
     logger.error('GitHub install callback failed', { error: (err as Error).message });
-    res.redirect(`${APP_URL}/settings?error=github_install_failed`);
+    res.redirect(`${getAppUrl()}/settings?error=github_install_failed`);
   }
 });
 

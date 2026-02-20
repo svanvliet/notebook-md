@@ -21,22 +21,21 @@ import {
 } from '../stores/localNotebookStore';
 import { markdownToHtml, htmlToMarkdown, isMarkdownContent } from '../components/editor/markdownConverter';
 import {
-  listGitHubFiles,
+  listGitHubTree,
   readGitHubFile,
   writeGitHubFile,
   createGitHubFile,
   createWorkingBranch,
   publishBranch,
-  type GitHubFileEntry,
 } from '../api/github';
 import {
-  listOneDriveFiles,
+  listOneDriveTree,
   readOneDriveFile,
   writeOneDriveFile,
   createOneDriveFile,
 } from '../api/onedrive';
 import {
-  listGoogleDriveFiles,
+  listGoogleDriveTree,
   readGoogleDriveFile,
   writeGoogleDriveFile,
   createGoogleDriveFile,
@@ -150,102 +149,32 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     [notebooks],
   );
 
-  /** Convert GitHub API entries to local FileEntry shape for the tree */
-  function githubToFileEntries(notebookId: string, entries: GitHubFileEntry[], parentPath: string): FileEntry[] {
+  /** Convert flat tree entries to FileEntry shape with computed parentPath */
+  function toFileEntries(
+    notebookId: string,
+    entries: Array<{ path: string; name: string; type: 'file' | 'folder'; size?: number; lastModified?: string; sha?: string }>,
+  ): FileEntry[] {
     return entries
       .filter((e) => {
         if (e.type === 'folder') return true;
         const ext = e.name.split('.').pop()?.toLowerCase() ?? '';
         return EDITABLE_EXTS.has(ext);
       })
-      .map((e) => ({
-        path: e.path,
-        notebookId,
-        name: e.name,
-        type: e.type,
-        parentPath,
-        content: '',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      }));
-  }
-
-  /** Recursively fetch all GitHub files/folders into a flat list */
-  async function fetchGitHubTreeRecursive(
-    rootPath: string,
-    notebookId: string,
-    dirPath: string,
-    parentPath: string,
-  ): Promise<FileEntry[]> {
-    const entries = await listGitHubFiles(rootPath, dirPath);
-    const fileEntries = githubToFileEntries(notebookId, entries, parentPath);
-    const results: FileEntry[] = [...fileEntries];
-    // Recurse into folders
-    for (const entry of fileEntries) {
-      if (entry.type === 'folder') {
-        const children = await fetchGitHubTreeRecursive(rootPath, notebookId, entry.path, entry.path);
-        results.push(...children);
-      }
-    }
-    return results;
-  }
-
-  /** Recursively fetch all OneDrive files/folders into a flat list */
-  async function fetchOneDriveTreeRecursive(
-    rootPath: string,
-    notebookId: string,
-    dirPath: string,
-    parentPath: string,
-  ): Promise<FileEntry[]> {
-    const entries = await listOneDriveFiles(rootPath, dirPath);
-    const fileEntries: FileEntry[] = entries.map((e) => ({
-      id: `${notebookId}:${e.path}`,
-      notebookId,
-      path: e.path,
-      name: e.name,
-      type: e.type,
-      parentPath,
-      content: '',
-      createdAt: Date.now(),
-      updatedAt: e.lastModified ? new Date(e.lastModified).getTime() : Date.now(),
-    }));
-    const results: FileEntry[] = [...fileEntries];
-    for (const entry of fileEntries) {
-      if (entry.type === 'folder') {
-        const children = await fetchOneDriveTreeRecursive(rootPath, notebookId, entry.path, entry.path);
-        results.push(...children);
-      }
-    }
-    return results;
-  }
-
-  /** Recursively fetch all Google Drive files/folders into a flat list */
-  async function fetchGoogleDriveTreeRecursive(
-    rootFolderId: string,
-    notebookId: string,
-    dirPath: string,
-    parentPath: string,
-  ): Promise<FileEntry[]> {
-    const entries = await listGoogleDriveFiles(rootFolderId, dirPath);
-    const fileEntries: FileEntry[] = entries.map((e) => ({
-      id: `${notebookId}:${e.path}`,
-      notebookId,
-      path: e.path,
-      name: e.name,
-      type: e.type,
-      parentPath,
-      content: '',
-      createdAt: Date.now(),
-      updatedAt: e.lastModified ? new Date(e.lastModified).getTime() : Date.now(),
-    }));
-    const results: FileEntry[] = [...fileEntries];
-    for (const entry of fileEntries) {
-      if (entry.type === 'folder') {
-        const children = await fetchGoogleDriveTreeRecursive(rootFolderId, notebookId, entry.path, entry.path);
-        results.push(...children);
-      }
-    }
-    return results;
+      .map((e) => {
+        const parts = e.path.split('/');
+        parts.pop();
+        const parentPath = parts.join('/');
+        return {
+          path: e.path,
+          notebookId,
+          name: e.name,
+          type: e.type,
+          parentPath,
+          content: '',
+          createdAt: Date.now(),
+          updatedAt: e.lastModified ? new Date(e.lastModified).getTime() : Date.now(),
+        };
+      });
   }
 
   const refreshFiles = useCallback(async (notebookId: string) => {
@@ -256,19 +185,20 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     } else {
       setLoadingNotebooks((prev) => new Set(prev).add(notebookId));
       try {
+        const rootPath = nb.sourceConfig.rootPath as string;
+        let rawEntries: Array<{ path: string; name: string; type: 'file' | 'folder'; size?: number; lastModified?: string; sha?: string }>;
+
         if (nb.sourceType === 'github') {
-          const rootPath = nb.sourceConfig.rootPath as string;
-          const allEntries = await fetchGitHubTreeRecursive(rootPath, notebookId, '', '');
-          setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+          rawEntries = await listGitHubTree(rootPath);
         } else if (nb.sourceType === 'onedrive') {
-          const rootPath = nb.sourceConfig.rootPath as string;
-          const allEntries = await fetchOneDriveTreeRecursive(rootPath, notebookId, '', '');
-          setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+          rawEntries = await listOneDriveTree(rootPath);
         } else if (nb.sourceType === 'google-drive') {
-          const rootFolderId = nb.sourceConfig.rootPath as string;
-          const allEntries = await fetchGoogleDriveTreeRecursive(rootFolderId, notebookId, '', '');
-          setFiles((prev) => ({ ...prev, [notebookId]: allEntries }));
+          rawEntries = await listGoogleDriveTree(rootPath);
+        } else {
+          rawEntries = [];
         }
+
+        setFiles((prev) => ({ ...prev, [notebookId]: toFileEntries(notebookId, rawEntries) }));
       } catch (err) {
         toast?.(`Failed to load files: ${(err as Error).message}`, 'error');
       } finally {
