@@ -13,6 +13,8 @@ FROM --platform=linux/amd64 node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app .
 COPY . .
+ARG VITE_ADMIN_URL=https://admin.notebookmd.io
+ENV VITE_ADMIN_URL=$VITE_ADMIN_URL
 RUN npx --workspace=@notebook-md/web vite build
 
 # ── Stage 3: Serve with Nginx ──
