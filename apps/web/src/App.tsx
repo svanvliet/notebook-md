@@ -242,7 +242,7 @@ export default function App() {
         {process.env.NODE_ENV !== 'production' && (
           <button
             onClick={auth.devSkipAuth}
-            className="fixed bottom-20 right-4 z-50 px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors shadow-md"
+            className="fixed bottom-4 right-4 z-50 px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors shadow-md"
           >
             Skip to app (dev)
           </button>
