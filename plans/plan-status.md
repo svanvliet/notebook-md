@@ -2566,7 +2566,78 @@ Includes: cost estimate (~$70-85/mo), troubleshooting section.
 
 **Commit:** `f0d9c76`
 
-**Next:** User follows `infra/DEPLOY.md` manually → Phase 6.10 Validation
+---
+
+## Phase 6.9 Execution — First Deployment 🚀
+
+**Started:** 2026-02-20
+
+### Dockerfile Fix: ARM64 → AMD64
+Docker builds on Apple Silicon (M-series Mac) produce `linux/arm64` images by default, but Azure Container Apps requires `linux/amd64`. All Dockerfiles updated with `--platform=linux/amd64` on every `FROM` line to ensure correct architecture regardless of build host.
+
+**Commit:** `365dfcd`
+
+### Infrastructure Provisioning
+
+Followed `infra/DEPLOY.md` steps 1–9. Issues encountered and resolved:
+
+#### 1. Azure Provider Registration (Free Trial)
+New Azure subscription required explicit provider registration:
+- `Microsoft.Storage` — needed for TF state backend (`Registering` → `Registered` after ~2 min)
+- `Microsoft.Resources` — registered automatically
+- `Microsoft.App` — needed for Container Apps (registered after subscription upgrade)
+
+#### 2. Terraform State Lock
+First `terraform apply` hung on `Acquiring state lock`. Resolved with `-lock-timeout=120s` to give Azure Blob Storage lease time to initialize.
+
+#### 3. Azure Free Trial Limitations
+Three resources blocked on Free Trial:
+- **Microsoft.App** — provider not registered (easy fix: `az provider register`)
+- **PostgreSQL Flexible Server** — `LocationIsOfferRestricted` in eastus2 (resolved after upgrade)
+- **Azure Front Door** — explicitly blocked on Free Trial/Student accounts
+
+**Resolution:** Upgraded subscription from Free Trial to Pay-As-You-Go. Free credits ($200) carried over. All three issues resolved.
+
+#### 4. Container App Architecture Mismatch
+Images built on Mac (arm64) were rejected by Container Apps:
+> `image OS/Arc must be linux/amd64 but found linux/arm64`
+
+Fixed by pinning `--platform=linux/amd64` in all Dockerfile `FROM` lines and rebuilding.
+
+#### 5. Failed Container Apps Blocking Import
+After the arm64 failure, Container Apps existed in Azure in `ProvisioningState: Failed` but weren't in TF state. `terraform import` failed because failed resources can't be read. Resolved by deleting via `az containerapp delete` and letting Terraform recreate them.
+
+#### 6. Redis Provisioning Time
+Azure Redis Cache took ~21 minutes to provision — this is normal for the service.
+
+### Resources Successfully Provisioned
+- ✅ Resource Group (`rg-notebookmd-prod`)
+- ✅ Container Registry (`crnotebookmdprod`)
+- ✅ PostgreSQL 16 Flexible Server (`psql-notebookmd-prod`) — 35-day PITR, geo-redundant backups
+- ✅ Redis 6 Cache (`redis-notebookmd-prod`)
+- ✅ Key Vault (`kv-notebookmd-prod`) — 4 secrets (db-url, redis-url, session, encryption)
+- ✅ Container Apps Environment (`cae-notebookmd-prod`)
+- ✅ Container Apps: API, Web, Admin — with correct amd64 images
+- ✅ Front Door Standard (`fd-notebookmd-prod`) — 3 endpoints, custom domains, managed TLS
+- ✅ Log Analytics + Application Insights
+- ✅ Monitoring: action group, 3 availability tests, 3 alert rules
+- ✅ Managed Identity with ACR Pull + Key Vault Get/List
+
+### DNS Configured (GoDaddy)
+- Domain validation TXT records (`_dnsauth`, `_dnsauth.api`, `_dnsauth.admin`)
+- CNAME records pointing to Front Door endpoints
+- SendGrid email authentication records
+
+### GitHub Actions OIDC
+- Azure AD App Registration created
+- Federated credential: `repo:svanvliet/notebook-md:environment:production`
+- GitHub secrets configured: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+- `production` environment created in GitHub repo settings
+
+### v0.1.0 Tagged
+Tag pushed, deploy workflow triggered. Awaiting completion.
+
+**Status:** Deploy workflow running — awaiting verification (Steps 10–11)
 
 ---
 
