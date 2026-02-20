@@ -36,7 +36,7 @@ jobs:
       admin-changed: ${{ steps.flags.outputs.admin }}
       any-changed: ${{ steps.flags.outputs.any }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.tag) || '' }}
@@ -173,7 +173,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -220,7 +220,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -259,7 +259,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to Azure
         uses: azure/login@v2
