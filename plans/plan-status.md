@@ -2894,6 +2894,60 @@ Optimized the Build & Test (CI) workflow with change detection, shared caching, 
 
 ---
 
+## Email Verification & APP_URL Fix
+
+**Date:** 2026-02-20
+
+### Problem
+Email verification links pointed to `https://notebookmd.io/app/verify-email?token=...`. GoDaddy's root domain forwarding doesn't preserve paths for deep links, so users hit a broken page. Additionally, the verify-email `fetch()` in `App.tsx` used a relative URL (`/auth/verify-email`) which hit web nginx (405) instead of the API.
+
+### Fixes
+1. **APP_URL** changed from `https://notebookmd.io` to `https://www.notebookmd.io` in `container_apps.tf` — email links now go directly to Front Door. Applied via `terraform apply`.
+2. **verify-email fetch** in `App.tsx` — added `API_BASE` prefix (`import.meta.env.VITE_API_URL`) and `credentials: 'include'` for cross-origin cookies.
+
+**Commits:** `2e3d283` (fetch fix), `40fc433` (APP_URL fix)
+
+---
+
+## Deploy Workflow — Parallel Deploys
+
+**Date:** 2026-02-20
+
+Split the single sequential deploy job into 3 parallel jobs (`deploy-api`, `deploy-web`, `deploy-admin`). Each deploy job only depends on its own build job, so unchanged services don't block others. A `summary` job collects results and fails the workflow if any deploy failed.
+
+**Pipeline shape:** `Preflight → Build (3 parallel) → Deploy (3 parallel) → Summary`
+
+**Commit:** `f69f29f`
+
+---
+
+## Admin Account Promoted
+
+**Date:** 2026-02-20
+
+Promoted `me@svv.me` (SVV) to admin via `az containerapp exec` running `node cli/promote-admin.js`.
+User ID: `df1aa344-5b8d-49d3-ab6b-92c13eef911c`
+
+---
+
+## Current Production Status
+
+- ✅ `www.notebookmd.io` — app loads, TLS working
+- ✅ `api.notebookmd.io` — healthy, DB + Redis connected
+- ✅ `admin.notebookmd.io` — serving, TLS working
+- ✅ Sign up with email — working
+- ✅ Email verification — working (links to www.notebookmd.io)
+- ✅ Admin account promoted (me@svv.me)
+- ✅ Migrations (001–003) applied
+- ✅ CI/CD pipeline fully optimized (change detection, parallel builds/deploys, CI gate)
+
+### Remaining Steps
+- [ ] Phase 6.10: Production OAuth apps (Microsoft, Google, GitHub)
+- [ ] Full smoke test: create notebook, edit doc, cookie consent, legal pages
+- [ ] Test admin site at admin.notebookmd.io
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

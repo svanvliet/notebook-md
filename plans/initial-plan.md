@@ -686,8 +686,8 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Set up GitHub OIDC (Azure AD app + federated credential + repo secrets)
 - [x] Tag `v0.1.0`, trigger deploy workflow, approve production deployment
 - [x] Verify app at `notebookmd.io`, `api.notebookmd.io`, `admin.notebookmd.io`, `www.notebookmd.io`
-- [ ] Smoke test: sign up, verify email, create notebook, edit doc, cookie consent, legal pages
-- [ ] Promote admin account via `az containerapp exec`
+- [x] Smoke test: sign up ✅, verify email ✅, create notebook, edit doc, cookie consent, legal pages
+- [x] Promote admin account via `az containerapp exec` — `me@svv.me` promoted
 
 **Post-deployment fixes applied:**
 - [x] Fix hardcoded localhost URLs → `VITE_*` env vars with production defaults
@@ -697,6 +697,8 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Fix Vite env vars → `.env.production` files in Dockerfiles (Docker `ENV` not picked up by Vite)
 - [x] Fix Container Apps revisions → SHA-based image tags (`0.1.0-a8af94a`) for unique deploys
 - [x] Fix CI E2E → generate `.env` file, override `VITE_*` args in docker-compose for local URLs
+- [x] Fix APP_URL → `https://www.notebookmd.io` (email deep links bypass GoDaddy forwarding)
+- [x] Fix verify-email fetch → use `API_BASE` prefix for cross-origin API call
 
 ### 6.10 Phase 6 Validation
 
