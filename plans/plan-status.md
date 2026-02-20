@@ -2688,6 +2688,64 @@ Added Phase 6.10 items for creating/updating production OAuth client registratio
 
 ---
 
+## Production Fixes — Post-Deployment Hardening
+
+**Date:** 2026-02-20
+
+### Hardcoded localhost URLs
+Both the web and admin apps had hardcoded localhost URLs for cross-app links:
+- Admin `App.tsx`: `http://localhost:5173` → `import.meta.env.VITE_APP_URL || 'http://localhost:5173'`
+- Web `TitleBar.tsx`: `http://localhost:5174` → `import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174'`
+
+Dockerfiles set production values via build ARGs:
+- `Dockerfile.web`: `VITE_ADMIN_URL=https://admin.notebookmd.io`
+- `Dockerfile.admin`: `VITE_APP_URL=https://notebookmd.io`
+
+**Commit:** `4ab90a4`, `17fea98`
+
+### Web Container Crash — Nginx API Proxy
+Web container was crash-looping: `host not found in upstream "api"`. The nginx config (`web.conf`) had proxy blocks forwarding `/api/*` and `/auth/*` to `http://api:3001` — a Docker Compose service name that doesn't exist in Container Apps.
+
+**Fix:** Created `docker/nginx/web-prod.conf` (SPA-only, no proxy). Production Dockerfile uses `web-prod.conf`; `docker-compose.prod.yml` volume-mounts `web.conf` for local testing.
+
+**Commit:** `c88f590`
+
+### API Calls Using Relative URLs
+Both web and admin apps made API calls to relative URLs (`/auth/me`, `/api/*`, `/admin/*`). In Docker Compose, nginx proxies these to the API container. In production, web/admin are separate Container Apps with no proxy — relative calls hit the web/admin nginx and return 404.
+
+**Fix:** Introduced `VITE_API_URL` env var:
+- `apps/web/src/hooks/useAuth.ts`: `API_BASE = import.meta.env.VITE_API_URL || ''`
+- `apps/web/src/api/apiFetch.ts`: `API_BASE = VITE_API_URL ? VITE_API_URL/api : /api`
+- `apps/admin/src/hooks/useAdmin.ts`: `API_BASE = import.meta.env.VITE_API_URL || ''`
+- Both Dockerfiles: `ARG VITE_API_URL=https://api.notebookmd.io`
+- `container_apps.tf`: Added `API_URL=https://api.notebookmd.io` env var for API's own OAuth callbacks
+
+In local dev, `VITE_API_URL` is unset → relative URLs → proxied by Vite dev server or docker-compose nginx.
+
+**Commits:** `96d2658`, `2a3fdbb`
+
+### Production OAuth App Setup (Plan Update)
+Added Phase 6.10 items for creating production OAuth client registrations (Microsoft, Google, GitHub, GitHub App) with production redirect URIs (`https://api.notebookmd.io/auth/oauth/*/callback`).
+
+**Commit:** `ffd8de4`
+
+### Summary of All v0.1.0 Re-tags
+The v0.1.0 tag was force-pushed multiple times as production issues were discovered and fixed:
+1. `ee1aee8` — Initial deploy (migration job failed)
+2. `17fea98` — Localhost URL fixes + migration-on-startup
+3. `c88f590` — Nginx prod config (no API proxy)
+4. `96d2658` — Web VITE_API_URL fix
+5. `2a3fdbb` — Admin VITE_API_URL fix (current)
+
+### Remaining Steps
+- [ ] Verify deploy completes and signup works
+- [ ] Verify `www.notebookmd.io` TLS cert
+- [ ] Smoke test full flow
+- [ ] Promote admin account
+- [ ] Phase 6.10: Production OAuth apps, full validation
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
