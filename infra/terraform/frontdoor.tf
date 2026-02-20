@@ -116,7 +116,7 @@ resource "azurerm_cdn_frontdoor_route" "web" {
   cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.web.id
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.web.id
   cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.web.id]
-  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.web.id]
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.web.id, azurerm_cdn_frontdoor_custom_domain.www.id]
   patterns_to_match             = ["/*"]
   supported_protocols           = ["Http", "Https"]
   https_redirect_enabled        = true
@@ -171,6 +171,16 @@ resource "azurerm_cdn_frontdoor_custom_domain" "api" {
   }
 }
 
+resource "azurerm_cdn_frontdoor_custom_domain" "www" {
+  name                     = "domain-www"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  host_name                = "www.${var.domain}"
+
+  tls {
+    certificate_type = "ManagedCertificate"
+  }
+}
+
 resource "azurerm_cdn_frontdoor_custom_domain" "admin" {
   name                     = "domain-admin"
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
@@ -185,6 +195,11 @@ resource "azurerm_cdn_frontdoor_custom_domain" "admin" {
 
 resource "azurerm_cdn_frontdoor_custom_domain_association" "web" {
   cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.web.id
+  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.web.id]
+}
+
+resource "azurerm_cdn_frontdoor_custom_domain_association" "www" {
+  cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.www.id
   cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.web.id]
 }
 

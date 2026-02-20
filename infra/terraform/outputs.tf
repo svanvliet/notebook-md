@@ -61,6 +61,11 @@ output "domain_validation_web" {
   description = "TXT record value for _dnsauth.notebookmd.io"
 }
 
+output "domain_validation_www" {
+  value       = azurerm_cdn_frontdoor_custom_domain.www.validation_token
+  description = "TXT record value for _dnsauth.www.notebookmd.io"
+}
+
 output "domain_validation_api" {
   value       = azurerm_cdn_frontdoor_custom_domain.api.validation_token
   description = "TXT record value for _dnsauth.api.notebookmd.io"

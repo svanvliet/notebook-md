@@ -8,11 +8,11 @@ These point your custom domains to Azure Front Door. The `{fd-endpoint}` values 
 
 | Type  | Host              | Value                                              | TTL  |
 |-------|-------------------|----------------------------------------------------|------|
-| CNAME | `@` (or root)     | `{frontdoor_web_endpoint}` (e.g., `notebookmd-web-xxxxx.z01.azurefd.net`) | 3600 |
+| CNAME | `www`             | `{frontdoor_web_endpoint}` (e.g., `notebookmd-web-xxxxx.z01.azurefd.net`) | 3600 |
 | CNAME | `api`             | `{frontdoor_api_endpoint}` (e.g., `notebookmd-api-xxxxx.z01.azurefd.net`) | 3600 |
 | CNAME | `admin`           | `{frontdoor_admin_endpoint}` (e.g., `notebookmd-admin-xxxxx.z01.azurefd.net`) | 3600 |
 
-> **Note:** GoDaddy may not support CNAME on the root domain (`@`). If so, use GoDaddy's domain forwarding to redirect `notebookmd.io` → `www.notebookmd.io` and add a `www` CNAME instead. Alternatively, use an ALIAS/ANAME record if GoDaddy supports it, or consider transferring DNS to Azure DNS or Cloudflare which support CNAME flattening.
+> **Note:** GoDaddy forwards root domain (`@`) to `www.notebookmd.io`. Both `notebookmd.io` and `www.notebookmd.io` are configured as Front Door custom domains with managed TLS.
 
 ## 2. Front Door Domain Validation
 
@@ -21,6 +21,7 @@ These TXT records prove domain ownership to Azure. Values come from `terraform o
 | Type | Host                   | Value                            | TTL  |
 |------|------------------------|----------------------------------|------|
 | TXT  | `_dnsauth`             | `{domain_validation_web}`        | 3600 |
+| TXT  | `_dnsauth.www`         | `{domain_validation_www}`        | 3600 |
 | TXT  | `_dnsauth.api`         | `{domain_validation_api}`        | 3600 |
 | TXT  | `_dnsauth.admin`       | `{domain_validation_admin}`      | 3600 |
 
