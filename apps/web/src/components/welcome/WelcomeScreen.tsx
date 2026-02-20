@@ -10,6 +10,7 @@ interface WelcomeScreenProps {
   onMagicLink: (email: string) => Promise<boolean>;
   onOAuth: (provider: string) => void;
   onEnterDemo: () => void;
+  initialView?: View;
   error: string | null;
   onClearError: () => void;
   // 2FA
@@ -21,15 +22,20 @@ interface WelcomeScreenProps {
 
 type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
-export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnterDemo, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnterDemo, initialView, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
   const location = useLocation();
-  const [view, setView] = useState<View>(error ? 'signin' : 'main');
+  const [view, setView] = useState<View>(error ? 'signin' : initialView ?? 'main');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Update view when initialView prop changes (e.g., demo → signup)
+  useEffect(() => {
+    if (initialView && !error) setView(initialView);
+  }, [initialView]); // eslint-disable-line react-hooks/exhaustive-deps
   const [twoFaCode, setTwoFaCode] = useState('');
   const [twoFaMode, setTwoFaMode] = useState<'totp' | 'email' | 'recovery'>('totp');
   const [emailCodeSent, setEmailCodeSent] = useState(false);
@@ -256,26 +262,29 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
           <>
             <div className="w-full space-y-3">
               <button
-                onClick={() => switchView('signin')}
+                onClick={onEnterDemo}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors text-sm"
               >
-                {t('auth.signIn')}
-              </button>
-              <button
-                onClick={() => switchView('signup')}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium transition-colors text-sm"
-              >
-                {t('auth.signUp')}
+                Try it free — no account needed
               </button>
             </div>
 
             <div className="w-full mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
-              <button
-                onClick={onEnterDemo}
-                className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                Try it free — no account needed →
-              </button>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">already have an account?</p>
+              <div className="w-full space-y-3">
+                <button
+                  onClick={() => switchView('signin')}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium transition-colors text-sm"
+                >
+                  {t('auth.signIn')}
+                </button>
+                <button
+                  onClick={() => switchView('signup')}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium transition-colors text-sm"
+                >
+                  {t('auth.signUp')}
+                </button>
+              </div>
             </div>
 
             <div className="w-full mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">

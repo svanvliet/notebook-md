@@ -25,7 +25,7 @@ import { useCookieConsent } from './hooks/useCookieConsent';
 import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { migrateAnonymousNotebooks } from './stores/localNotebookStore';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -40,6 +40,16 @@ export default function App() {
   const cookieConsent = useCookieConsent();
   const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle enterDemo from navigation state (e.g., from content pages)
+  useEffect(() => {
+    if (location.state?.enterDemo && !auth.isDemoMode && !auth.isSignedIn) {
+      auth.enterDemoMode();
+      // Clear the state so refreshing doesn't re-trigger
+      navigate('/', { replace: true, state: {} });
+    }
+  }, [location.state?.enterDemo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
@@ -53,6 +63,7 @@ export default function App() {
   const [showOnboarding2fa, setShowOnboarding2fa] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [welcomeView, setWelcomeView] = useState<'main' | 'signin' | 'signup' | undefined>(undefined);
 
   // Integrate modals with browser history (back button closes them)
   const closeSettings = useModalHistory(showSettings, () => setShowSettings(false));
@@ -242,6 +253,7 @@ export default function App() {
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
           onEnterDemo={auth.enterDemoMode}
+          initialView={welcomeView}
           error={oauthError ?? auth.error}
           onClearError={() => { setOauthError(null); auth.clearError(); }}
           twoFactorChallenge={auth.twoFactorChallenge}
@@ -305,11 +317,11 @@ export default function App() {
         isDemoMode={auth.isDemoMode}
         onSignOut={auth.signOut}
         onExitDemo={auth.exitDemoMode}
-        onCreateAccount={() => auth.exitDemoMode()}
+        onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }}
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
-      {auth.isDemoMode && <DemoBanner onCreateAccount={() => auth.exitDemoMode()} />}
+      {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }} />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -453,6 +465,7 @@ export default function App() {
           userId={auth.user?.id}
           initialSource={initialSource}
           isDemoMode={auth.isDemoMode}
+          onDemoSignUp={() => { closeAddNotebook(); setWelcomeView('signup'); auth.exitDemoMode(); }}
         />
       )}
 

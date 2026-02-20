@@ -40,11 +40,12 @@ interface AddNotebookModalProps {
   userId?: string;
   initialSource?: string | null;
   isDemoMode?: boolean;
+  onDemoSignUp?: () => void;
 }
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode, onDemoSignUp }: AddNotebookModalProps) {
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
   const [sourceType, setSourceType] = useState<SourceType | null>(validSource);
@@ -110,7 +111,7 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 
         {/* Body */}
         <div className="px-5 py-4 min-h-[220px]">
-          {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} />}
+          {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} onDemoSignUp={onDemoSignUp} />}
           {step === 'configure' && sourceType === 'github' && (
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
           )}
@@ -141,7 +142,7 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 
 // ── Step 1: Source picker ─────────────────────────────────────────────────
 
-function SourcePicker({ onSelect, isDemoMode }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean }) {
+function SourcePicker({ onSelect, isDemoMode, onDemoSignUp }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean; onDemoSignUp?: () => void }) {
   const types = Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][];
 
   return (
@@ -149,16 +150,19 @@ function SourcePicker({ onSelect, isDemoMode }: { onSelect: (type: SourceType) =
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Choose where your notebook files are stored:</p>
       {types.map(([type, info]) => {
         const isRemote = type !== 'local';
+        const demoLocked = isDemoMode && isRemote && info.available;
         const disabled = !info.available || (isDemoMode && isRemote);
         return (
           <button
             key={type}
-            onClick={() => onSelect(type)}
-            disabled={disabled}
+            onClick={() => demoLocked && onDemoSignUp ? onDemoSignUp() : onSelect(type)}
+            disabled={!info.available && !demoLocked}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
-              !disabled
+              demoLocked
                 ? 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer'
-                : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
+                : !disabled
+                  ? 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer'
+                  : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
             }`}
           >
             <SourceIcon sourceType={type} className="w-5 h-5" />
@@ -167,8 +171,8 @@ function SourcePicker({ onSelect, isDemoMode }: { onSelect: (type: SourceType) =
               {!info.available && (
                 <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Coming soon</span>
               )}
-              {isDemoMode && isRemote && info.available && (
-                <span className="ml-2 text-xs text-blue-500 dark:text-blue-400">Sign up to connect</span>
+              {demoLocked && (
+                <span className="ml-2 text-xs text-blue-500 dark:text-blue-400">Sign up to connect →</span>
               )}
             </div>
           </button>

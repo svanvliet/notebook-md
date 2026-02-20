@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NotebookIcon } from '../icons/Icons';
 
 interface MarketingLayoutProps {
@@ -7,6 +7,7 @@ interface MarketingLayoutProps {
 
 export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isActive = (path: string) => location.pathname === path;
 
   const linkClass = (path: string) =>
@@ -15,6 +16,14 @@ export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
         ? 'text-gray-900 dark:text-white font-medium'
         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
     }`;
+
+  const handleTryDemo = () => {
+    if (onEnterDemo) {
+      onEnterDemo();
+    } else {
+      navigate('/', { state: { enterDemo: true } });
+    }
+  };
 
   return (
     <nav className="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm sticky top-0 z-40">
@@ -30,14 +39,12 @@ export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
           <Link to="/features" className={linkClass('/features')}>Features</Link>
           <Link to="/about" className={linkClass('/about')}>About</Link>
           <Link to="/contact" className={linkClass('/contact')}>Contact</Link>
-          {onEnterDemo && (
-            <button
-              onClick={onEnterDemo}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            >
-              Try Demo
-            </button>
-          )}
+          <button
+            onClick={handleTryDemo}
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            Try Demo
+          </button>
           <Link
             to="/"
             className="ml-2 px-4 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
