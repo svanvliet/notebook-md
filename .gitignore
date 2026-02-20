@@ -37,3 +37,4 @@ stuff.txt
 playwright-report/
 test-results/
 *.tfplan
+tfplan

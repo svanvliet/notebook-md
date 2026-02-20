@@ -713,6 +713,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
   - [x] Update `terraform.tfvars` with production OAuth credentials and apply via `terraform apply`
   - [x] Add inline `GITHUB_APP_PRIVATE_KEY` env var support (containers can't use file paths)
   - [x] Create `notebook-md-dev` GitHub App for local development (separate from production)
+  - [x] Fix deploy change detection: compare against previous tag (not HEAD~1)
+  - [x] Fix deploy CI gate: poll for CI completion (up to 10 min) instead of failing on race condition
+  - [x] Verify OAuth providers live in production: `github`, `microsoft`, `google` ✅
 - **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end (Tier 1 + Tier 2 on push, E2E smoke on PR to main); monitoring captures real traffic; auto-scaling responds to load; SPA fallback works for all client-side routes
 - **UX:** The production app is indistinguishable from the local dev experience
 - **Feedback points:** Page load speed, cold-start latency, OAuth redirect timing, email delivery speed
