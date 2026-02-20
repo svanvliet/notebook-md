@@ -14,7 +14,9 @@ WORKDIR /app
 COPY --from=deps /app .
 COPY . .
 ARG VITE_ADMIN_URL=https://admin.notebookmd.io
+ARG VITE_API_URL=https://api.notebookmd.io
 ENV VITE_ADMIN_URL=$VITE_ADMIN_URL
+ENV VITE_API_URL=$VITE_API_URL
 RUN npx --workspace=@notebook-md/web vite build
 
 # ── Stage 3: Serve with Nginx ──
