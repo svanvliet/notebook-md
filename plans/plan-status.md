@@ -2813,6 +2813,87 @@ Major rewrite of the deploy workflow and CI pipeline fix to address two problems
 
 ---
 
+## Vite Env Vars & Deploy Fixes
+
+**Date:** 2026-02-20
+
+### Vite `.env.production` Fix
+The Docker `ARG` + `ENV` approach wasn't being picked up by Vite's build-time `import.meta.env` replacement. Vite only reads env vars from `.env*` files or the actual process environment — Docker `ENV` in a build stage doesn't propagate to `RUN` commands the same way.
+
+**Fix:** Dockerfiles now write `.env.production` files explicitly before `vite build`:
+```dockerfile
+ARG VITE_API_URL=https://api.notebookmd.io
+RUN printf "VITE_API_URL=%s\n" "$VITE_API_URL" > apps/web/.env.production
+RUN npx --workspace=@notebook-md/web vite build
+```
+
+For local/CI docker-compose, build args override to empty strings so relative URLs are used (proxied by nginx):
+```yaml
+web:
+  build:
+    args:
+      VITE_API_URL: ""
+```
+
+**Commits:** `af9e1f6`, `3a760fa`
+
+### SHA-Based Image Tags
+Container Apps doesn't create a new revision when the image tag is unchanged (e.g., `web:0.1.0`). When force-pushing the same tag to ACR, the image content changes but Container Apps doesn't detect it.
+
+**Fix:** Image tags now include git short SHA: `0.1.0-a8af94a`. Every deploy produces a unique tag, forcing a new Container Apps revision.
+
+**Commit:** `a8af94a`
+
+### CI E2E Fix
+`docker-compose.prod.yml` requires `.env` for secrets (`SESSION_SECRET`, `ENCRYPTION_KEY`). Added a CI step to generate test `.env` before starting the production stack.
+
+**Commit:** `e996719`
+
+---
+
+## CI/CD Pipeline Optimization — Build & Test
+
+**Date:** 2026-02-20
+
+Optimized the Build & Test (CI) workflow with change detection, shared caching, and selective execution.
+
+### Changes
+
+**Change detection (`dorny/paths-filter`):**
+- New `changes` job detects which areas changed: `api`, `web`, `admin`, `shared`, `docker`
+- Outputs `any-app` (any code changed) and `needs-e2e` (UI/docker changes requiring E2E)
+- Step summary shows change detection results
+
+**Shared `node_modules` cache:**
+- New `install` job runs `npm ci` once and caches `node_modules/` by `package-lock.json` hash
+- `lint`, `test-web`, `test-api` restore from cache instead of running `npm ci` independently
+- Saves ~45-60s per job on cache hit
+
+**Selective test execution:**
+- `test-web` only runs when `web` or `shared` changed
+- `test-api` only runs when `api` or `shared` changed
+- `build-images` only builds Docker images for changed apps
+- Uses `always()` + result checks to handle skipped upstream jobs
+
+**Selective E2E:**
+- E2E smoke tests only run when `web`, `admin`, `shared`, or `docker` files changed
+- API-only changes skip E2E (covered by integration tests)
+
+**Change detection patterns:**
+| Change in... | Runs |
+|---|---|
+| `apps/api/` only | lint + test-api + build API image |
+| `apps/web/` only | lint + test-web + build web image + E2E |
+| `packages/shared/` | lint + all tests + all builds + E2E |
+| `docker/` only | lint + E2E |
+
+**Commit:** `6d79236`
+
+### v0.1.0 Re-tag History (Updated)
+8. `a8af94a` — SHA-based image tags + Vite .env.production fix (current)
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*

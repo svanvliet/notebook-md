@@ -618,6 +618,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Parallel build jobs: API, Web, Admin images build simultaneously (~3x faster)
 - [x] Docker layer caching via `--cache-from` latest tag
 - [x] Manual deploy trigger (`workflow_dispatch`) with `force_rebuild` option
+- [x] CI change detection (`dorny/paths-filter`): skip tests/builds for unchanged apps
+- [x] Shared `node_modules` cache across CI jobs (install once, restore everywhere)
+- [x] Selective E2E: skip when only API internals changed (no UI/docker impact)
+- [x] SHA-based image tags (`0.1.0-<sha>`) for unique Container Apps revisions
 - [x] GitHub Environment `production` with protection rules (manual approval) — configured in deploy + rollback workflows
 - [x] Environment-scoped secrets for Azure credentials (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID)
 - [x] Branch protection on `main`: deferred — requires GitHub Team plan for private repos; revisit when repo goes public
@@ -681,9 +685,18 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Configure DNS at GoDaddy (validation TXT + CNAMEs from terraform output)
 - [x] Set up GitHub OIDC (Azure AD app + federated credential + repo secrets)
 - [x] Tag `v0.1.0`, trigger deploy workflow, approve production deployment
-- [ ] Verify app at `notebookmd.io`, `api.notebookmd.io`, `admin.notebookmd.io`
+- [x] Verify app at `notebookmd.io`, `api.notebookmd.io`, `admin.notebookmd.io`, `www.notebookmd.io`
 - [ ] Smoke test: sign up, verify email, create notebook, edit doc, cookie consent, legal pages
 - [ ] Promote admin account via `az containerapp exec`
+
+**Post-deployment fixes applied:**
+- [x] Fix hardcoded localhost URLs → `VITE_*` env vars with production defaults
+- [x] Fix web nginx → SPA-only `web-prod.conf` (no API proxy in production)
+- [x] Fix relative API URLs → `VITE_API_URL` for cross-origin API calls
+- [x] Fix CORS → allow `www.notebookmd.io` (comma-separated `CORS_ORIGIN`)
+- [x] Fix Vite env vars → `.env.production` files in Dockerfiles (Docker `ENV` not picked up by Vite)
+- [x] Fix Container Apps revisions → SHA-based image tags (`0.1.0-a8af94a`) for unique deploys
+- [x] Fix CI E2E → generate `.env` file, override `VITE_*` args in docker-compose for local URLs
 
 ### 6.10 Phase 6 Validation
 
