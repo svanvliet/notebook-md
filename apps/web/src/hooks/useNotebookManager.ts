@@ -25,6 +25,7 @@ import {
   readGitHubFile,
   writeGitHubFile,
   createGitHubFile,
+  deleteGitHubFile,
   createWorkingBranch,
   publishBranch,
 } from '../api/github';
@@ -33,12 +34,14 @@ import {
   readOneDriveFile,
   writeOneDriveFile,
   createOneDriveFile,
+  deleteOneDriveFile,
 } from '../api/onedrive';
 import {
   listGoogleDriveTree,
   readGoogleDriveFile,
   writeGoogleDriveFile,
   createGoogleDriveFile,
+  deleteGoogleDriveFile,
 } from '../api/googledrive';
 
 const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
@@ -82,6 +85,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [modalRequest, setModalRequest] = useState<ModalRequest | null>(null);
   const [saveLocationRequest, setSaveLocationRequest] = useState<SaveLocationRequest | null>(null);
+  const [pendingExpandPath, setPendingExpandPath] = useState<{ notebookId: string; path: string } | null>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Show a temporary status bar message
@@ -349,11 +353,10 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
           if (type === 'file' && !name.includes('.')) {
             name = `${name}.md`;
           }
+          const filePath = parentPath ? `${parentPath}/${name}` : name;
           const nb = notebooks.find((n) => n.id === notebookId);
           if (nb?.sourceType === 'github') {
-            // Create file via GitHub API on working branch
             const rootPath = nb.sourceConfig.rootPath as string;
-            const filePath = parentPath ? `${parentPath}/${name}` : name;
             try {
               const branch = await ensureWorkingBranch(notebookId, nb);
               await createGitHubFile(rootPath, filePath, '', branch);
@@ -361,31 +364,46 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
               toast?.(`Created ${type} "${name}"`, 'success');
             } catch (err) {
               toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
+              return;
             }
           } else if (nb?.sourceType === 'onedrive') {
             const rootPath = nb.sourceConfig.rootPath as string;
-            const filePath = parentPath ? `${parentPath}/${name}` : name;
             try {
               await createOneDriveFile(rootPath, filePath, '');
               await refreshFiles(notebookId);
               toast?.(`Created ${type} "${name}"`, 'success');
             } catch (err) {
               toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
+              return;
             }
           } else if (nb?.sourceType === 'google-drive') {
             const rootFolderId = nb.sourceConfig.rootPath as string;
-            const filePath = parentPath ? `${parentPath}/${name}` : name;
             try {
               await createGoogleDriveFile(rootFolderId, filePath, '');
               await refreshFiles(notebookId);
               toast?.(`Created ${type} "${name}"`, 'success');
             } catch (err) {
               toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
+              return;
             }
           } else {
             await createFile(notebookId, parentPath, name, type);
             await refreshFiles(notebookId);
             toast?.(`Created ${type} "${name}"`, 'success');
+          }
+          // Expand parent folder and open the new file
+          setPendingExpandPath({ notebookId, path: filePath });
+          if (type === 'file') {
+            const tabId = `${notebookId}:${filePath}`;
+            setTabs((prev) => {
+              if (prev.some((t) => t.id === tabId)) return prev;
+              return [...prev, {
+                id: tabId, notebookId, path: filePath, name,
+                content: '', savedContent: '',
+                hasUnsavedChanges: false, lastSaved: Date.now(),
+              }];
+            });
+            setActiveTabId(tabId);
           }
         },
       });
@@ -502,6 +520,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
 
         await refreshFiles(notebookId);
         toast?.(`Imported "${fileName}"`, 'success');
+        setPendingExpandPath({ notebookId, path: entryPath });
 
         // Auto-open the imported file
         let htmlContent: string;
@@ -544,11 +563,29 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         return prev;
       });
 
-      await deleteF(notebookId, path);
-      await refreshFiles(notebookId);
-      toast?.(`Deleted "${name}"`, 'success');
+      const nb = notebooks.find((n) => n.id === notebookId);
+      try {
+        if (nb?.sourceType === 'github') {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          // Find the SHA from the open tab (needed for GitHub delete)
+          const openTab = tabs.find((t) => t.id === tabId);
+          await deleteGitHubFile(rootPath, path, openTab?.sha);
+        } else if (nb?.sourceType === 'onedrive') {
+          const rootPath = nb.sourceConfig.rootPath as string;
+          await deleteOneDriveFile(rootPath, path);
+        } else if (nb?.sourceType === 'google-drive') {
+          const rootFolderId = nb.sourceConfig.rootPath as string;
+          await deleteGoogleDriveFile(rootFolderId, path);
+        } else {
+          await deleteF(notebookId, path);
+        }
+        await refreshFiles(notebookId);
+        toast?.(`Deleted "${name}"`, 'success');
+      } catch (err) {
+        toast?.(`Failed to delete "${name}": ${(err as Error).message}`, 'error');
+      }
     },
-    [refreshFiles, tabs, flash, toast],
+    [notebooks, refreshFiles, tabs, flash, toast],
   );
 
   const handleRenameFile = useCallback(
@@ -1061,5 +1098,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleCopyFile,
     handleReorderNotebooks,
     handleProviderUnlinked,
+    pendingExpandPath,
+    clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
   };
 }

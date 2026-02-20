@@ -130,6 +130,8 @@ interface NotebookTreeProps {
   onCopyFile?: (sourceNotebookId: string, sourcePath: string, targetNotebookId: string, targetParentPath: string) => void;
   onReorderNotebooks?: (orderedIds: string[]) => void;
   onDropImport?: (notebookId: string, parentPath: string, fileName: string, content: string) => void;
+  expandToPath?: { notebookId: string; path: string } | null;
+  onExpandToPathHandled?: () => void;
   activeFilePath: string | null;
 }
 
@@ -151,6 +153,8 @@ export function NotebookTree({
   onCopyFile,
   onReorderNotebooks,
   onDropImport,
+  expandToPath,
+  onExpandToPathHandled,
   activeFilePath,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
@@ -165,6 +169,31 @@ export function NotebookTree({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dragNotebookId, setDragNotebookId] = useState<string | null>(null);
   const [dragSourceNotebookId, setDragSourceNotebookId] = useState<string | null>(null);
+
+  // Expand ancestor folders when a file is created/imported
+  useEffect(() => {
+    if (!expandToPath) return;
+    const { notebookId, path } = expandToPath;
+    // Expand the notebook
+    setExpandedNotebooks((prev) => {
+      const next = new Set(prev);
+      next.add(notebookId);
+      return next;
+    });
+    // Expand all ancestor folders
+    const parts = path.split('/');
+    if (parts.length > 1) {
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        for (let i = 1; i < parts.length; i++) {
+          const folderPath = parts.slice(0, i).join('/');
+          next.add(`${notebookId}:${folderPath}`);
+        }
+        return next;
+      });
+    }
+    onExpandToPathHandled?.();
+  }, [expandToPath, onExpandToPathHandled]);
 
   // Determine cross-notebook drop style: green (copy allowed), red (blocked), or null (same notebook)
   const crossDropStyle = useCallback((targetNotebookId: string): 'copy' | 'blocked' | null => {
