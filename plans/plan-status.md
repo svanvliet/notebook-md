@@ -3055,6 +3055,31 @@ All three OAuth providers configured for production with credentials deployed vi
 
 **Commits:** `273ee1c`, `c40a96f`, `04e3097`
 
+### Editor: False Dirty State Fix ✅
+**Date:** 2026-02-20
+
+- `savedContent` stored raw markdown but `handleContentChange` compared against Tiptap HTML — always mismatched
+- Fixed: store HTML in `savedContent` so dirty check compares like-for-like
+- Skip initial `onUpdate` fired by Tiptap on mount via `isInitialMount` ref
+
+**Commit:** `f2c513f`
+
+### GitHub Working Branches Overhaul ✅
+**Date:** 2026-02-20
+
+**Problem:** Working branches were stored only in `useRef` (memory) — lost on page refresh, orphaning branches on GitHub.
+
+**Fixes:**
+- **Persistent branches:** Working branches stored in `localStorage` (`notebookmd:workingBranches`), restored on mount
+- **Branch-aware loading:** File tree and file reads use working branch when one exists, falling back to configured branch
+- **Publish modal:** Replaces direct publish — shows branch selector dropdown, "delete after merge" checkbox, fetches all repo branches
+- **Discard button:** Red button next to Publish — deletes working branch on GitHub, reloads open tabs from base branch, closes tabs for files that only existed on the working branch
+- **Branch selection on add:** GitHub notebook creation now has a 3-step flow (Account → Repo → Branch). Selected branch stored in `sourceConfig.branch` and used as base for working branches, tree loading, file reads, and publish target
+- **DELETE /api/github/branches** endpoint added for standalone branch deletion
+- **Backward compatible:** Existing notebooks without `sourceConfig.branch` fall back to repo default branch
+
+**Commits:** `e42fb4e`, `efb06bd`, `6dec666`
+
 ---
 
 ## Open Questions

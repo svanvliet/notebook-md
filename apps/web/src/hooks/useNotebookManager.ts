@@ -852,8 +852,6 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
       const branch = workingBranches.current[notebookId];
       if (!branch) return;
 
-      if (!confirm(`Discard all unpublished changes on branch "${branch}"? This cannot be undone.`)) return;
-
       const owner = nb.sourceConfig.owner as string;
       const repo = nb.sourceConfig.repo as string;
 
