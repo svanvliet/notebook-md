@@ -83,6 +83,12 @@ export async function publishBranch(
   });
 }
 
+export async function deleteWorkingBranch(owner: string, repo: string, branch: string): Promise<void> {
+  await api(`/api/github/branches?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`, {
+    method: 'DELETE',
+  });
+}
+
 // ── File operations (via source proxy) ───────────────────────────────────
 
 export interface GitHubFileEntry {

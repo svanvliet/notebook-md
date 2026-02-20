@@ -28,6 +28,8 @@ import {
   deleteGitHubFile,
   createWorkingBranch,
   publishBranch,
+  deleteWorkingBranch,
+  listBranches,
 } from '../api/github';
 import {
   listOneDriveTree,
@@ -193,7 +195,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         let rawEntries: Array<{ path: string; name: string; type: 'file' | 'folder'; size?: number; lastModified?: string; sha?: string }>;
 
         if (nb.sourceType === 'github') {
-          rawEntries = await listGitHubTree(rootPath);
+          const branch = workingBranches.current[notebookId];
+          rawEntries = await listGitHubTree(rootPath, branch);
         } else if (nb.sourceType === 'onedrive') {
           rawEntries = await listOneDriveTree(rootPath);
         } else if (nb.sourceType === 'google-drive') {
@@ -303,6 +306,22 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
 
   // --- Working branch state (must precede file ops that use ensureWorkingBranch) ---
 
+  // Persist working branches to localStorage so they survive page refresh
+  const BRANCH_STORAGE_KEY = 'notebookmd:workingBranches';
+  const loadPersistedBranches = useCallback((): Record<string, { branch: string; defaultBranch: string }> => {
+    try {
+      const raw = localStorage.getItem(BRANCH_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }, []);
+  const persistBranches = useCallback((wb: Record<string, string>, db: Record<string, string>) => {
+    const data: Record<string, { branch: string; defaultBranch: string }> = {};
+    for (const [id, branch] of Object.entries(wb)) {
+      data[id] = { branch, defaultBranch: db[id] ?? 'main' };
+    }
+    try { localStorage.setItem(BRANCH_STORAGE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+  }, []);
+
   // Working branch per notebook: notebookId → branch name
   const workingBranches = useRef<Record<string, string>>({});
   const branchCreating = useRef<Record<string, Promise<string>>>({});
@@ -310,6 +329,18 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
   const defaultBranches = useRef<Record<string, string>>({});
   // Reactive set of notebook IDs that have a working branch (for UI)
   const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
+
+  // Restore persisted working branches on mount
+  useEffect(() => {
+    const persisted = loadPersistedBranches();
+    const ids = Object.keys(persisted);
+    if (ids.length === 0) return;
+    for (const [id, { branch, defaultBranch }] of Object.entries(persisted)) {
+      workingBranches.current[id] = branch;
+      defaultBranches.current[id] = defaultBranch;
+    }
+    setPublishableNotebooks(new Set(ids));
+  }, [loadPersistedBranches]);
 
   /** Ensure a working branch exists for a GitHub notebook, create one if needed */
   const ensureWorkingBranch = useCallback(
@@ -331,6 +362,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         defaultBranches.current[notebookId] = result.defaultBranch;
         delete branchCreating.current[notebookId];
         setPublishableNotebooks((prev) => new Set(prev).add(notebookId));
+        persistBranches(workingBranches.current, defaultBranches.current);
         return result.branch;
       });
       branchCreating.current[notebookId] = promise;
@@ -624,10 +656,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
       const nb = notebooks.find((n) => n.id === notebookId);
 
       if (nb && nb.sourceType === 'github') {
-        // Fetch from GitHub API
+        // Fetch from GitHub API (use working branch if one exists)
         try {
           const rootPath = nb.sourceConfig.rootPath as string;
-          const file = await readGitHubFile(rootPath, path);
+          const branch = workingBranches.current[notebookId];
+          const file = await readGitHubFile(rootPath, path, branch);
           let content = file.content;
           if (isMarkdownContent(content)) {
             content = markdownToHtml(content);
@@ -770,9 +803,9 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     [notebooks, ensureWorkingBranch],
   );
 
-  /** Publish (squash-merge) a notebook's working branch to main */
+  /** Publish (merge) a notebook's working branch to a target branch */
   const handlePublish = useCallback(
-    async (notebookId: string) => {
+    async (notebookId: string, targetBranch?: string, shouldDeleteBranch = true) => {
       const nb = notebooks.find((n) => n.id === notebookId);
       if (!nb || nb.sourceType !== 'github') return;
 
@@ -784,29 +817,81 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
 
       const owner = nb.sourceConfig.owner as string;
       const repo = nb.sourceConfig.repo as string;
+      const baseBranch = targetBranch ?? defaultBranches.current[notebookId] ?? 'main';
 
       try {
-        const baseBranch = defaultBranches.current[notebookId] ?? 'main';
-        await publishBranch(owner, repo, branch, baseBranch, `Notebook.md: update from ${branch}`, true);
+        await publishBranch(owner, repo, branch, baseBranch, `Notebook.md: update from ${branch}`, shouldDeleteBranch);
         delete workingBranches.current[notebookId];
         delete defaultBranches.current[notebookId];
+        persistBranches(workingBranches.current, defaultBranches.current);
         setPublishableNotebooks((prev) => {
           const next = new Set(prev);
           next.delete(notebookId);
           return next;
         });
-        // Refresh files from main to get updated SHAs
+        // Refresh files from the base branch to get updated SHAs
         await refreshFiles(notebookId);
-        // Update SHA on open tabs for this notebook (they now point at main)
         setTabs((prev) =>
           prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
         );
-        toast?.('Changes published to main', 'success');
+        toast?.(`Changes published to ${baseBranch}`, 'success');
       } catch (err) {
         toast?.(`Publish failed: ${(err as Error).message}`, 'error');
       }
     },
-    [notebooks, refreshFiles, flash, toast],
+    [notebooks, refreshFiles, persistBranches, flash, toast],
+  );
+
+  /** Discard working branch — delete it from GitHub without merging */
+  const handleDiscard = useCallback(
+    async (notebookId: string) => {
+      const nb = notebooks.find((n) => n.id === notebookId);
+      if (!nb || nb.sourceType !== 'github') return;
+
+      const branch = workingBranches.current[notebookId];
+      if (!branch) return;
+
+      if (!confirm(`Discard all unpublished changes on branch "${branch}"? This cannot be undone.`)) return;
+
+      const owner = nb.sourceConfig.owner as string;
+      const repo = nb.sourceConfig.repo as string;
+
+      try {
+        await deleteWorkingBranch(owner, repo, branch);
+        delete workingBranches.current[notebookId];
+        delete defaultBranches.current[notebookId];
+        persistBranches(workingBranches.current, defaultBranches.current);
+        setPublishableNotebooks((prev) => {
+          const next = new Set(prev);
+          next.delete(notebookId);
+          return next;
+        });
+        await refreshFiles(notebookId);
+        setTabs((prev) =>
+          prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
+        );
+        toast?.('Working branch discarded', 'success');
+      } catch (err) {
+        toast?.(`Discard failed: ${(err as Error).message}`, 'error');
+      }
+    },
+    [notebooks, refreshFiles, persistBranches, flash, toast],
+  );
+
+  /** Get working branch info for a notebook (for the publish modal) */
+  const getWorkingBranchInfo = useCallback(
+    (notebookId: string) => {
+      const branch = workingBranches.current[notebookId];
+      const nb = notebooks.find((n) => n.id === notebookId);
+      if (!branch || !nb) return null;
+      return {
+        branch,
+        defaultBranch: defaultBranches.current[notebookId] ?? 'main',
+        owner: nb.sourceConfig.owner as string,
+        repo: nb.sourceConfig.repo as string,
+      };
+    },
+    [notebooks],
   );
 
   /** Check if a notebook has a working branch with unpublished changes */
@@ -1059,6 +1144,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         for (const id of affectedIds) next.delete(id);
         return next;
       });
+      persistBranches(workingBranches.current, defaultBranches.current);
     }
 
     toast?.(`Removed ${affected.length} notebook${affected.length > 1 ? 's' : ''} linked to ${provider}`, 'info');
@@ -1092,7 +1178,9 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleSave,
     handleTabClose,
     handlePublish,
+    handleDiscard,
     hasWorkingBranch,
+    getWorkingBranchInfo,
     refreshFiles,
     handleMoveFile,
     handleCopyFile,

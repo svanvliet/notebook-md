@@ -11,6 +11,7 @@ import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AccountModal } from './components/account/AccountModal';
 import { AddNotebookModal } from './components/notebook/AddNotebookModal';
+import { PublishModal } from './components/notebook/PublishModal';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
@@ -47,6 +48,7 @@ export default function App() {
   const [showAddNotebook, setShowAddNotebook] = useState(false);
   const [initialSource, setInitialSource] = useState<string | null>(null);
   const [showOnboarding2fa, setShowOnboarding2fa] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
 
   // Integrate modals with browser history (back button closes them)
   const closeSettings = useModalHistory(showSettings, () => setShowSettings(false));
@@ -338,7 +340,8 @@ export default function App() {
           onContentChange={nb.handleContentChange}
           onWordCountChange={handleWordCountChange}
           showPublish={!!(nb.activeTab && nb.hasWorkingBranch(nb.activeTab.notebookId))}
-          onPublish={() => nb.activeTab && nb.handlePublish(nb.activeTab.notebookId)}
+          onPublish={() => nb.activeTab && setShowPublishModal(true)}
+          onDiscard={() => nb.activeTab && nb.handleDiscard(nb.activeTab.notebookId)}
           fontFamily={settings.fontFamily}
           fontSize={settings.fontSize}
           spellCheck={settings.spellCheck}
@@ -434,6 +437,25 @@ export default function App() {
           initialSource={initialSource}
         />
       )}
+
+      {/* Publish modal */}
+      {showPublishModal && nb.activeTab && (() => {
+        const info = nb.getWorkingBranchInfo(nb.activeTab.notebookId);
+        if (!info) return null;
+        return (
+          <PublishModal
+            workingBranch={info.branch}
+            defaultBranch={info.defaultBranch}
+            owner={info.owner}
+            repo={info.repo}
+            onPublish={(targetBranch, deleteBranch) => {
+              setShowPublishModal(false);
+              nb.handlePublish(nb.activeTab!.notebookId, targetBranch, deleteBranch);
+            }}
+            onCancel={() => setShowPublishModal(false)}
+          />
+        );
+      })()}
     </div>
   );
 }
