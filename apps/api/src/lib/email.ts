@@ -1,16 +1,18 @@
 import nodemailer from 'nodemailer';
 import { logger } from './logger.js';
 
+const smtpPort = Number(process.env.SMTP_PORT ?? 1025);
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST ?? 'localhost',
-  port: Number(process.env.SMTP_PORT ?? 1025),
-  secure: false,
+  port: smtpPort,
+  secure: smtpPort === 465,
   ...(process.env.SMTP_USER
     ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } }
     : {}),
 });
 
-const FROM = process.env.EMAIL_FROM ?? 'Notebook.md <noreply@notebookmd.io>';
+const FROM = process.env.SMTP_FROM ?? process.env.EMAIL_FROM ?? 'Notebook.md <noreply@notebookmd.io>';
 const BASE_URL = process.env.APP_URL ?? 'http://localhost:5173';
 
 export async function sendMagicLink(email: string, token: string): Promise<void> {

@@ -654,9 +654,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.7 Transactional Email
 
-- [ ] Set up SendGrid account (free tier: 100 emails/day)
-- [ ] Configure sender domain verification for `noreply@notebookmd.io`
-- [ ] Switch API email transport from Mailpit to SendGrid in production config (env-based: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`)
+- [x] Set up SendGrid account (free tier: 100 emails/day)
+- [x] Configure sender domain verification for `noreply@notebookmd.io`
+- [x] Switch API email transport from Mailpit to SendGrid in production config (env-based: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`)
 
 ### 6.8 Database
 
