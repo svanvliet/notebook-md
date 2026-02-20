@@ -242,13 +242,25 @@ export function useAuth() {
     setState(s => ({ ...s, error }));
   }, []);
 
-  // Dev-only skip auth
-  const devSkipAuth = useCallback(() => {
-    setState({
-      user: { id: 'dev-user', displayName: 'Dev User', email: 'dev@localhost', emailVerified: true, avatarUrl: null, hasPassword: true },
-      loading: false,
-      error: null,
-    });
+  // Dev-only skip auth — creates a real session via the API
+  const devSkipAuth = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/dev-login`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setState({ user: data.user, loading: false, error: null });
+      }
+    } catch {
+      // Fallback to fake user if API not available
+      setState({
+        user: { id: 'dev-user', displayName: 'Dev User', email: 'dev@localhost', emailVerified: true, avatarUrl: null, hasPassword: true },
+        loading: false,
+        error: null,
+      });
+    }
   }, []);
 
   // ── 2FA methods ──────────────────────────────────────────────────────────
