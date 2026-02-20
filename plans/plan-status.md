@@ -3044,6 +3044,17 @@ All three OAuth providers configured for production with credentials deployed vi
 - **ES module env var fix**: `process.env` reads in route files were hoisted before `dotenv.config()` — switched to lazy getters
 - Increased source rate limit from 100 to 300 req/min for burst tolerance
 
+### Bug Fixes ✅
+**Date:** 2026-02-20
+
+- **Remote file delete (OneDrive/GitHub/Google Drive):** `handleDeleteFile` was only calling local IndexedDB `deleteFile`, never the remote API. Files appeared deleted (toast success) but reappeared on refresh. Fixed by routing to `deleteGitHubFile`, `deleteOneDriveFile`, or `deleteGoogleDriveFile` based on `notebook.sourceType`.
+- **Auto-expand folders on create/import:** Creating a new file (right-click → New File) or drag-drop importing a file into a folder didn't expand the target folder or open the file. Added `pendingExpandPath` state that flows through `NotebookPane` → `NotebookTree`, expanding the notebook and all ancestor folders. New files also auto-open in a tab.
+- **Drag-drop import onto notebook tree:** External file drops onto folder rows and notebook headers in the tree pane now work (was only handled by the document pane overlay). Added `hasExternalFiles()` detection and `onDropImport` prop chain.
+- **Safari Tiptap crash (React 19 compatibility):** Tiptap's `ReactRenderer` calls `flushSync` during `componentDidMount`, which React 19 treats as a fatal error in Safari (Chrome/Edge only warn). Fixed with `immediatelyRender: false`, `EditorErrorBoundary` (3 retries), and null guards on `SlashCommandMenu`/`TableFloatingToolbar`.
+- **GitHub App slug in dev:** ES module import hoisting caused `GITHUB_APP_SLUG` to read `undefined` before `dotenv.config()` ran, falling back to production `notebook-md`. Fixed with lazy getter functions.
+
+**Commits:** `273ee1c`, `c40a96f`, `04e3097`
+
 ---
 
 ## Open Questions

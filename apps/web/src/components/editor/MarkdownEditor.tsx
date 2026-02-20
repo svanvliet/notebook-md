@@ -122,6 +122,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const syncingScroll = useRef(false);
   const syncingFromSource = useRef(false);
   const scrollSource = useRef<'source' | 'wysiwyg' | null>(null);
+  const isInitialMount = useRef(true);
 
   const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
 
@@ -139,6 +140,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
+      // Skip the initial onUpdate fired when Tiptap parses the content on mount
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+      }
       onChange(html);
 
       // Keep raw content in sync during split view, but skip if update came from source pane
