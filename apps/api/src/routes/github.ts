@@ -288,4 +288,35 @@ router.post('/publish', async (req: Request, res: Response) => {
   }
 });
 
+// ── DELETE /api/github/branches — Delete a branch ──────────────────────────
+
+router.delete('/branches', async (req: Request, res: Response) => {
+  const owner = req.query.owner as string;
+  const repo = req.query.repo as string;
+  const branch = req.query.branch as string;
+
+  if (!owner || !repo || !branch) {
+    res.status(400).json({ error: 'owner, repo, and branch query params are required' });
+    return;
+  }
+
+  const install = await query<{ installation_id: number }>(
+    'SELECT installation_id FROM github_installations WHERE account_login = $1 AND user_id = $2',
+    [owner, req.userId!],
+  );
+  if (install.rows.length === 0) {
+    res.status(404).json({ error: 'No GitHub installation found for this account' });
+    return;
+  }
+
+  try {
+    const token = await getInstallationToken(install.rows[0].installation_id);
+    await deleteBranch(token, owner, repo, branch);
+    res.json({ message: 'Branch deleted' });
+  } catch (err) {
+    logger.error('Failed to delete branch', { owner, repo, branch, error: (err as Error).message });
+    res.status(502).json({ error: 'Failed to delete branch on GitHub' });
+  }
+});
+
 export default router;

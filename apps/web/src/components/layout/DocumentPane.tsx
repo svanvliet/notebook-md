@@ -20,6 +20,7 @@ interface DocumentPaneProps {
   /** Whether the active notebook has unpublished changes on a working branch */
   showPublish?: boolean;
   onPublish?: () => void;
+  onDiscard?: () => void;
   /** Editor settings */
   fontFamily?: string;
   fontSize?: number;
@@ -37,6 +38,7 @@ export function DocumentPane({
   onWordCountChange,
   showPublish,
   onPublish,
+  onDiscard,
   fontFamily,
   fontSize,
   spellCheck,
@@ -80,16 +82,28 @@ export function DocumentPane({
             ))}
           </div>
           {showPublish && (
-            <button
-              onClick={onPublish}
-              className="flex items-center gap-1.5 px-3 h-7 mb-0.5 text-xs font-semibold rounded-md bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors shrink-0"
-              title="Publish changes — squash-merge working branch to main"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M12 19V5m0 0l-5 5m5-5l5 5" />
-              </svg>
-              Publish
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={onPublish}
+                className="flex items-center gap-1.5 px-3 h-7 mb-0.5 text-xs font-semibold rounded-md bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors"
+                title="Publish changes — merge working branch"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 19V5m0 0l-5 5m5-5l5 5" />
+                </svg>
+                Publish
+              </button>
+              <button
+                onClick={onDiscard}
+                className="flex items-center gap-1.5 px-2.5 h-7 mb-0.5 text-xs rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                title="Discard changes — delete working branch"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+                Discard
+              </button>
+            </div>
           )}
         </div>
       )}
