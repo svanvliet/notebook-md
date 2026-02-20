@@ -41,4 +41,4 @@ COPY apps/api/migrations ./migrations
 COPY apps/api/cli ./cli
 
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npx node-pg-migrate up --migrations-dir migrations --migration-file-language sql 2>&1 && node dist/index.js"]
