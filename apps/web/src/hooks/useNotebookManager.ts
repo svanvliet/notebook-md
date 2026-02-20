@@ -867,15 +867,43 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
           return next;
         });
         await refreshFiles(notebookId);
-        setTabs((prev) =>
-          prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
-        );
+
+        // Reload open tabs for this notebook from the default branch
+        const rootPath = nb.sourceConfig.rootPath as string;
+        const affectedTabs = tabs.filter((t) => t.notebookId === notebookId);
+        for (const tab of affectedTabs) {
+          try {
+            const file = await readGitHubFile(rootPath, tab.path);
+            let content = file.content;
+            if (isMarkdownContent(content)) {
+              content = markdownToHtml(content);
+            }
+            setTabs((prev) =>
+              prev.map((t) =>
+                t.id === tab.id
+                  ? { ...t, content, savedContent: content, sha: file.sha, hasUnsavedChanges: false, lastSaved: Date.now() }
+                  : t,
+              ),
+            );
+          } catch {
+            // File may not exist on default branch (was newly created on working branch) — close the tab
+            setTabs((prev) => prev.filter((t) => t.id !== tab.id));
+            setActiveTabId((prev) => {
+              if (prev === tab.id) {
+                const remaining = tabs.filter((t) => t.id !== tab.id && t.notebookId !== notebookId || affectedTabs.every((at) => at.id !== t.id));
+                return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+              }
+              return prev;
+            });
+          }
+        }
+
         toast?.('Working branch discarded', 'success');
       } catch (err) {
         toast?.(`Discard failed: ${(err as Error).message}`, 'error');
       }
     },
-    [notebooks, refreshFiles, persistBranches, flash, toast],
+    [notebooks, tabs, refreshFiles, persistBranches, flash, toast],
   );
 
   /** Get working branch info for a notebook (for the publish modal) */
