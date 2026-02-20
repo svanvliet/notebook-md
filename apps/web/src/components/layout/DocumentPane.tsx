@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { XIcon } from '../icons/Icons';
 import { MarkdownEditor } from '../editor/MarkdownEditor';
+import { EditorErrorBoundary } from '../editor/EditorErrorBoundary';
 
 export interface Tab {
   id: string;
@@ -96,17 +97,18 @@ export function DocumentPane({
       {/* Editor area */}
       <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
         {activeTab ? (
-          <MarkdownEditor
-            key={activeTab.id}
-            content={activeTab.content}
-            onChange={(html) => onContentChange(activeTab.id, html)}
-            onWordCountChange={onWordCountChange}
-            fontFamily={fontFamily}
-            fontSize={fontSize}
-            spellCheck={spellCheck}
-            margins={margins}
-            lineNumbers={lineNumbers}
-          />
+          <EditorErrorBoundary key={activeTab.id}>
+            <MarkdownEditor
+              content={activeTab.content}
+              onChange={(html) => onContentChange(activeTab.id, html)}
+              onWordCountChange={onWordCountChange}
+              fontFamily={fontFamily}
+              fontSize={fontSize}
+              spellCheck={spellCheck}
+              margins={margins}
+              lineNumbers={lineNumbers}
+            />
+          </EditorErrorBoundary>
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-600">
             <p className="text-sm">Open a file from the notebook pane to start editing</p>
