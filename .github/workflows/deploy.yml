@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to deploy (e.g., 0.1.0)'
+        required: true
+      force_rebuild:
+        description: 'Rebuild all images regardless of changes'
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-production
@@ -14,21 +23,154 @@ env:
   RESOURCE_GROUP: rg-notebookmd-prod
 
 jobs:
-  build-and-push:
-    name: Build & Push Images
+  preflight:
+    name: Preflight
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      api-changed: ${{ steps.changes.outputs.api }}
+      web-changed: ${{ steps.changes.outputs.web }}
+      admin-changed: ${{ steps.changes.outputs.admin }}
+      any-changed: ${{ steps.changes.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.tag) || '' }}
+
+      - name: Extract version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect changes since previous tag
+        id: changes
+        run: |
+          FORCE="${{ inputs.force_rebuild }}"
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CURRENT_TAG="v${{ inputs.tag }}"
+          fi
+
+          # Find previous version tag (skip current)
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | grep -v "^${CURRENT_TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ] || [ "$FORCE" = "true" ]; then
+            echo "Building all images (first deploy or force rebuild)"
+            for key in api web admin any; do echo "$key=true" >> "$GITHUB_OUTPUT"; done
+            exit 0
+          fi
+
+          echo "Comparing $PREV_TAG → $CURRENT_TAG"
+          CHANGED=$(git diff --name-only "$PREV_TAG" "$CURRENT_TAG" || echo "")
+          echo "$CHANGED"
+
+          # Shared dependency changes force all rebuilds
+          SHARED=false
+          if echo "$CHANGED" | grep -qE "^(packages/shared/|package-lock\.json$|package\.json$)"; then
+            SHARED=true
+          fi
+
+          API=false
+          if [ "$SHARED" = "true" ]; then
+            API=true
+          elif echo "$CHANGED" | grep -qE "^(apps/api/|docker/Dockerfile\.api$)"; then
+            API=true
+          fi
+
+          WEB=false
+          if [ "$SHARED" = "true" ]; then
+            WEB=true
+          elif echo "$CHANGED" | grep -qE "^(apps/web/|docker/Dockerfile\.web$|docker/nginx/)"; then
+            WEB=true
+          fi
+
+          ADMIN=false
+          if [ "$SHARED" = "true" ]; then
+            ADMIN=true
+          elif echo "$CHANGED" | grep -qE "^(apps/admin/|docker/Dockerfile\.admin$|docker/nginx/)"; then
+            ADMIN=true
+          fi
+
+          ANY=false
+          if [ "$API" = "true" ] || [ "$WEB" = "true" ] || [ "$ADMIN" = "true" ]; then
+            ANY=true
+          fi
+
+          echo "api=$API" >> "$GITHUB_OUTPUT"
+          echo "web=$WEB" >> "$GITHUB_OUTPUT"
+          echo "admin=$ADMIN" >> "$GITHUB_OUTPUT"
+          echo "any=$ANY" >> "$GITHUB_OUTPUT"
+          echo "### Change Detection" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Changed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API | $API |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Web | $WEB |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Admin | $ADMIN |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify CI passed
+        if: steps.changes.outputs.any == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "Checking CI for $COMMIT_SHA..."
+
+          # Check for completed CI run
+          CI_RESULT=$(gh run list \
+            --workflow=ci.yml \
+            --commit="$COMMIT_SHA" \
+            --status=completed \
+            --json conclusion \
+            --jq '.[0].conclusion' 2>/dev/null || echo "")
+
+          if [ "$CI_RESULT" = "success" ]; then
+            echo "✅ Build & Test passed"
+            exit 0
+          fi
+
+          # Check if CI is still running
+          CI_ACTIVE=$(gh run list \
+            --workflow=ci.yml \
+            --commit="$COMMIT_SHA" \
+            --json status \
+            --jq '[.[] | select(.status != "completed")] | length' 2>/dev/null || echo "0")
+
+          if [ "$CI_ACTIVE" -gt "0" ]; then
+            echo "⏳ Build & Test is still running for $COMMIT_SHA"
+            echo "Wait for CI to finish, then re-push the tag."
+            exit 1
+          fi
+
+          if [ -z "$CI_RESULT" ]; then
+            echo "❌ No CI run found for $COMMIT_SHA"
+            echo "CI may have been skipped (docs-only change?) or hasn't triggered yet."
+            echo "Push code to main and wait for Build & Test to pass before tagging."
+            exit 1
+          fi
+
+          echo "❌ Build & Test conclusion: $CI_RESULT"
+          echo "Fix CI failures before deploying."
+          exit 1
+
+  build-api:
+    name: Build API
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.api-changed == 'true'
     environment: production
     permissions:
       contents: read
       id-token: write
-    outputs:
-      image-tag: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Extract version from tag
-        id: meta
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -40,38 +182,132 @@ jobs:
       - name: Log in to ACR
         run: az acr login --name ${{ env.ACR_NAME }}
 
-      - name: Build and push web
-        run: |
-          docker build -f docker/Dockerfile.web -t ${{ env.ACR_NAME }}.azurecr.io/web:${{ steps.meta.outputs.version }} .
-          docker push ${{ env.ACR_NAME }}.azurecr.io/web:${{ steps.meta.outputs.version }}
+      - name: Pull cache
+        run: docker pull ${{ env.ACR_NAME }}.azurecr.io/api:latest || true
 
-      - name: Build and push api
+      - name: Build and push
         run: |
-          docker build -f docker/Dockerfile.api -t ${{ env.ACR_NAME }}.azurecr.io/api:${{ steps.meta.outputs.version }} .
-          docker push ${{ env.ACR_NAME }}.azurecr.io/api:${{ steps.meta.outputs.version }}
+          IMAGE=${{ env.ACR_NAME }}.azurecr.io/api
+          TAG=${{ needs.preflight.outputs.image-tag }}
+          DOCKER_BUILDKIT=1 docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from "$IMAGE:latest" \
+            -f docker/Dockerfile.api \
+            -t "$IMAGE:$TAG" \
+            -t "$IMAGE:latest" \
+            .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
 
-      - name: Build and push admin
-        run: |
-          docker build -f docker/Dockerfile.admin -t ${{ env.ACR_NAME }}.azurecr.io/admin:${{ steps.meta.outputs.version }} .
-          docker push ${{ env.ACR_NAME }}.azurecr.io/admin:${{ steps.meta.outputs.version }}
-
-      - name: Scan API image with Trivy
+      - name: Scan with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.ACR_NAME }}.azurecr.io/api:${{ steps.meta.outputs.version }}
+          image-ref: ${{ env.ACR_NAME }}.azurecr.io/api:${{ needs.preflight.outputs.image-tag }}
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
 
-  deploy:
-    name: Deploy to Azure
+  build-web:
+    name: Build Web
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: preflight
+    if: needs.preflight.outputs.web-changed == 'true'
     environment: production
     permissions:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Pull cache
+        run: docker pull ${{ env.ACR_NAME }}.azurecr.io/web:latest || true
+
+      - name: Build and push
+        run: |
+          IMAGE=${{ env.ACR_NAME }}.azurecr.io/web
+          TAG=${{ needs.preflight.outputs.image-tag }}
+          DOCKER_BUILDKIT=1 docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from "$IMAGE:latest" \
+            -f docker/Dockerfile.web \
+            -t "$IMAGE:$TAG" \
+            -t "$IMAGE:latest" \
+            .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+  build-admin:
+    name: Build Admin
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.admin-changed == 'true'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Pull cache
+        run: docker pull ${{ env.ACR_NAME }}.azurecr.io/admin:latest || true
+
+      - name: Build and push
+        run: |
+          IMAGE=${{ env.ACR_NAME }}.azurecr.io/admin
+          TAG=${{ needs.preflight.outputs.image-tag }}
+          DOCKER_BUILDKIT=1 docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from "$IMAGE:latest" \
+            -f docker/Dockerfile.admin \
+            -t "$IMAGE:$TAG" \
+            -t "$IMAGE:latest" \
+            .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [preflight, build-api, build-web, build-admin]
+    if: |
+      always() &&
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.any-changed == 'true' &&
+      (needs.build-api.result == 'success' || needs.build-api.result == 'skipped') &&
+      (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') &&
+      (needs.build-admin.result == 'success' || needs.build-admin.result == 'skipped')
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Fail if any build failed
+        if: |
+          needs.build-api.result == 'failure' ||
+          needs.build-web.result == 'failure' ||
+          needs.build-admin.result == 'failure'
+        run: exit 1
+
       - name: Log in to Azure
         uses: azure/login@v2
         with:
@@ -80,27 +316,31 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy API
+        if: needs.preflight.outputs.api-changed == 'true'
         uses: azure/container-apps-deploy-action@v2
         with:
           containerAppName: ca-notebookmd-api
           resourceGroup: ${{ env.RESOURCE_GROUP }}
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/api:${{ needs.build-and-push.outputs.image-tag }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/api:${{ needs.preflight.outputs.image-tag }}
 
       - name: Deploy Web
+        if: needs.preflight.outputs.web-changed == 'true'
         uses: azure/container-apps-deploy-action@v2
         with:
           containerAppName: ca-notebookmd-web
           resourceGroup: ${{ env.RESOURCE_GROUP }}
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/web:${{ needs.build-and-push.outputs.image-tag }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/web:${{ needs.preflight.outputs.image-tag }}
 
       - name: Deploy Admin
+        if: needs.preflight.outputs.admin-changed == 'true'
         uses: azure/container-apps-deploy-action@v2
         with:
           containerAppName: ca-notebookmd-admin
           resourceGroup: ${{ env.RESOURCE_GROUP }}
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/admin:${{ needs.build-and-push.outputs.image-tag }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/admin:${{ needs.preflight.outputs.image-tag }}
 
       - name: Verify API health
+        if: needs.preflight.outputs.api-changed == 'true'
         run: |
           for i in {1..30}; do
             status=$(curl -s -o /dev/null -w "%{http_code}" https://api.notebookmd.io/api/health || true)
@@ -113,3 +353,24 @@ jobs:
           done
           echo "❌ API health check failed after 5 minutes"
           exit 1
+
+      - name: Summary
+        run: |
+          echo "### Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Service | Action |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.preflight.outputs.api-changed }}" = "true" ]; then
+            echo "| API | ✅ Deployed |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| API | ⏭️ Unchanged |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ needs.preflight.outputs.web-changed }}" = "true" ]; then
+            echo "| Web | ✅ Deployed |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Web | ⏭️ Unchanged |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ needs.preflight.outputs.admin-changed }}" = "true" ]; then
+            echo "| Admin | ✅ Deployed |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Admin | ⏭️ Unchanged |" >> "$GITHUB_STEP_SUMMARY"
+          fi
