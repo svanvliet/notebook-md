@@ -9,6 +9,7 @@ interface WelcomeScreenProps {
   onSignUp: (email: string, password: string, displayName: string, rememberMe: boolean) => Promise<boolean>;
   onMagicLink: (email: string) => Promise<boolean>;
   onOAuth: (provider: string) => void;
+  onEnterDemo: () => void;
   error: string | null;
   onClearError: () => void;
   // 2FA
@@ -20,7 +21,7 @@ interface WelcomeScreenProps {
 
 type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
-export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnterDemo, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const [view, setView] = useState<View>(error ? 'signin' : 'main');
@@ -239,7 +240,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
-      <MarketingNav />
+      <MarketingNav onEnterDemo={onEnterDemo} />
       <div className="flex-1 flex flex-col items-center justify-center">
       <div className="flex flex-col items-center w-full max-w-sm px-6">
         {/* Logo */}
@@ -265,6 +266,15 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, error,
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium transition-colors text-sm"
               >
                 {t('auth.signUp')}
+              </button>
+            </div>
+
+            <div className="w-full mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+              <button
+                onClick={onEnterDemo}
+                className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                Try it free — no account needed →
               </button>
             </div>
 

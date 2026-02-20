@@ -39,11 +39,12 @@ interface AddNotebookModalProps {
   onCancel: () => void;
   userId?: string;
   initialSource?: string | null;
+  isDemoMode?: boolean;
 }
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, userId, initialSource }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode }: AddNotebookModalProps) {
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
   const [sourceType, setSourceType] = useState<SourceType | null>(validSource);
@@ -109,7 +110,7 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource }: Add
 
         {/* Body */}
         <div className="px-5 py-4 min-h-[220px]">
-          {step === 'source' && <SourcePicker onSelect={handleSelectSource} />}
+          {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} />}
           {step === 'configure' && sourceType === 'github' && (
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
           )}
@@ -140,32 +141,39 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource }: Add
 
 // ── Step 1: Source picker ─────────────────────────────────────────────────
 
-function SourcePicker({ onSelect }: { onSelect: (type: SourceType) => void }) {
+function SourcePicker({ onSelect, isDemoMode }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean }) {
   const types = Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][];
 
   return (
     <div className="space-y-2">
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Choose where your notebook files are stored:</p>
-      {types.map(([type, info]) => (
-        <button
-          key={type}
-          onClick={() => onSelect(type)}
-          disabled={!info.available}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
-            info.available
-              ? 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer'
-              : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
-          }`}
-        >
-          <SourceIcon sourceType={type} className="w-5 h-5" />
-          <div className="flex-1">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">{info.label}</span>
-            {!info.available && (
-              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Coming soon</span>
-            )}
-          </div>
-        </button>
-      ))}
+      {types.map(([type, info]) => {
+        const isRemote = type !== 'local';
+        const disabled = !info.available || (isDemoMode && isRemote);
+        return (
+          <button
+            key={type}
+            onClick={() => onSelect(type)}
+            disabled={disabled}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+              !disabled
+                ? 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer'
+                : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
+            }`}
+          >
+            <SourceIcon sourceType={type} className="w-5 h-5" />
+            <div className="flex-1">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">{info.label}</span>
+              {!info.available && (
+                <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Coming soon</span>
+              )}
+              {isDemoMode && isRemote && info.available && (
+                <span className="ml-2 text-xs text-blue-500 dark:text-blue-400">Sign up to connect</span>
+              )}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

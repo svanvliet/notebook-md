@@ -28,6 +28,7 @@ interface TwoFactorChallenge {
 
 export function useAuth() {
   const [state, setState] = useState<AuthState>({ user: null, loading: true, error: null });
+  const [demoMode, setDemoMode] = useState(() => sessionStorage.getItem('notebookmd:demoMode') === 'true');
   const [twoFactorChallenge, setTwoFactorChallenge] = useState<TwoFactorChallenge | null>(null);
 
   // Session invalidation handler — called when any API response indicates
@@ -40,8 +41,9 @@ export function useAuth() {
     });
   }, []);
 
-  // Check existing session on mount
+  // Check existing session on mount (skip in demo mode)
   useEffect(() => {
+    if (demoMode) return;
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
@@ -55,10 +57,11 @@ export function useAuth() {
         setState({ user: null, loading: false, error: null });
       }
     })();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-validate session when the tab becomes visible again (handles idle users)
+  // Re-validate session when the tab becomes visible again (skip in demo mode)
   useEffect(() => {
+    if (demoMode) return;
     const onVisibilityChange = async () => {
       if (document.visibilityState !== 'visible' || !state.user) return;
       try {
@@ -70,14 +73,15 @@ export function useAuth() {
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [state.user, handleSessionInvalid]);
+  }, [state.user, handleSessionInvalid, demoMode]);
 
   // Listen for session-invalid events dispatched by API calls anywhere in the app
   useEffect(() => {
+    if (demoMode) return;
     const handler = () => handleSessionInvalid();
     window.addEventListener('auth:session-invalid', handler);
     return () => window.removeEventListener('auth:session-invalid', handler);
-  }, [handleSessionInvalid]);
+  }, [handleSessionInvalid, demoMode]);
 
   const signUp = useCallback(async (email: string, password: string, displayName?: string, rememberMe?: boolean) => {
     setState(s => ({ ...s, error: null }));
@@ -94,12 +98,17 @@ export function useAuth() {
         return false;
       }
       setState({ user: data.user, loading: false, error: null });
+      // Clear demo mode on successful sign-up (migration handled by App.tsx)
+      if (demoMode) {
+        sessionStorage.removeItem('notebookmd:demoMode');
+        setDemoMode(false);
+      }
       return true;
     } catch (err) {
       setState(s => ({ ...s, error: 'Network error. Please try again.' }));
       return false;
     }
-  }, []);
+  }, [demoMode]);
 
   const signIn = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
     setState(s => ({ ...s, error: null }));
@@ -242,6 +251,36 @@ export function useAuth() {
     setState(s => ({ ...s, error }));
   }, []);
 
+  // ── Demo mode ──────────────────────────────────────────────────────────
+
+  const DEMO_USER: User = {
+    id: 'demo-user',
+    displayName: 'Demo User',
+    email: '',
+    emailVerified: false,
+    avatarUrl: null,
+    hasPassword: false,
+  };
+
+  const enterDemoMode = useCallback(() => {
+    sessionStorage.setItem('notebookmd:demoMode', 'true');
+    setDemoMode(true);
+    setState({ user: DEMO_USER, loading: false, error: null });
+  }, []);
+
+  const exitDemoMode = useCallback(() => {
+    sessionStorage.removeItem('notebookmd:demoMode');
+    setDemoMode(false);
+    setState({ user: null, loading: false, error: null });
+  }, []);
+
+  // Restore demo mode on mount (before /auth/me check completes)
+  useEffect(() => {
+    if (demoMode) {
+      setState({ user: DEMO_USER, loading: false, error: null });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Dev-only skip auth — creates a real session via the API
   const devSkipAuth = useCallback(async () => {
     try {
@@ -375,6 +414,7 @@ export function useAuth() {
     loading: state.loading,
     error: state.error,
     isSignedIn: !!state.user,
+    isDemoMode: demoMode,
     twoFactorChallenge,
     signUp,
     signIn,
@@ -388,6 +428,8 @@ export function useAuth() {
     clearError,
     setError,
     devSkipAuth,
+    enterDemoMode,
+    exitDemoMode,
     // 2FA
     verify2fa,
     send2faEmailCode,

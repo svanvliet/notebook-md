@@ -1077,6 +1077,18 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     }
   }, [toast]);
 
+  const reloadNotebooks = useCallback(async () => {
+    const nbs = await listNotebooks();
+    setNotebooks(nbs);
+    const fileMap: Record<string, FileEntry[]> = {};
+    for (const nb of nbs) {
+      if (nb.sourceType === 'local' || !nb.sourceType) {
+        fileMap[nb.id] = await listFiles(nb.id);
+      }
+    }
+    setFiles(fileMap);
+  }, []);
+
   const handleCopyFile = useCallback(async (
     sourceNotebookId: string,
     sourcePath: string,
@@ -1216,5 +1228,6 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleProviderUnlinked,
     pendingExpandPath,
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
+    reloadNotebooks,
   };
 }

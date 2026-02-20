@@ -5,7 +5,7 @@ interface MarketingLayoutProps {
   children: React.ReactNode;
 }
 
-export function MarketingNav() {
+export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
 
@@ -30,6 +30,14 @@ export function MarketingNav() {
           <Link to="/features" className={linkClass('/features')}>Features</Link>
           <Link to="/about" className={linkClass('/about')}>About</Link>
           <Link to="/contact" className={linkClass('/contact')}>Contact</Link>
+          {onEnterDemo && (
+            <button
+              onClick={onEnterDemo}
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              Try Demo
+            </button>
+          )}
           <Link
             to="/"
             className="ml-2 px-4 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
