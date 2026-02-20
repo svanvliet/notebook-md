@@ -3,6 +3,14 @@ name: Build & Test
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'docs/**'
+      - 'reviews/**'
+      - 'requirements/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches: [main]
 
