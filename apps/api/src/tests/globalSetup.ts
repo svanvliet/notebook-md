@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
  * The test DB (notebookmd_test) is separate from the dev DB (notebookmd).
  */
 export default function setup() {
-  const testDbUrl = 'postgresql://notebookmd:localdev@localhost:5432/notebookmd_test';
+  const testDbUrl = process.env.DATABASE_URL ?? 'postgresql://notebookmd:localdev@localhost:5432/notebookmd_test';
   try {
     execSync(`DATABASE_URL=${testDbUrl} npx node-pg-migrate up --migrations-dir migrations --migration-file-language sql`, {
       cwd: new URL('..', import.meta.url).pathname,
