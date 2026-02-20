@@ -3082,6 +3082,49 @@ All three OAuth providers configured for production with credentials deployed vi
 
 ### Deployed as `v0.1.3` ✅
 
+### Marketing / Content Pages ✅
+**Date:** 2026-02-20
+
+Added public-facing content pages for the welcome screen with a shared marketing layout.
+
+**New Components:**
+- **MarketingLayout** (`MarketingNav` + `MarketingFooter`): Shared nav bar (logo, Features/About/Contact links, Sign In button) and footer (product links, legal links, copyright) used across all public pages and the WelcomeScreen
+- **FeaturesPage** (`/features`): 8-feature grid showcasing WYSIWYG editing, cloud storage, organized notebooks, GitHub integration, slash commands, dark mode, multi-tab editing, and auto-save
+- **AboutPage** (`/about`): Philosophy ("your data stays yours"), why Markdown, why Notebook.md, built-by section
+- **ContactPage** (`/contact`): Contact form with name/email/message fields, backed by SendGrid (prod) / Mailpit (dev), sends to `contact@vanvlietventures.com`
+
+**Backend:**
+- `POST /api/contact` endpoint with rate limiting (5 requests/hour per IP), input validation, and length limits
+- `sendContactForm()` added to `email.ts` using existing nodemailer transporter (configurable via `CONTACT_EMAIL` env var)
+
+**WelcomeScreen:** Wrapped with `MarketingNav` and `MarketingFooter` for consistent navigation
+
+**Commits:** `a8a5ff5`, `bf09849`
+
+### Dev Skip Auth Fix ✅
+**Date:** 2026-02-20
+
+**Problem:** "Skip to app (dev)" button set a fake user in React state without creating a real server-side session, so the first API call returned 401 and showed "Your session has ended."
+
+**Fix:**
+- Added `POST /auth/dev-login` (non-production only) — finds or creates a `dev@localhost` user in the database and issues a real session cookie
+- Updated frontend `devSkipAuth` to call the API endpoint instead of setting fake state
+
+**Commit:** `70e2574`
+
+### CI Artifact Quota Fix ✅
+**Date:** 2026-02-20
+
+**Problem:** E2E job failed because Playwright report upload hit GitHub Actions artifact storage quota — tests actually passed.
+
+**Fix:**
+- Added `continue-on-error: true` to artifact upload step so quota errors don't fail the job
+- Reduced retention from 7 → 3 days to lower storage usage
+
+**Commit:** `f806e58`
+
+### Deployed as `v0.1.6` ✅
+
 ---
 
 ## Open Questions
