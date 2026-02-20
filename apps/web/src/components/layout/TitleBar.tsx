@@ -92,7 +92,7 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, onSignOut, on
                     {t('settings.title')}
                   </button>
                   {user.isAdmin && (
-                    <a href={import.meta.env.VITE_ADMIN_URL || '/admin'} target="_blank" rel="noopener noreferrer" className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
+                    <a href={import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174'} target="_blank" rel="noopener noreferrer" className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
                       Admin Site
                     </a>
                   )}
