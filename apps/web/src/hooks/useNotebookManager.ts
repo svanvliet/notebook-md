@@ -195,7 +195,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         let rawEntries: Array<{ path: string; name: string; type: 'file' | 'folder'; size?: number; lastModified?: string; sha?: string }>;
 
         if (nb.sourceType === 'github') {
-          const branch = workingBranches.current[notebookId];
+          const branch = workingBranches.current[notebookId] || (nb.sourceConfig.branch as string) || undefined;
           rawEntries = await listGitHubTree(rootPath, branch);
         } else if (nb.sourceType === 'onedrive') {
           rawEntries = await listOneDriveTree(rootPath);
@@ -356,10 +356,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
 
       const owner = nb.sourceConfig.owner as string;
       const repo = nb.sourceConfig.repo as string;
-      // Let the backend auto-detect the default branch
-      const promise = createWorkingBranch(owner, repo).then((result) => {
+      // Use the branch configured when the notebook was added
+      const baseBranch = (nb.sourceConfig.branch as string) || undefined;
+      const promise = createWorkingBranch(owner, repo, baseBranch).then((result) => {
         workingBranches.current[notebookId] = result.branch;
-        defaultBranches.current[notebookId] = result.defaultBranch;
+        defaultBranches.current[notebookId] = (nb.sourceConfig.branch as string) || result.defaultBranch;
         delete branchCreating.current[notebookId];
         setPublishableNotebooks((prev) => new Set(prev).add(notebookId));
         persistBranches(workingBranches.current, defaultBranches.current);
@@ -659,7 +660,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         // Fetch from GitHub API (use working branch if one exists)
         try {
           const rootPath = nb.sourceConfig.rootPath as string;
-          const branch = workingBranches.current[notebookId];
+          const branch = workingBranches.current[notebookId] || (nb.sourceConfig.branch as string) || undefined;
           const file = await readGitHubFile(rootPath, path, branch);
           let content = file.content;
           if (isMarkdownContent(content)) {
@@ -868,12 +869,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         });
         await refreshFiles(notebookId);
 
-        // Reload open tabs for this notebook from the default branch
+        // Reload open tabs for this notebook from the configured branch
         const rootPath = nb.sourceConfig.rootPath as string;
+        const configuredBranch = (nb.sourceConfig.branch as string) || undefined;
         const affectedTabs = tabs.filter((t) => t.notebookId === notebookId);
         for (const tab of affectedTabs) {
           try {
-            const file = await readGitHubFile(rootPath, tab.path);
+            const file = await readGitHubFile(rootPath, tab.path, configuredBranch);
             let content = file.content;
             if (isMarkdownContent(content)) {
               content = markdownToHtml(content);
@@ -914,7 +916,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
       if (!branch || !nb) return null;
       return {
         branch,
-        defaultBranch: defaultBranches.current[notebookId] ?? 'main',
+        defaultBranch: defaultBranches.current[notebookId] ?? (nb.sourceConfig.branch as string) ?? 'main',
         owner: nb.sourceConfig.owner as string,
         repo: nb.sourceConfig.repo as string,
       };

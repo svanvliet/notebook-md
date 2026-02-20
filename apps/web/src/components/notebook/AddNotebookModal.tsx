@@ -17,9 +17,11 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 import {
   listInstallations,
   listRepos,
+  listBranches,
   getInstallUrl,
   type GitHubInstallation,
   type GitHubRepo,
+  type Branch,
 } from '../../api/github';
 import {
   checkOneDriveAccess,
@@ -173,8 +175,10 @@ function SourcePicker({ onSelect }: { onSelect: (type: SourceType) => void }) {
 function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<string, unknown>, name: string) => void; onBack: () => void }) {
   const [installations, setInstallations] = useState<GitHubInstallation[]>([]);
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedInstall, setSelectedInstall] = useState<GitHubInstallation | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,6 +204,8 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
   async function handleSelectInstallation(install: GitHubInstallation) {
     setSelectedInstall(install);
     setSelectedRepo(null);
+    setSelectedBranch(null);
+    setBranches([]);
     try {
       setLoading(true);
       setError(null);
@@ -220,17 +226,34 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
     }
   }
 
-  function handleSelectRepo(repo: GitHubRepo) {
+  async function handleSelectRepo(repo: GitHubRepo) {
     setSelectedRepo(repo);
+    setSelectedBranch(null);
+    try {
+      setLoading(true);
+      setError(null);
+      const branchList = await listBranches(repo.owner, repo.name);
+      setBranches(branchList);
+      setSelectedBranch(repo.default_branch);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleConfirmBranch() {
+    if (!selectedRepo || !selectedBranch) return;
     onConfigured(
       {
         installationId: selectedInstall!.installationId,
-        owner: repo.owner,
-        repo: repo.name,
-        rootPath: `${repo.owner}/${repo.name}`,
-        defaultBranch: repo.default_branch,
+        owner: selectedRepo.owner,
+        repo: selectedRepo.name,
+        rootPath: `${selectedRepo.owner}/${selectedRepo.name}`,
+        defaultBranch: selectedRepo.default_branch,
+        branch: selectedBranch,
       },
-      repo.name,
+      selectedRepo.name,
     );
   }
 
@@ -306,6 +329,43 @@ function GitHubConfig({ onConfigured, onBack }: { onConfigured: (config: Record<
           </button>
         </div>
         <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mt-2">← Back</button>
+      </div>
+    );
+  }
+
+  // Pick branch (after repo selected)
+  if (selectedRepo && branches.length > 0) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Select a branch from <strong>{selectedRepo.owner}/{selectedRepo.name}</strong>:
+          </p>
+          <button onClick={() => { setSelectedRepo(null); setBranches([]); setSelectedBranch(null); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+            Change repo
+          </button>
+        </div>
+        <select
+          value={selectedBranch ?? ''}
+          onChange={(e) => setSelectedBranch(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          {branches.map((b) => (
+            <option key={b.name} value={b.name}>
+              {b.name}{b.name === selectedRepo.default_branch ? ' (default)' : ''}{b.protected ? ' 🔒' : ''}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2 pt-2">
+          <button onClick={() => { setSelectedRepo(null); setBranches([]); setSelectedBranch(null); }} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">← Back</button>
+          <button
+            onClick={handleConfirmBranch}
+            disabled={!selectedBranch}
+            className="ml-auto px-4 py-1.5 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Select
+          </button>
+        </div>
       </div>
     );
   }
