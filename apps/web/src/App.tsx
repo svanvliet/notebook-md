@@ -326,6 +326,8 @@ export default function App() {
           onCopyFile={nb.handleCopyFile}
           onReorderNotebooks={nb.handleReorderNotebooks}
           onDropImport={nb.handleDirectImport}
+          expandToPath={nb.pendingExpandPath}
+          onExpandToPathHandled={nb.clearPendingExpandPath}
           activeFilePath={nb.activeTabId}
         />
         <DocumentPane
