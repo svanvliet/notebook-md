@@ -130,6 +130,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   const editor = useEditor({
     extensions,
     content: sanitize(content),
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] py-6',
@@ -578,8 +579,8 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
             onDragLeave={handleEditorDragLeave}
           >
             <EditorContent editor={editor} />
-            <SlashCommandMenu editor={editor} />
-            <TableFloatingToolbar editor={editor} />
+            {editor && <SlashCommandMenu editor={editor} />}
+            {editor && <TableFloatingToolbar editor={editor} />}
             {contextMenu && editor && (
               <EditorContextMenu
                 editor={editor}
