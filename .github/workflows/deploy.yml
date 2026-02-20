@@ -261,6 +261,7 @@ jobs:
           TAG=${{ needs.preflight.outputs.image-tag }}
           DOCKER_BUILDKIT=1 docker build \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --build-arg VITE_POSTHOG_KEY=${{ vars.POSTHOG_KEY }} \
             --cache-from "$IMAGE:latest" \
             -f docker/Dockerfile.web \
             -t "$IMAGE:$TAG" \

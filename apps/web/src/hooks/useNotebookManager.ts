@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { trackEvent, AnalyticsEvents } from './useAnalytics';
 import { apiFetch } from '../api/apiFetch.js';
 import {
   createNotebook,
@@ -598,6 +599,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         return;
       }
 
+      trackEvent(AnalyticsEvents.FILE_OPENED);
       const nb = notebooks.find((n) => n.id === notebookId);
 
       if (nb && nb.sourceType === 'github') {
@@ -858,6 +860,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         ),
       );
       flash('Saved');
+      trackEvent(AnalyticsEvents.FILE_SAVED);
     } catch {
       flash('Failed to save');
     }
