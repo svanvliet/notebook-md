@@ -3028,6 +3028,24 @@ All three OAuth providers configured for production with credentials deployed vi
 
 ---
 
+## Phase 7: Polish & Performance
+
+### Phase 7.1: PostHog Analytics ✅
+- Installed `posthog-js`, created `useAnalytics` hook with cookie consent gating
+- Instrumented: sign-up, notebook created, file opened, file saved, settings changed
+- IP anonymization enabled, no PII in events
+- `VITE_POSTHOG_KEY` wired through Dockerfile, docker-compose, deploy workflow
+
+### Performance: Tree Loading Optimization ✅
+- **GitHub**: switched to Git Trees API (`recursive=1`) — entire repo tree in 1 API call (was ~100 calls)
+- **OneDrive**: switched to delta endpoint — all descendants in 1 paginated query
+- **Google Drive**: batched BFS with multi-parent queries — ~N/10 calls instead of N
+- Added `/api/sources/:provider/tree` endpoint; frontend uses single `listXxxTree()` call
+- **ES module env var fix**: `process.env` reads in route files were hoisted before `dotenv.config()` — switched to lazy getters
+- Increased source rate limit from 100 to 300 req/min for burst tolerance
+
+---
+
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
