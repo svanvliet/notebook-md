@@ -33,6 +33,9 @@ export interface SourceAdapter {
   /** List files/folders in a directory */
   listFiles(accessToken: string, rootPath: string, dirPath: string, branch?: string): Promise<FileEntry[]>;
 
+  /** List entire tree recursively in a single API call (when supported) */
+  listTree?(accessToken: string, rootPath: string, branch?: string): Promise<FileEntry[]>;
+
   /** Read a file's content */
   readFile(accessToken: string, rootPath: string, filePath: string, branch?: string): Promise<FileContent>;
 

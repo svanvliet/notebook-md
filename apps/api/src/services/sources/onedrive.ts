@@ -61,6 +61,63 @@ const oneDriveAdapter: SourceAdapter = {
     }));
   },
 
+  async listTree(accessToken: string, rootPath: string): Promise<FileEntry[]> {
+    // Use Graph API search to get all items under the root folder in one call
+    // The search('') trick returns all children recursively
+    const searchPath = `${driveItemPath(rootPath, '')}/search(q='')`;
+    const fields = '$select=name,size,lastModifiedDateTime,folder,file,parentReference';
+    let url: string | null = `${GRAPH_BASE}${searchPath}?${fields}&$top=200`;
+    const allEntries: FileEntry[] = [];
+
+    while (url) {
+      const res = await fetch(url, { headers: headers(accessToken) });
+
+      if (!res.ok) {
+        const body = await res.text();
+        logger.error('OneDrive listTree failed', { status: res.status, body, rootPath });
+        throw new Error(`OneDrive: failed to list tree (${res.status})`);
+      }
+
+      const data = (await res.json()) as {
+        value: Array<{
+          name: string;
+          size?: number;
+          lastModifiedDateTime?: string;
+          folder?: { childCount: number };
+          file?: { mimeType: string };
+          parentReference?: { path?: string };
+        }>;
+        '@odata.nextLink'?: string;
+      };
+
+      for (const item of data.value) {
+        // Compute the relative path from parentReference
+        const parentRefPath = item.parentReference?.path ?? '';
+        // parentReference.path looks like /drive/root:/RootPath/SubFolder
+        // We need to extract the part after rootPath
+        const rootMarker = `:/${rootPath}`;
+        const markerIdx = parentRefPath.indexOf(rootMarker);
+        let relativeDirPath = '';
+        if (markerIdx !== -1) {
+          relativeDirPath = parentRefPath.slice(markerIdx + rootMarker.length).replace(/^\//, '');
+        }
+        const fullPath = relativeDirPath ? `${relativeDirPath}/${item.name}` : item.name;
+
+        allEntries.push({
+          path: fullPath,
+          name: item.name,
+          type: item.folder ? 'folder' as const : 'file' as const,
+          size: item.size,
+          lastModified: item.lastModifiedDateTime,
+        });
+      }
+
+      url = data['@odata.nextLink'] ?? null;
+    }
+
+    return allEntries;
+  },
+
   async readFile(accessToken: string, rootPath: string, filePath: string): Promise<FileContent> {
     const url = `${GRAPH_BASE}${driveItemPath(rootPath, filePath)}/content`;
     const res = await fetch(url, {

@@ -58,6 +58,13 @@ export async function listOneDriveFiles(rootPath: string, dirPath = ''): Promise
   return data.entries;
 }
 
+/** Fetch entire folder tree in a single API call */
+export async function listOneDriveTree(rootPath: string): Promise<OneDriveFileEntry[]> {
+  const params = new URLSearchParams({ root: rootPath });
+  const data = await api<{ entries: OneDriveFileEntry[] }>(`/api/sources/onedrive/tree?${params.toString()}`);
+  return data.entries;
+}
+
 export async function readOneDriveFile(rootPath: string, filePath: string): Promise<OneDriveFileContent> {
   return api(`/api/sources/onedrive/files/${encodeURIComponent(filePath)}?root=${encodeURIComponent(rootPath)}`);
 }

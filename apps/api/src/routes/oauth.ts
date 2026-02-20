@@ -12,12 +12,13 @@ import type { Request, Response } from 'express';
 
 const router = Router();
 
-const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
-const API_URL = process.env.API_URL ?? 'http://localhost:3001';
+// Read env vars lazily (dotenv loads after ES module imports are resolved)
+const getAppUrl = () => process.env.APP_URL ?? 'http://localhost:5173';
+const getApiUrl = () => process.env.API_URL ?? 'http://localhost:3001';
 const STATE_TTL = 600; // 10 minutes
 
 function getRedirectUri(provider: string): string {
-  return `${API_URL}/auth/oauth/${provider}/callback`;
+  return `${getApiUrl()}/auth/oauth/${provider}/callback`;
 }
 
 
@@ -86,12 +87,12 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
   const { code, state, error } = req.query;
 
   if (error) {
-    res.redirect(`${APP_URL}/app/auth-error?error=${encodeURIComponent(error as string)}`);
+    res.redirect(`${getAppUrl()}/app/auth-error?error=${encodeURIComponent(error as string)}`);
     return;
   }
 
   if (!code || !state) {
-    res.redirect(`${APP_URL}/app/auth-error?error=missing_params`);
+    res.redirect(`${getAppUrl()}/app/auth-error?error=missing_params`);
     return;
   }
 
@@ -99,7 +100,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
   const stateKey = `oauth:state:${hashToken(state as string)}`;
   const stateDataRaw = await redis.get(stateKey);
   if (!stateDataRaw) {
-    res.redirect(`${APP_URL}/app/auth-error?error=invalid_state`);
+    res.redirect(`${getAppUrl()}/app/auth-error?error=invalid_state`);
     return;
   }
   await redis.del(stateKey);
@@ -108,7 +109,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
 
   const provider = getProvider(providerName);
   if (!provider) {
-    res.redirect(`${APP_URL}/app/auth-error?error=unknown_provider`);
+    res.redirect(`${getAppUrl()}/app/auth-error?error=unknown_provider`);
     return;
   }
 
@@ -124,7 +125,7 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
         userAgent: req.headers['user-agent'],
       });
       const returnTo = stateData.returnTo || `/settings?linked=${providerName}`;
-      const redirectUrl = `${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}linked=${providerName}`;
+      const redirectUrl = `${getAppUrl()}${returnTo}${returnTo.includes('?') ? '&' : '?'}linked=${providerName}`;
       logger.info('OAuth link redirect', { returnTo, redirectUrl, provider: providerName });
       res.redirect(redirectUrl);
       return;
@@ -146,20 +147,20 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
 
     // Redirect to app with success indicator
     const returnTo = stateData.returnTo || '/';
-    res.redirect(`${APP_URL}${returnTo}${returnTo.includes('?') ? '&' : '?'}auth=success&new=${result.isNewUser}`);
+    res.redirect(`${getAppUrl()}${returnTo}${returnTo.includes('?') ? '&' : '?'}auth=success&new=${result.isNewUser}`);
   } catch (err) {
     logger.error('OAuth callback error', { provider: providerName, error: (err as Error).message, stack: (err as Error).stack });
     const code = (err as any)?.code;
     if (code === 'ACCOUNT_EXISTS_EMAIL_PASSWORD') {
-      res.redirect(`${APP_URL}/app/auth-error?error=account_exists&provider=${providerName}`);
+      res.redirect(`${getAppUrl()}/app/auth-error?error=account_exists&provider=${providerName}`);
       return;
     }
     if (code === 'PROVIDER_ALREADY_LINKED') {
-      res.redirect(`${APP_URL}/app/auth-error?error=provider_already_linked&provider=${providerName}`);
+      res.redirect(`${getAppUrl()}/app/auth-error?error=provider_already_linked&provider=${providerName}`);
       return;
     }
     const message = err instanceof Error ? err.message : 'OAuth authentication failed';
-    res.redirect(`${APP_URL}/app/auth-error?error=${encodeURIComponent(message)}`);
+    res.redirect(`${getAppUrl()}/app/auth-error?error=${encodeURIComponent(message)}`);
   }
 });
 
