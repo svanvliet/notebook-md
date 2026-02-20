@@ -683,6 +683,12 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.10 Phase 6 Validation
 
+- [ ] **Production OAuth apps** — create/update OAuth client registrations with production redirect URIs (`https://api.notebookmd.io/auth/oauth/*/callback`):
+  - [ ] Microsoft (Entra ID): update app registration → add redirect URIs, set to multi-tenant (personal + work accounts)
+  - [ ] Google Cloud: update OAuth consent screen → add production domain, add redirect URIs
+  - [ ] GitHub: create production OAuth app → set callback URL, add client ID/secret to `terraform.tfvars`
+  - [ ] GitHub App: create production GitHub App → set callback URL, webhook URL, permissions
+  - [ ] Update `terraform.tfvars` with production OAuth credentials and re-run `terraform apply`
 - **Technical:** Full app running in Azure; CI/CD pipeline works end-to-end (Tier 1 + Tier 2 on push, E2E smoke on PR to main); monitoring captures real traffic; auto-scaling responds to load; SPA fallback works for all client-side routes
 - **UX:** The production app is indistinguishable from the local dev experience
 - **Feedback points:** Page load speed, cold-start latency, OAuth redirect timing, email delivery speed
