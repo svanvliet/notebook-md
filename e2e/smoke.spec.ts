@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Smoke Tests', () => {
   test('welcome screen loads with sign-in and sign-up buttons', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Notebook.md')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Notebook.md' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign Up' })).toBeVisible();
   });
