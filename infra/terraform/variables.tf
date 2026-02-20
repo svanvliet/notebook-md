@@ -97,3 +97,9 @@ variable "sendgrid_api_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "alert_email" {
+  description = "Email address for monitoring alerts"
+  type        = string
+  default     = "alerts@notebookmd.io"
+}

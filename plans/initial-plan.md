@@ -646,11 +646,11 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.6 Monitoring & Alerting
 
-- [ ] Application Insights: request tracing, dependency tracking, exception logging
-- [ ] Azure Monitor availability tests (ping API health endpoint and web/admin URLs)
-- [ ] Alerts: error rate spikes, health check failures, high latency → email notification
-- [ ] Structured logs → Log Analytics workspace
-- [ ] Sentry integration for client-side error tracking (free tier) — captures React errors, network failures
+- [x] Application Insights: request tracing, dependency tracking, exception logging
+- [x] Azure Monitor availability tests (ping API health endpoint and web/admin URLs)
+- [x] Alerts: error rate spikes, health check failures, high latency → email notification
+- [x] Structured logs → Log Analytics workspace
+- [x] Sentry integration for client-side error tracking (free tier) — captures React errors, network failures
 
 ### 6.7 Transactional Email
 
