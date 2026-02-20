@@ -95,9 +95,11 @@ export default function App() {
         navigate('/', { replace: true });
       });
     } else if (path === '/app/verify-email' && magicToken) {
-      fetch(`/auth/verify-email`, {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      fetch(`${apiBase}/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ token: magicToken }),
       }).then(() => {
         navigate('/', { replace: true });
