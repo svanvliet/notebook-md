@@ -23,7 +23,7 @@ function getCookieDomain(): string | undefined {
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProd,
-  sameSite: 'lax' as const,
+  sameSite: isProd ? 'none' as const : 'lax' as const,
   domain: getCookieDomain(),
   path: '/',
 };
