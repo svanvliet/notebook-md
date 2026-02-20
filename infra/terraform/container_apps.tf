@@ -172,6 +172,10 @@ resource "azurerm_container_app" "api" {
         secret_name = "github-app-client-secret"
       }
       env {
+        name        = "GITHUB_APP_PRIVATE_KEY"
+        secret_name = "github-app-private-key"
+      }
+      env {
         name        = "GITHUB_WEBHOOK_SECRET"
         secret_name = "github-webhook-secret"
       }
@@ -249,6 +253,10 @@ resource "azurerm_container_app" "api" {
   secret {
     name  = "github-app-client-secret"
     value = var.github_app_client_secret
+  }
+  secret {
+    name  = "github-app-private-key"
+    value = var.github_app_private_key
   }
   secret {
     name  = "github-webhook-secret"

@@ -26,8 +26,16 @@ function getAppId(): string {
 
 function getPrivateKey(): string {
   if (_privateKey) return _privateKey;
+
+  // Support inline key via env var (for containers) or file path
+  const inlineKey = process.env.GITHUB_APP_PRIVATE_KEY;
+  if (inlineKey) {
+    _privateKey = inlineKey;
+    return _privateKey;
+  }
+
   const keyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
-  if (!keyPath) throw new Error('GITHUB_APP_PRIVATE_KEY_PATH not set');
+  if (!keyPath) throw new Error('GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH must be set');
 
   // Resolve relative to monorepo root (where .env lives)
   const absPath = resolve(MONOREPO_ROOT, keyPath);

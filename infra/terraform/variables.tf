@@ -86,6 +86,12 @@ variable "github_app_client_secret" {
   default   = ""
   sensitive = true
 }
+variable "github_app_private_key" {
+  description = "GitHub App private key (PEM format, inline)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
 variable "github_webhook_secret" {
   type      = string
   default   = ""
