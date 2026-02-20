@@ -1,4 +1,4 @@
-import { openDB, type IDBPDatabase } from 'idb';
+import { openDB, deleteDB, type IDBPDatabase } from 'idb';
 
 export interface NotebookMeta {
   id: string;
@@ -316,4 +316,72 @@ export async function reorderNotebooks(orderedIds: string[]): Promise<void> {
     }
   }
   await tx.done;
+}
+
+// --- Demo mode migration ---
+
+/** Migrate notebooks and files from the anonymous DB to a user-scoped DB. */
+export async function migrateAnonymousNotebooks(newUserId: string): Promise<number> {
+  const anonDbName = `${DB_PREFIX}-anonymous`;
+  const userDbName = `${DB_PREFIX}-${newUserId}`;
+
+  const anonDb = await openDB(anonDbName, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains(NOTEBOOKS_STORE)) {
+        db.createObjectStore(NOTEBOOKS_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(FILES_STORE)) {
+        const store = db.createObjectStore(FILES_STORE, { keyPath: ['notebookId', 'path'] });
+        store.createIndex('byNotebook', 'notebookId');
+        store.createIndex('byParent', ['notebookId', 'parentPath']);
+      }
+    },
+  });
+
+  const notebooks = await anonDb.getAll(NOTEBOOKS_STORE) as NotebookMeta[];
+  if (notebooks.length === 0) {
+    anonDb.close();
+    return 0;
+  }
+
+  const files = await anonDb.getAll(FILES_STORE) as FileEntry[];
+
+  const userDb = await openDB(userDbName, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains(NOTEBOOKS_STORE)) {
+        db.createObjectStore(NOTEBOOKS_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(FILES_STORE)) {
+        const store = db.createObjectStore(FILES_STORE, { keyPath: ['notebookId', 'path'] });
+        store.createIndex('byNotebook', 'notebookId');
+        store.createIndex('byParent', ['notebookId', 'parentPath']);
+      }
+    },
+  });
+
+  // Offset sortOrder to avoid collisions with existing notebooks
+  const existingNotebooks = await userDb.getAll(NOTEBOOKS_STORE) as NotebookMeta[];
+  const maxSort = existingNotebooks.reduce((max, nb) => Math.max(max, nb.sortOrder), -1);
+
+  const tx = userDb.transaction([NOTEBOOKS_STORE, FILES_STORE], 'readwrite');
+  for (const nb of notebooks) {
+    nb.sortOrder = maxSort + 1 + nb.sortOrder;
+    await tx.objectStore(NOTEBOOKS_STORE).put(nb);
+  }
+  for (const file of files) {
+    await tx.objectStore(FILES_STORE).put(file);
+  }
+  await tx.done;
+
+  userDb.close();
+  anonDb.close();
+
+  // Delete the anonymous DB
+  await deleteDB(anonDbName);
+
+  // Reset scope so next getDb() opens the user DB
+  currentScope = null;
+  dbPromise = null;
+
+  return notebooks.length;
 }

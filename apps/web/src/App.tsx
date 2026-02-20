@@ -13,6 +13,7 @@ import { AccountModal } from './components/account/AccountModal';
 import { AddNotebookModal } from './components/notebook/AddNotebookModal';
 import { PublishModal } from './components/notebook/PublishModal';
 import { DiscardModal } from './components/notebook/DiscardModal';
+import { DemoBanner } from './components/common/DemoBanner';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
@@ -25,6 +26,7 @@ import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
 import { useNavigate } from 'react-router-dom';
+import { migrateAnonymousNotebooks } from './stores/localNotebookStore';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -217,8 +219,16 @@ export default function App() {
       window.location.href = `${API_BASE}/auth/oauth/${provider}?returnTo=/`;
     };
     const handleSignUp = async (email: string, password: string, displayName: string, rememberMe: boolean) => {
+      const wasDemoMode = auth.isDemoMode;
       const ok = await auth.signUp(email, password, displayName, rememberMe);
       if (ok) {
+        // Migrate demo notebooks to the new user's account
+        if (wasDemoMode) {
+          try {
+            const count = await migrateAnonymousNotebooks(auth.user!.id);
+            if (count > 0) nb.reloadNotebooks();
+          } catch { /* migration is best-effort */ }
+        }
         track(AnalyticsEvents.SIGN_UP, { method: 'email' });
         setShowOnboarding2fa(true);
       }
@@ -231,6 +241,7 @@ export default function App() {
           onSignUp={handleSignUp}
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
+          onEnterDemo={auth.enterDemoMode}
           error={oauthError ?? auth.error}
           onClearError={() => { setOauthError(null); auth.clearError(); }}
           twoFactorChallenge={auth.twoFactorChallenge}
@@ -291,10 +302,14 @@ export default function App() {
         displayMode={mode}
         onDisplayModeChange={setMode}
         user={auth.user}
+        isDemoMode={auth.isDemoMode}
         onSignOut={auth.signOut}
+        onExitDemo={auth.exitDemoMode}
+        onCreateAccount={() => auth.exitDemoMode()}
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
+      {auth.isDemoMode && <DemoBanner onCreateAccount={() => auth.exitDemoMode()} />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -437,6 +452,7 @@ export default function App() {
           onCancel={closeAddNotebook}
           userId={auth.user?.id}
           initialSource={initialSource}
+          isDemoMode={auth.isDemoMode}
         />
       )}
 

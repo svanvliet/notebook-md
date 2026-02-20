@@ -8,12 +8,15 @@ interface TitleBarProps {
   displayMode: DisplayMode;
   onDisplayModeChange: (mode: DisplayMode) => void;
   user?: User | null;
+  isDemoMode?: boolean;
   onSignOut?: () => void;
+  onExitDemo?: () => void;
+  onCreateAccount?: () => void;
   onOpenAccount?: () => void;
   onOpenSettings?: () => void;
 }
 
-export function TitleBar({ displayMode, onDisplayModeChange, user, onSignOut, onOpenAccount, onOpenSettings }: TitleBarProps) {
+export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings }: TitleBarProps) {
   const { t } = useTranslation();
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -80,6 +83,25 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, onSignOut, on
           {showAccountMenu && (
             <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50">
               {user ? (
+                isDemoMode ? (
+                  <>
+                    <div className="px-3 py-2 text-xs border-b border-gray-100 dark:border-gray-800">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">Demo Mode</div>
+                      <div className="text-gray-500 dark:text-gray-400">Local notebooks only</div>
+                    </div>
+                    <button onClick={() => { setShowAccountMenu(false); onOpenSettings?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">
+                      {t('settings.title')}
+                    </button>
+                    <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
+                      <button onClick={() => { setShowAccountMenu(false); onCreateAccount?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400 font-medium">
+                        Create Account
+                      </button>
+                      <button onClick={() => { setShowAccountMenu(false); onExitDemo?.(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400">
+                        Exit Demo
+                      </button>
+                    </div>
+                  </>
+                ) : (
                 <>
                   <div className="px-3 py-2 text-xs border-b border-gray-100 dark:border-gray-800">
                     <div className="font-medium text-gray-900 dark:text-gray-100">{user.displayName}</div>
@@ -102,6 +124,7 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, onSignOut, on
                     </button>
                   </div>
                 </>
+                )
               ) : (
                 <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
                   Not signed in
