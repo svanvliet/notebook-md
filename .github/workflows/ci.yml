@@ -143,6 +143,15 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium --with-deps
 
+      - name: Create CI env file
+        run: |
+          cat > .env << 'EOF'
+          SESSION_SECRET=ci-test-session-secret-not-for-production
+          ENCRYPTION_KEY=ci-test-encryption-key-32ch!!!!!
+          SMTP_FROM=noreply@notebookmd.io
+          EOF
+          sed -i 's/^ *//' .env
+
       - name: Start production stack
         run: docker compose -f docker-compose.prod.yml up -d --build --wait
 
