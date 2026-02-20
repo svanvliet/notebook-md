@@ -79,6 +79,9 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
+      args:
+        VITE_API_URL: ""
+        VITE_ADMIN_URL: ""
     ports:
       - "8080:80"
     volumes:
@@ -90,6 +93,9 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.admin
+      args:
+        VITE_API_URL: ""
+        VITE_APP_URL: ""
     ports:
       - "8081:80"
     depends_on:
