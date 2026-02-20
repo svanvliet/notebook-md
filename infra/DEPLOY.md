@@ -4,11 +4,16 @@ This guide walks through deploying Notebook.md to Azure from scratch.
 
 ## Prerequisites
 
-- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) installed and authenticated (`az login`)
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) ≥ 1.5 installed
-- [Docker](https://docs.docker.com/get-docker/) installed and running
-- GitHub repo with Actions enabled
-- Domain `notebookmd.io` managed in GoDaddy
+-   [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) installed and authenticated (`az login`)
+    
+-   [Terraform](https://developer.hashicorp.com/terraform/downloads) ≥ 1.5 installed
+    
+-   [Docker](https://docs.docker.com/get-docker/) installed and running
+    
+-   GitHub repo with Actions enabled
+    
+-   Domain `notebookmd.io` managed in GoDaddy
+    
 
 ## Step 1: Bootstrap Terraform State
 
@@ -31,7 +36,7 @@ cp terraform.tfvars.example terraform.tfvars
 Required values:
 
 | Variable | How to generate |
-|----------|----------------|
+| --- | --- |
 | `subscription_id` | `az account show --query id -o tsv` |
 | `db_admin_password` | `openssl rand -base64 32` |
 | `session_secret` | `openssl rand -base64 48` |
@@ -97,21 +102,30 @@ terraform output domain_validation_admin
 
 Follow `infra/dns-records.md` for the complete record list. Summary:
 
-1. **Validation TXT records** (add first, required for TLS cert provisioning):
-   - `_dnsauth` → `{domain_validation_web}`
-   - `_dnsauth.api` → `{domain_validation_api}`
-   - `_dnsauth.admin` → `{domain_validation_admin}`
-
-2. **CNAME records** (point domains to Front Door):
-   - `www` → `{frontdoor_web_endpoint}`
-   - `api` → `{frontdoor_api_endpoint}`
-   - `admin` → `{frontdoor_admin_endpoint}`
-
-3. **Root domain (`@`)**: GoDaddy doesn't support CNAME on root. Options:
-   - Use GoDaddy forwarding: `notebookmd.io` → `https://www.notebookmd.io`
-   - Or transfer DNS to Azure DNS / Cloudflare for CNAME flattening
-
-4. **Email (SPF + DMARC)** — see dns-records.md §4
+1.  **Validation TXT records** (add first, required for TLS cert provisioning):
+    
+    -   `_dnsauth` → `{domain_validation_web}`
+        
+    -   `_dnsauth.api` → `{domain_validation_api}`
+        
+    -   `_dnsauth.admin` → `{domain_validation_admin}`
+        
+2.  **CNAME records** (point domains to Front Door):
+    
+    -   `www` → `{frontdoor_web_endpoint}`
+        
+    -   `api` → `{frontdoor_api_endpoint}`
+        
+    -   `admin` → `{frontdoor_admin_endpoint}`
+        
+3.  **Root domain (**`@`**)**: GoDaddy doesn't support CNAME on root. Options:
+    
+    -   Use GoDaddy forwarding: `notebookmd.io` → `https://www.notebookmd.io`
+        
+    -   Or transfer DNS to Azure DNS / Cloudflare for CNAME flattening
+        
+4.  **Email (SPF + DMARC)** — see dns-records.md §4
+    
 
 Allow up to 48 hours for DNS propagation (usually minutes). Azure Front Door will auto-provision TLS certificates once validation TXT records are verified.
 
@@ -160,14 +174,17 @@ az ad app federated-credential create --id $APP_ID --parameters '{
 In GitHub repo settings (Settings → Secrets and variables → Actions):
 
 | Secret | Value |
-|--------|-------|
+| --- | --- |
 | `AZURE_CLIENT_ID` | `$APP_ID` from Step 7 |
 | `AZURE_TENANT_ID` | `az account show --query tenantId -o tsv` |
 | `AZURE_SUBSCRIPTION_ID` | `az account show --query id -o tsv` |
 
 Create a **production** environment (Settings → Environments → New environment):
-- Name: `production`
-- Add required reviewers (optional but recommended)
+
+-   Name: `production`
+    
+-   Add required reviewers (optional but recommended)
+    
 
 ## Step 9: Tag v0.1.0 & Deploy
 
@@ -177,12 +194,17 @@ git push origin v0.1.0
 ```
 
 This triggers the deploy workflow which will:
-1. Build & push versioned images (`api:0.1.0`, `web:0.1.0`, `admin:0.1.0`)
-2. Run database migrations (001–003)
-3. Deploy updated Container Apps
-4. Health check the API
 
-Monitor at: https://github.com/svanvliet/notebook-md/actions
+1.  Build & push versioned images (`api:0.1.0`, `web:0.1.0`, `admin:0.1.0`)
+    
+2.  Run database migrations (001–003)
+    
+3.  Deploy updated Container Apps
+    
+4.  Health check the API
+    
+
+Monitor at: [https://github.com/svanvliet/notebook-md/actions](https://github.com/svanvliet/notebook-md/actions)
 
 ## Step 10: Verify & Smoke Test
 
@@ -198,6 +220,7 @@ open https://admin.notebookmd.io
 ```
 
 Smoke test checklist:
+
 - [ ] Sign up with email
 - [ ] Verify email verification is sent (check SendGrid activity)
 - [ ] Create a local notebook
@@ -221,36 +244,40 @@ az containerapp exec \
 ## Estimated Costs (Monthly)
 
 | Resource | SKU | ~Cost |
-|----------|-----|-------|
-| PostgreSQL Flexible Server | B_Standard_B1ms | $13 |
+| --- | --- | --- |
+| PostgreSQL Flexible Server | B\_Standard\_B1ms | $13 |
 | Redis Cache | Basic C0 | $16 |
 | Container Apps (3 apps) | Consumption | $0–10 |
 | Front Door | Standard | $35 |
 | Container Registry | Basic | $5 |
 | Key Vault | Standard | $0–1 |
 | Log Analytics + App Insights | 90-day retention | $0–5 |
-| **Total** | | **~$70–85/mo** |
+| **Total** |  | **~$70–85/mo** |
 
 ## Troubleshooting
 
 **Container App won't start:**
+
 ```bash
 az containerapp logs show --name ca-notebookmd-api --resource-group rg-notebookmd-prod --type system
 az containerapp logs show --name ca-notebookmd-api --resource-group rg-notebookmd-prod --type console
 ```
 
 **Database connection issues:**
+
 ```bash
 # Test connectivity from your machine (need firewall rule for your IP)
 psql "$(terraform output -raw postgresql_fqdn)" -U notebookmd_admin
 ```
 
 **Front Door domain validation pending:**
+
 ```bash
 az afd custom-domain show --profile-name fd-notebookmd-prod --resource-group rg-notebookmd-prod --custom-domain-name domain-web --query domainValidationState
 ```
 
 **Migration job failed:**
+
 ```bash
 az containerapp job execution list --name migrate-0.1.0 --resource-group rg-notebookmd-prod
 ```
