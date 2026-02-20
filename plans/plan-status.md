@@ -2416,6 +2416,93 @@ After the initial CI/CD pipeline (Phase 6.3) was deployed, multiple CI failures 
 
 ---
 
+## Phase 6.5 Completion — DNS & SSL ✅
+
+**Completed:** 2026-02-20
+
+### Terraform Changes (`frontdoor.tf`)
+- Uncommented and completed 3 `azurerm_cdn_frontdoor_custom_domain` resources for `notebookmd.io`, `api.notebookmd.io`, `admin.notebookmd.io`
+- Added `azurerm_cdn_frontdoor_custom_domain_association` to link domains to routes
+- Added `cdn_frontdoor_custom_domain_ids` to all 3 route resources
+- TLS: Azure-managed certificates (auto-provisioned after DNS validation)
+
+### Terraform Changes (`outputs.tf`, `container_apps.tf`)
+- Added `domain_validation_*` outputs for GoDaddy TXT records
+- Added `APP_URL=https://notebookmd.io` env var to API container (used in email links)
+
+### DNS Documentation (`infra/dns-records.md`)
+Complete setup guide with:
+- Front Door CNAME records (web, api, admin)
+- Domain validation TXT records (`_dnsauth.*`)
+- SendGrid records (DKIM, already configured)
+- SPF record for email authentication
+- Step-by-step setup order
+
+### CORS
+Already correctly configured — `CORS_ORIGIN` and `ADMIN_ORIGIN` env vars set in `container_apps.tf`.
+
+### Manual Steps at Deploy Time
+1. `terraform apply` → creates Front Door + custom domains
+2. Copy `domain_validation_*` outputs
+3. Add DNS records in GoDaddy (validation TXT first, then CNAMEs)
+4. Wait for propagation → Azure auto-provisions TLS certs
+
+**Commit:** `1540542`
+
+---
+
+## Phase 6.6 Completion — Monitoring & Alerting ✅
+
+**Completed:** 2026-02-20
+
+### Terraform (`monitoring.tf`)
+- **Action group** (`ag-notebookmd-ops`): email alerts to `var.alert_email`
+- **Availability tests** (3): API health, web root, admin root — pinged from 2–3 US regions every 5 min
+- **Alert rules** (3):
+  - API availability < 90% → severity 1 (critical)
+  - Server errors > 10 in 15 min → severity 2 (error)
+  - Avg response time > 3s → severity 3 (warning)
+
+### Container Apps
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` wired into API container
+
+### Client-Side (Sentry)
+- `@sentry/react` installed in web app
+- `apps/web/src/lib/sentry.ts` — conditional init via `VITE_SENTRY_DSN`
+- No-op in dev/CI; activates in production when DSN is set
+- Error replays on failures, 10% trace sampling
+- Imported in `main.tsx` before app render
+
+### Variables Added
+- `alert_email` (default: `alerts@notebookmd.io`)
+
+**Commit:** `5f88013`
+
+---
+
+## Phase 6.7 Completion — Transactional Email ✅
+
+**Completed:** 2026-02-20
+
+### What Was Already Done
+- Terraform `container_apps.tf`: SendGrid SMTP config (`smtp.sendgrid.net:587`, user `apikey`, pass from `sendgrid_api_key` var)
+- DNS records: DKIM (`s1._domainkey`, `s2._domainkey`), SPF, DMARC already in `dns-records.md`
+- `sendgrid_api_key` variable in `variables.tf`
+
+### Changes Made
+- `email.ts`: Read `SMTP_FROM` env var (matches Terraform config), fall back to `EMAIL_FROM`
+- `email.ts`: Enable TLS for port 465; STARTTLS auto-negotiated on 587
+- Dev/CI continues using Mailpit on `localhost:1025` (no `SMTP_USER` = no auth)
+
+### Verification
+SendGrid email delivery will be verified during Phase 6.10 (validation) after `terraform apply` creates the infrastructure and DNS is configured.
+
+**Commit:** `151344c`
+
+**Next:** Phase 6.8 — Database
+
+---
+
 ## Open Questions
 
 *(Any unresolved questions that need user input)*
