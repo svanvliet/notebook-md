@@ -104,6 +104,10 @@ resource "azurerm_container_app" "api" {
         value = "https://admin.${var.domain}"
       }
       env {
+        name  = "APP_URL"
+        value = "https://${var.domain}"
+      }
+      env {
         name  = "SMTP_HOST"
         value = "smtp.sendgrid.net"
       }

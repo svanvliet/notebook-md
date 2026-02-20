@@ -116,6 +116,7 @@ resource "azurerm_cdn_frontdoor_route" "web" {
   cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.web.id
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.web.id
   cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.web.id]
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.web.id]
   patterns_to_match             = ["/*"]
   supported_protocols           = ["Http", "Https"]
   https_redirect_enabled        = true
@@ -127,6 +128,7 @@ resource "azurerm_cdn_frontdoor_route" "api" {
   cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.api.id
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
   cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.api.id]
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.api.id]
   patterns_to_match             = ["/*"]
   supported_protocols           = ["Http", "Https"]
   https_redirect_enabled        = true
@@ -138,33 +140,60 @@ resource "azurerm_cdn_frontdoor_route" "admin" {
   cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.admin.id
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.admin.id
   cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.admin.id]
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.admin.id]
   patterns_to_match             = ["/*"]
   supported_protocols           = ["Http", "Https"]
   https_redirect_enabled        = true
   forwarding_protocol           = "HttpsOnly"
 }
 
-# ── Custom Domains (configured after DNS records are set) ──
-# These require CNAME/TXT records pointing to the Front Door endpoint.
-# Uncomment and apply after DNS is configured in Phase 6.5.
+# ── Custom Domains ──
+# Requires CNAME/TXT records in GoDaddy pointing to the Front Door endpoint.
+# See infra/dns-records.md for the full list of records to create.
 
-# resource "azurerm_cdn_frontdoor_custom_domain" "web" {
-#   name                     = "domain-web"
-#   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
-#   host_name                = var.domain
-#   tls { certificate_type = "ManagedCertificate" }
-# }
+resource "azurerm_cdn_frontdoor_custom_domain" "web" {
+  name                     = "domain-web"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  host_name                = var.domain
 
-# resource "azurerm_cdn_frontdoor_custom_domain" "api" {
-#   name                     = "domain-api"
-#   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
-#   host_name                = "api.${var.domain}"
-#   tls { certificate_type = "ManagedCertificate" }
-# }
+  tls {
+    certificate_type = "ManagedCertificate"
+  }
+}
 
-# resource "azurerm_cdn_frontdoor_custom_domain" "admin" {
-#   name                     = "domain-admin"
-#   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
-#   host_name                = "admin.${var.domain}"
-#   tls { certificate_type = "ManagedCertificate" }
-# }
+resource "azurerm_cdn_frontdoor_custom_domain" "api" {
+  name                     = "domain-api"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  host_name                = "api.${var.domain}"
+
+  tls {
+    certificate_type = "ManagedCertificate"
+  }
+}
+
+resource "azurerm_cdn_frontdoor_custom_domain" "admin" {
+  name                     = "domain-admin"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  host_name                = "admin.${var.domain}"
+
+  tls {
+    certificate_type = "ManagedCertificate"
+  }
+}
+
+# ── Custom Domain Associations (link domains to routes) ──
+
+resource "azurerm_cdn_frontdoor_custom_domain_association" "web" {
+  cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.web.id
+  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.web.id]
+}
+
+resource "azurerm_cdn_frontdoor_custom_domain_association" "api" {
+  cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.api.id
+  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.api.id]
+}
+
+resource "azurerm_cdn_frontdoor_custom_domain_association" "admin" {
+  cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.admin.id
+  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.admin.id]
+}

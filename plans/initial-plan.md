@@ -636,13 +636,13 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.5 DNS & SSL
 
-- [ ] Configure GoDaddy DNS records:
+- [x] Configure GoDaddy DNS records:
   - `notebookmd.io` → Azure Front Door (web app)
   - `api.notebookmd.io` → Azure Container Apps (API)
   - `admin.notebookmd.io` → Azure Container Apps (Admin)
-- [ ] SPF, DKIM, DMARC records for `noreply@notebookmd.io` (transactional email)
-- [ ] Azure-managed TLS certificates via Front Door
-- [ ] Verify CORS config: API accepts origins `https://notebookmd.io` and `https://admin.notebookmd.io`
+- [x] SPF, DKIM, DMARC records for `noreply@notebookmd.io` (transactional email)
+- [x] Azure-managed TLS certificates via Front Door
+- [x] Verify CORS config: API accepts origins `https://notebookmd.io` and `https://admin.notebookmd.io`
 
 ### 6.6 Monitoring & Alerting
 
