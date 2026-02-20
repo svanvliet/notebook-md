@@ -141,41 +141,46 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "Checking CI for $COMMIT_SHA..."
 
-          # Check for completed CI run
-          CI_RESULT=$(gh run list \
-            --workflow=ci.yml \
-            --commit="$COMMIT_SHA" \
-            --status=completed \
-            --json conclusion \
-            --jq '.[0].conclusion' 2>/dev/null || echo "")
+          MAX_WAIT=600  # 10 minutes
+          INTERVAL=15
+          ELAPSED=0
 
-          if [ "$CI_RESULT" = "success" ]; then
-            echo "✅ Build & Test passed"
-            exit 0
-          fi
+          while [ "$ELAPSED" -lt "$MAX_WAIT" ]; do
+            CI_RESULT=$(gh run list \
+              --workflow=ci.yml \
+              --commit="$COMMIT_SHA" \
+              --status=completed \
+              --json conclusion \
+              --jq '.[0].conclusion' 2>/dev/null || echo "")
 
-          # Check if CI is still running
-          CI_ACTIVE=$(gh run list \
-            --workflow=ci.yml \
-            --commit="$COMMIT_SHA" \
-            --json status \
-            --jq '[.[] | select(.status != "completed")] | length' 2>/dev/null || echo "0")
+            if [ "$CI_RESULT" = "success" ]; then
+              echo "✅ Build & Test passed"
+              exit 0
+            elif [ -n "$CI_RESULT" ]; then
+              echo "❌ Build & Test conclusion: $CI_RESULT"
+              echo "Fix CI failures before deploying."
+              exit 1
+            fi
 
-          if [ "$CI_ACTIVE" -gt "0" ]; then
-            echo "⏳ Build & Test is still running for $COMMIT_SHA"
-            echo "Wait for CI to finish, then re-push the tag."
-            exit 1
-          fi
+            # CI not completed yet — check if it's running or hasn't started
+            CI_ACTIVE=$(gh run list \
+              --workflow=ci.yml \
+              --commit="$COMMIT_SHA" \
+              --json status \
+              --jq '[.[] | select(.status != "completed")] | length' 2>/dev/null || echo "0")
 
-          if [ -z "$CI_RESULT" ]; then
-            echo "❌ No CI run found for $COMMIT_SHA"
-            echo "CI may have been skipped (docs-only change?) or hasn't triggered yet."
-            echo "Push code to main and wait for Build & Test to pass before tagging."
-            exit 1
-          fi
+            if [ "$CI_ACTIVE" -gt "0" ]; then
+              echo "⏳ Build & Test still running... (${ELAPSED}s elapsed, polling every ${INTERVAL}s)"
+            else
+              echo "⏳ Waiting for Build & Test to start... (${ELAPSED}s elapsed)"
+            fi
 
-          echo "❌ Build & Test conclusion: $CI_RESULT"
-          echo "Fix CI failures before deploying."
+            sleep "$INTERVAL"
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "❌ Timed out waiting for Build & Test after ${MAX_WAIT}s"
+          echo "CI may not have triggered for this commit."
           exit 1
 
   build-api:
