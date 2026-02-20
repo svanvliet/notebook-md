@@ -33,3 +33,10 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
   start_ip_address = "0.0.0.0"
   end_ip_address   = "0.0.0.0"
 }
+
+# Allow required PostgreSQL extensions
+resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
+  name      = "azure.extensions"
+  server_id = azurerm_postgresql_flexible_server.main.id
+  value     = "UUID-OSSP,PGCRYPTO"
+}
