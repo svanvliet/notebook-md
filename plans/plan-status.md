@@ -3010,12 +3010,18 @@ All three OAuth providers configured for production with credentials deployed vi
 - ✅ Email verification — working
 - ✅ Cross-subdomain auth — cookies scoped to `.notebookmd.io`
 - ✅ Admin account promoted (me@svv.me), 2FA enabled
-- ✅ OAuth: GitHub, Microsoft, Google — credentials deployed
-- ✅ CI/CD pipeline fully optimized
-- ✅ Deployed as `v0.1.1`
+- ✅ OAuth: GitHub, Microsoft, Google — live (`/auth/oauth/providers` returns all three)
+- ✅ CI/CD pipeline fully optimized (change detection, parallel builds, CI gate with polling)
+- ✅ Deployed as `v0.1.2`
+
+### Phase 6.10 Complete ✅
+
+**Deploy workflow improvements (v0.1.2):**
+- Fixed change detection: compares against previous tag instead of HEAD~1
+- Fixed CI gate race condition: polls every 15s for up to 10 min instead of failing immediately
+- Inline `GITHUB_APP_PRIVATE_KEY` env var support for containers
 
 ### Remaining Steps
-- [ ] Deploy code change (inline private key support) — needs tag + deploy
 - [ ] Test OAuth sign-in with each provider in production
 - [ ] Full smoke test: create notebook, edit doc, cookie consent, legal pages
 - [ ] Publish Google OAuth app for general availability
