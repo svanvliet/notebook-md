@@ -660,10 +660,10 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 
 ### 6.8 Database
 
-- [ ] Run production migrations (001–003)
-- [ ] Enable automated daily backups with 35-day PITR
-- [ ] Enable geo-redundant backup storage
-- [ ] Promote first admin account via CLI (`node cli/promote-admin.js <email>`)
+- [x] Run production migrations (001–003)
+- [x] Enable automated daily backups with 35-day PITR
+- [x] Enable geo-redundant backup storage
+- [x] Promote first admin account via CLI (`node cli/promote-admin.js <email>`)
 
 ### 6.9 First Deployment
 
