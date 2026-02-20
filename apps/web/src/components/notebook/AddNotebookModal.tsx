@@ -12,6 +12,8 @@
 import { useState, useEffect } from 'react';
 import { XIcon } from '../icons/Icons';
 import { SOURCE_TYPES, SourceIcon, type SourceType } from './SourceTypes';
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
 import {
   listInstallations,
   listRepos,
@@ -441,7 +443,7 @@ function OneDriveConfig({ onConfigured, onBack, userId }: OneDriveConfigProps) {
                 returnTo: '/?source=onedrive',
                 ...(userId ? { linkToUser: userId } : {}),
               });
-              window.location.href = `/auth/oauth/microsoft?${params.toString()}`;
+              window.location.href = `${API_BASE}/auth/oauth/microsoft?${params.toString()}`;
             }} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
             <SourceIcon sourceType="onedrive" className="w-4 h-4" />
             Link Microsoft Account
@@ -618,7 +620,7 @@ function GoogleDriveConfig({ onConfigured, onBack, userId }: GoogleDriveConfigPr
                 returnTo: '/?source=google-drive',
                 ...(userId ? { linkToUser: userId } : {}),
               });
-              window.location.href = `/auth/oauth/google?${params.toString()}`;
+              window.location.href = `${API_BASE}/auth/oauth/google?${params.toString()}`;
             }} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
             <SourceIcon sourceType="google-drive" className="w-4 h-4" />
             {needsReauth ? 'Re-authorize Google Drive' : 'Link Google Account'}

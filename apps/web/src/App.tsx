@@ -23,6 +23,8 @@ import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useNavigate } from 'react-router-dom';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 export default function App() {
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
@@ -95,8 +97,7 @@ export default function App() {
         navigate('/', { replace: true });
       });
     } else if (path === '/app/verify-email' && magicToken) {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      fetch(`${apiBase}/auth/verify-email`, {
+      fetch(`${API_BASE}/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -184,7 +185,7 @@ export default function App() {
   // Welcome screen when not signed in
   if (!auth.isSignedIn && !auth.loading) {
     const handleOAuth = (provider: string) => {
-      window.location.href = `/auth/oauth/${provider}?returnTo=/`;
+      window.location.href = `${API_BASE}/auth/oauth/${provider}?returnTo=/`;
     };
     const handleSignUp = async (email: string, password: string, displayName: string, rememberMe: boolean) => {
       const ok = await auth.signUp(email, password, displayName, rememberMe);
