@@ -93,8 +93,8 @@ describe('useSettings', () => {
     });
 
     // Should have called PUT /auth/settings
-    const putCall = mockFetch.mock.calls.find(
-      (c: [string, RequestInit?]) => c[1]?.method === 'PUT',
+    const putCall = (mockFetch.mock.calls as [string, RequestInit?][]).find(
+      (c) => c[1]?.method === 'PUT',
     );
     expect(putCall).toBeTruthy();
     const body = JSON.parse(putCall![1]!.body as string);

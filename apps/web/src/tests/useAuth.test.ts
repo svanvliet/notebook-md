@@ -127,8 +127,8 @@ describe('useAuth', () => {
       await result.current.changePassword('old', 'new12345', 'new12345');
     });
 
-    const putCall = mockFetch.mock.calls.find(
-      (c: [string, RequestInit?]) => c[0].includes('/auth/password'),
+    const putCall = (mockFetch.mock.calls as [string, RequestInit?][]).find(
+      (c) => c[0].includes('/auth/password'),
     );
     expect(putCall).toBeTruthy();
     const body = JSON.parse(putCall![1]!.body as string);
@@ -145,8 +145,8 @@ describe('useAuth', () => {
       await result.current.deleteAccount(undefined, 'DELETE');
     });
 
-    const deleteCall = mockFetch.mock.calls.find(
-      (c: [string, RequestInit?]) => c[1]?.method === 'DELETE',
+    const deleteCall = (mockFetch.mock.calls as [string, RequestInit?][]).find(
+      (c) => c[1]?.method === 'DELETE',
     );
     expect(deleteCall).toBeTruthy();
     const body = JSON.parse(deleteCall![1]!.body as string);
