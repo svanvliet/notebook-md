@@ -2934,17 +2934,38 @@ User ID: `df1aa344-5b8d-49d3-ab6b-92c13eef911c`
 
 - ✅ `www.notebookmd.io` — app loads, TLS working
 - ✅ `api.notebookmd.io` — healthy, DB + Redis connected
-- ✅ `admin.notebookmd.io` — serving, TLS working
+- ✅ `admin.notebookmd.io` — serving, TLS working, 2FA gate working
 - ✅ Sign up with email — working
 - ✅ Email verification — working (links to www.notebookmd.io)
-- ✅ Admin account promoted (me@svv.me)
+- ✅ Cross-subdomain auth — cookies scoped to `.notebookmd.io`, `SameSite=none`
+- ✅ Admin account promoted (me@svv.me), 2FA enabled
+- ✅ Admin Site link visible immediately after login (isAdmin in all auth responses)
 - ✅ Migrations (001–003) applied
 - ✅ CI/CD pipeline fully optimized (change detection, parallel builds/deploys, CI gate)
+- ✅ Deployed as `v0.1.1`
 
 ### Remaining Steps
 - [ ] Phase 6.10: Production OAuth apps (Microsoft, Google, GitHub)
 - [ ] Full smoke test: create notebook, edit doc, cookie consent, legal pages
-- [ ] Test admin site at admin.notebookmd.io
+- [ ] Test admin site end-to-end at admin.notebookmd.io
+
+---
+
+## Cross-Subdomain Cookie Fix
+
+**Date:** 2026-02-20
+
+### Problem
+After first deployment, auth cookies were scoped to `api.notebookmd.io` only. The web app at `www.notebookmd.io` and admin at `admin.notebookmd.io` couldn't share the session cookie. Additionally, `SameSite=lax` blocked cookies on cross-origin `fetch` requests.
+
+### Fixes
+1. **Shared cookie utility** — created `apps/api/src/lib/cookies.ts` consolidating 3 duplicate `setRefreshCookie` functions. Cookie `domain` derived from `APP_URL` env var (`.notebookmd.io` in production).
+2. **SameSite=none** in production (with `Secure`), `lax` in local dev.
+3. **Admin 2FA gate** — admin UI blocks access with amber message when 2FA not enabled, instead of loading UI with failing API calls.
+4. **isAdmin in auth responses** — all auth endpoints (signin, signup, magic link, 2FA verify, token refresh) now include `isAdmin` so TitleBar shows Admin Site link immediately after login.
+
+**Commits:** `9e99ce4`, `c1369ea`, `3d386aa`, `6c76183`, `4a41cdc`
+**Deployed:** `v0.1.1`
 
 ---
 

@@ -699,6 +699,9 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] Fix CI E2E → generate `.env` file, override `VITE_*` args in docker-compose for local URLs
 - [x] Fix APP_URL → `https://www.notebookmd.io` (email deep links bypass GoDaddy forwarding)
 - [x] Fix verify-email fetch → use `API_BASE` prefix for cross-origin API call
+- [x] Fix cross-subdomain cookies → `Domain=.notebookmd.io`, `SameSite=none` in production
+- [x] Fix admin 2FA gate → block admin UI with helpful message when 2FA not enabled
+- [x] Fix auth responses → include `isAdmin` in signin/signup/magic-link/2FA/refresh responses
 
 ### 6.10 Phase 6 Validation
 
