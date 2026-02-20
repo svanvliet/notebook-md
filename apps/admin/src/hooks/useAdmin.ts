@@ -59,8 +59,10 @@ interface Announcement {
   updatedAt: string;
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
@@ -178,7 +180,7 @@ export function useAdmin() {
   // ── Sign out ───────────────────────────────────────────────────────
 
   const signOut = useCallback(async () => {
-    await fetch('/auth/signout', { method: 'POST', credentials: 'include' });
+    await fetch(`${API_BASE}/auth/signout`, { method: 'POST', credentials: 'include' });
     setCurrentUser(null);
     setError('Not authenticated');
   }, []);
