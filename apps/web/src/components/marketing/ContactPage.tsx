@@ -6,14 +6,29 @@ export function ContactPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // For now, open mailto — can be replaced with a backend endpoint later
-    const subject = encodeURIComponent(`Notebook.md Contact: ${name}`);
-    const body = encodeURIComponent(`From: ${name} (${email})\n\n${message}`);
-    window.location.href = `mailto:support@notebookmd.io?subject=${subject}&body=${body}`;
-    setSubmitted(true);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to send message.');
+      }
+      setSubmitted(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -31,8 +46,8 @@ export function ContactPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Thanks!</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Your email client should have opened with your message. If not, email us directly at <a href="mailto:support@notebookmd.io" className="text-blue-600 dark:text-blue-400 hover:underline">support@notebookmd.io</a>.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Message Sent!</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">We'll get back to you as soon as possible. You can also reach us at <a href="mailto:contact@vanvlietventures.com" className="text-blue-600 dark:text-blue-400 hover:underline">contact@vanvlietventures.com</a>.</p>
             <button onClick={() => setSubmitted(false)} className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:underline">Send another message</button>
           </div>
         ) : (
@@ -70,11 +85,13 @@ export function ContactPage() {
                 placeholder="What's on your mind?"
               />
             </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm transition-colors"
+              disabled={loading}
+              className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-sm transition-colors"
             >
-              Send Message
+              {loading ? 'Sending...' : 'Send Message'}
             </button>
           </form>
         )}
@@ -82,7 +99,7 @@ export function ContactPage() {
         <div className="mt-16 grid md:grid-cols-2 gap-6">
           <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Email</h3>
-            <a href="mailto:support@notebookmd.io" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">support@notebookmd.io</a>
+            <a href="mailto:contact@vanvlietventures.com" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">contact@vanvlietventures.com</a>
           </div>
           <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">GitHub</h3>
