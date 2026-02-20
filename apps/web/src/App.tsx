@@ -21,6 +21,7 @@ import { useToast } from './hooks/useToast';
 import { useCookieConsent } from './hooks/useCookieConsent';
 import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
+import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
 import { useNavigate } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -33,6 +34,7 @@ export default function App() {
   const nb = useNotebookManager(auth.user?.id, addToast);
   const { settings, updateSettings } = useSettings(auth.isSignedIn);
   const cookieConsent = useCookieConsent();
+  const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
   const navigate = useNavigate();
 
   // Status bar state
@@ -191,7 +193,10 @@ export default function App() {
     };
     const handleSignUp = async (email: string, password: string, displayName: string, rememberMe: boolean) => {
       const ok = await auth.signUp(email, password, displayName, rememberMe);
-      if (ok) setShowOnboarding2fa(true);
+      if (ok) {
+        track(AnalyticsEvents.SIGN_UP, { method: 'email' });
+        setShowOnboarding2fa(true);
+      }
       return ok;
     };
     return (
@@ -397,6 +402,7 @@ export default function App() {
           onAdd={(name, sourceType, sourceConfig) => {
             closeAddNotebook();
             nb.handleAddNotebook(name, sourceType, sourceConfig);
+            track(AnalyticsEvents.NOTEBOOK_CREATED, { sourceType });
           }}
           onCancel={closeAddNotebook}
           userId={auth.user?.id}

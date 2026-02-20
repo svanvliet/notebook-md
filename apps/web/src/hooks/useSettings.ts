@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { trackEvent, AnalyticsEvents } from './useAnalytics';
 import { apiFetch } from '../api/apiFetch.js';
 
 const LOCAL_KEY = 'notebookmd-settings';
@@ -57,6 +58,7 @@ export function useSettings(isSignedIn: boolean) {
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     localStorage.setItem(LOCAL_KEY, JSON.stringify(newSettings));
+    trackEvent(AnalyticsEvents.SETTINGS_CHANGED, { keys: Object.keys(updates) });
 
     // Sync to server if signed in
     if (isSignedIn) {

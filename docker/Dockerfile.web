@@ -15,7 +15,8 @@ COPY --from=deps /app .
 COPY . .
 ARG VITE_ADMIN_URL=https://admin.notebookmd.io
 ARG VITE_API_URL=https://api.notebookmd.io
-RUN printf "VITE_ADMIN_URL=%s\nVITE_API_URL=%s\n" "$VITE_ADMIN_URL" "$VITE_API_URL" > apps/web/.env.production
+ARG VITE_POSTHOG_KEY=
+RUN printf "VITE_ADMIN_URL=%s\nVITE_API_URL=%s\nVITE_POSTHOG_KEY=%s\n" "$VITE_ADMIN_URL" "$VITE_API_URL" "$VITE_POSTHOG_KEY" > apps/web/.env.production
 RUN npx --workspace=@notebook-md/web vite build
 
 # ── Stage 3: Serve with Nginx ──
