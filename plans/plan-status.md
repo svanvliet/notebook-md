@@ -2969,6 +2969,60 @@ After first deployment, auth cookies were scoped to `api.notebookmd.io` only. Th
 
 ---
 
+## Phase 6.10: Production OAuth Apps
+
+**Date:** 2026-02-20
+
+### Completed
+All three OAuth providers configured for production with credentials deployed via `terraform apply`:
+
+| Provider | App Type | Client ID | Redirect URI |
+|---|---|---|---|
+| GitHub | OAuth App | `Ov23lihB6MwqD0KWFCtS` | `https://api.notebookmd.io/auth/oauth/github/callback` |
+| GitHub | GitHub App (`notebook-md`) | `Iv23lirKFjaaG6gTJkNH` | `https://api.notebookmd.io/auth/oauth/github/callback` |
+| Microsoft | Entra ID (multi-tenant) | `4722eb0c-39f8-4672-84d4-28b7184e08e3` | `https://api.notebookmd.io/auth/oauth/microsoft/callback` |
+| Google | OAuth Client | `761526223515-3n763e9pcde2s1fnevd0r58jkn46sucp` | `https://api.notebookmd.io/auth/oauth/google/callback` |
+
+### Code Changes
+- **`github-app.ts`**: Added `GITHUB_APP_PRIVATE_KEY` env var support (inline PEM) as alternative to file-based `GITHUB_APP_PRIVATE_KEY_PATH` — containers can't use file paths
+- **`container_apps.tf`**: Added `github-app-private-key` secret to API container
+- **`variables.tf`**: Added `github_app_private_key` variable
+
+### Dev Environment
+- Created separate `notebook-md-dev` GitHub App (App ID: 2909176) for local development
+- Updated `.env` with dev app credentials
+
+### Notes
+- Microsoft client secret expires in 6 months — consider Azure Key Vault rotation
+- Google app is in "Testing" mode initially — needs to be published for general availability
+- All credentials applied to production API container via `terraform apply -target=azurerm_container_app.api`
+
+**Commit:** `a7036cf`
+
+---
+
+## Current Production Status
+
+- ✅ `www.notebookmd.io` — app loads, TLS working
+- ✅ `api.notebookmd.io` — healthy, DB + Redis connected
+- ✅ `admin.notebookmd.io` — serving, TLS working, 2FA gate working
+- ✅ Sign up with email — working
+- ✅ Email verification — working
+- ✅ Cross-subdomain auth — cookies scoped to `.notebookmd.io`
+- ✅ Admin account promoted (me@svv.me), 2FA enabled
+- ✅ OAuth: GitHub, Microsoft, Google — credentials deployed
+- ✅ CI/CD pipeline fully optimized
+- ✅ Deployed as `v0.1.1`
+
+### Remaining Steps
+- [ ] Deploy code change (inline private key support) — needs tag + deploy
+- [ ] Test OAuth sign-in with each provider in production
+- [ ] Full smoke test: create notebook, edit doc, cookie consent, legal pages
+- [ ] Publish Google OAuth app for general availability
+
+---
+
 ## Open Questions
 
-*(Any unresolved questions that need user input)*
+- **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
+- **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use.
