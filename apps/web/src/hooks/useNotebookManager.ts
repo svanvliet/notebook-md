@@ -474,6 +474,29 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     [refreshFiles, flash, toast],
   );
 
+  /** Import a file directly to a specific notebook + folder (used by drag-drop onto tree) */
+  const handleDirectImport = useCallback(
+    async (notebookId: string, parentPath: string, fileName: string, content: string) => {
+      try {
+        const entry = await createFile(notebookId, parentPath, fileName, 'file', content);
+        await refreshFiles(notebookId);
+        toast?.(`Imported "${fileName}"`, 'success');
+        // Auto-open the imported file
+        const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+        const tabId = `${notebookId}:${entry.path}`;
+        setTabs((prev) => [...prev, {
+          id: tabId, notebookId, path: entry.path, name: entry.name,
+          content: htmlContent, savedContent: content,
+          hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+        }]);
+        setActiveTabId(tabId);
+      } catch (err) {
+        toast?.(`Failed to import "${fileName}": ${(err as Error).message}`, 'error');
+      }
+    },
+    [refreshFiles, toast],
+  );
+
   const handleDeleteFile = useCallback(
     async (notebookId: string, path: string) => {
       const name = path.split('/').pop() ?? path;
@@ -993,6 +1016,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleCreateFile,
     handleImportFile,
     handleDropImport,
+    handleDirectImport,
     handleDeleteFile,
     handleRenameFile,
     handleOpenFile,

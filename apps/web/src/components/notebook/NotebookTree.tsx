@@ -99,6 +99,11 @@ function FileIcon({ name, className = 'w-4 h-4' }: { name: string; className?: s
 
 const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
 
+/** Check if a drag event contains external files (from OS, not internal tree drags) */
+function hasExternalFiles(e: React.DragEvent): boolean {
+  return e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('text/notebook-tree-item');
+}
+
 interface ContextMenuState {
   x: number;
   y: number;
@@ -124,6 +129,7 @@ interface NotebookTreeProps {
   onMoveFile?: (notebookId: string, oldPath: string, newParentPath: string) => void;
   onCopyFile?: (sourceNotebookId: string, sourcePath: string, targetNotebookId: string, targetParentPath: string) => void;
   onReorderNotebooks?: (orderedIds: string[]) => void;
+  onDropImport?: (notebookId: string, parentPath: string, fileName: string, content: string) => void;
   activeFilePath: string | null;
 }
 
@@ -144,6 +150,7 @@ export function NotebookTree({
   onMoveFile,
   onCopyFile,
   onReorderNotebooks,
+  onDropImport,
   activeFilePath,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
@@ -279,36 +286,52 @@ export function NotebookTree({
           onDragEnd={() => setDragSourceNotebookId(null)}
           onDragOver={(e) => {
             if (!isFolder) return;
-            const raw = e.dataTransfer.types.includes('text/notebook-tree-item');
-            if (!raw) return;
+            const isTreeItem = e.dataTransfer.types.includes('text/notebook-tree-item');
+            const isExternal = hasExternalFiles(e);
+            if (!isTreeItem && !isExternal) return;
             e.preventDefault();
             e.stopPropagation();
             setDropTarget(fileKey);
-            const style = crossDropStyle(file.notebookId);
-            if (style === 'copy') {
+            if (isExternal) {
               e.dataTransfer.dropEffect = 'copy';
+            } else {
+              const style = crossDropStyle(file.notebookId);
+              if (style === 'copy') {
+                e.dataTransfer.dropEffect = 'copy';
+              }
             }
           }}
           onDragLeave={() => {
             if (dropTarget === fileKey) setDropTarget(null);
           }}
-          onDrop={(e) => {
+          onDrop={async (e) => {
             e.preventDefault();
             e.stopPropagation();
             setDropTarget(null);
             if (!isFolder) return;
+
+            // Handle external file drop (from OS)
+            if (hasExternalFiles(e) && e.dataTransfer.files?.length && onDropImport) {
+              for (const f of Array.from(e.dataTransfer.files)) {
+                const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+                if (!EDITABLE_EXTS.has(ext)) continue;
+                const content = await f.text();
+                onDropImport(file.notebookId, file.path, f.name, content);
+              }
+              return;
+            }
+
+            // Handle internal tree item drag
             const raw = e.dataTransfer.getData('text/notebook-tree-item');
             if (!raw) return;
             try {
               const data = JSON.parse(raw) as { notebookId: string; path: string; type: string; sourceType?: string };
               if (data.notebookId === file.notebookId) {
-                // Same notebook → move
                 if (!onMoveFile) return;
                 if (data.path === file.path) return;
                 if (file.path.startsWith(data.path + '/')) return;
                 onMoveFile(data.notebookId, data.path, file.path);
               } else {
-                // Cross-notebook → copy (only local-to-local)
                 if (!onCopyFile) return;
                 const targetNb = notebooks.find((n) => n.id === file.notebookId);
                 if (data.sourceType !== 'local' || (targetNb?.sourceType ?? 'local') !== 'local') return;
@@ -424,25 +447,44 @@ export function NotebookTree({
               }}
               onDragEnd={() => setDragNotebookId(null)}
               onDragOver={(e) => {
-                // Accept notebook reorder OR file move to root
+                // Accept notebook reorder, file move to root, or external file drop
                 const isReorder = e.dataTransfer.types.includes('text/notebook-reorder');
                 const isFileMove = e.dataTransfer.types.includes('text/notebook-tree-item') && !isReorder;
-                if (!isReorder && !isFileMove) return;
+                const isExternal = hasExternalFiles(e);
+                if (!isReorder && !isFileMove && !isExternal) return;
                 e.preventDefault();
                 e.stopPropagation();
-                if (isFileMove) {
+                if (isFileMove || isExternal) {
                   setDropTarget(`notebook:${nb.id}`);
-                  const style = crossDropStyle(nb.id);
-                  if (style === 'copy') {
+                  if (isExternal) {
                     e.dataTransfer.dropEffect = 'copy';
+                  } else {
+                    const style = crossDropStyle(nb.id);
+                    if (style === 'copy') {
+                      e.dataTransfer.dropEffect = 'copy';
+                    }
                   }
                 }
               }}
               onDragLeave={() => {
                 if (dropTarget === `notebook:${nb.id}`) setDropTarget(null);
               }}
-              onDrop={(e) => {
+              onDrop={async (e) => {
                 setDropTarget(null);
+
+                // Handle external file drop (from OS) — import to notebook root
+                if (hasExternalFiles(e) && e.dataTransfer.files?.length && onDropImport) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  for (const f of Array.from(e.dataTransfer.files)) {
+                    const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+                    if (!EDITABLE_EXTS.has(ext)) continue;
+                    const content = await f.text();
+                    onDropImport(nb.id, '', f.name, content);
+                  }
+                  return;
+                }
+
                 // Handle notebook reorder
                 const draggedId = e.dataTransfer.getData('text/notebook-reorder');
                 if (draggedId && draggedId !== nb.id && onReorderNotebooks) {

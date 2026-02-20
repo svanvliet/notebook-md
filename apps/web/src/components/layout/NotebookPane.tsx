@@ -37,6 +37,7 @@ interface NotebookPaneProps {
   onMoveFile?: (notebookId: string, oldPath: string, newParentPath: string) => void;
   onCopyFile?: (sourceNotebookId: string, sourcePath: string, targetNotebookId: string, targetParentPath: string) => void;
   onReorderNotebooks?: (orderedIds: string[]) => void;
+  onDropImport?: (notebookId: string, parentPath: string, fileName: string, content: string) => void;
   activeFilePath: string | null;
 }
 
@@ -61,6 +62,7 @@ export function NotebookPane({
   onMoveFile,
   onCopyFile,
   onReorderNotebooks,
+  onDropImport,
   activeFilePath,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
@@ -174,6 +176,7 @@ export function NotebookPane({
             onMoveFile={onMoveFile}
             onCopyFile={onCopyFile}
             onReorderNotebooks={onReorderNotebooks}
+            onDropImport={onDropImport}
             activeFilePath={activeFilePath}
           />
         </div>

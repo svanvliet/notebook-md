@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { TitleBar } from './components/layout/TitleBar';
 import { NotebookPane } from './components/layout/NotebookPane';
 import { DocumentPane } from './components/layout/DocumentPane';
@@ -151,6 +151,7 @@ export default function App() {
   // Drag-and-drop handler for markdown files
   const SUPPORTED_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
   const [dragOver, setDragOver] = useState(false);
+  const dragCountRef = useRef(0);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     // Don't show import overlay for internal tree drags
@@ -158,18 +159,29 @@ export default function App() {
       return;
     }
     e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('text/notebook-file') || e.dataTransfer.types.includes('text/notebook-tree-item')) {
+      return;
+    }
+    dragCountRef.current++;
+    if (dragCountRef.current === 1) {
+      setDragOver(true);
+    }
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
+    dragCountRef.current--;
+    if (dragCountRef.current <= 0) {
+      dragCountRef.current = 0;
+      setDragOver(false);
+    }
   }, []);
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
+      dragCountRef.current = 0;
       // Ignore internal tree drags
       if (e.dataTransfer.types.includes('text/notebook-tree-item')) return;
       e.preventDefault();
@@ -258,6 +270,7 @@ export default function App() {
       className="h-full flex flex-col"
       data-print-margins={settings.margins}
       onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
@@ -303,6 +316,7 @@ export default function App() {
           onMoveFile={nb.handleMoveFile}
           onCopyFile={nb.handleCopyFile}
           onReorderNotebooks={nb.handleReorderNotebooks}
+          onDropImport={nb.handleDirectImport}
           activeFilePath={nb.activeTabId}
         />
         <DocumentPane
