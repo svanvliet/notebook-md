@@ -53,10 +53,24 @@ jobs:
           echo "version=${BASE}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
 
+      - name: Find previous tag
+        id: prev_tag
+        run: |
+          CURRENT_TAG="${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.tag) || github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found — will build all"
+            echo "ref=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Comparing ${CURRENT_TAG} against ${PREV_TAG}"
+            echo "ref=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Detect changes
         id: changes
         uses: dorny/paths-filter@v3
         with:
+          base: ${{ steps.prev_tag.outputs.ref }}
           filters: |
             api:
               - 'apps/api/**'
@@ -79,9 +93,10 @@ jobs:
         run: |
           FORCE="${{ inputs.force_rebuild }}"
           SHARED="${{ steps.changes.outputs.shared }}"
+          NO_PREV_TAG="${{ steps.prev_tag.outputs.ref == '' }}"
 
-          if [ "$FORCE" = "true" ]; then
-            echo "Force rebuild requested"
+          if [ "$FORCE" = "true" ] || [ "$NO_PREV_TAG" = "true" ]; then
+            echo "Force rebuild requested (force=$FORCE, no_prev_tag=$NO_PREV_TAG)"
             for key in api web admin any; do echo "$key=true" >> "$GITHUB_OUTPUT"; done
             exit 0
           fi
