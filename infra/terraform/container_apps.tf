@@ -67,7 +67,7 @@ resource "azurerm_container_app" "api" {
 
     container {
       name   = "api"
-      image  = "${azurerm_container_registry.main.login_server}/${var.project}-api:latest"
+      image  = "${azurerm_container_registry.main.login_server}/api:latest"
       cpu    = 0.5
       memory = "1Gi"
 
@@ -291,7 +291,7 @@ resource "azurerm_container_app" "web" {
 
     container {
       name   = "web"
-      image  = "${azurerm_container_registry.main.login_server}/${var.project}-web:latest"
+      image  = "${azurerm_container_registry.main.login_server}/web:latest"
       cpu    = 0.25
       memory = "0.5Gi"
     }
@@ -337,7 +337,7 @@ resource "azurerm_container_app" "admin" {
 
     container {
       name   = "admin"
-      image  = "${azurerm_container_registry.main.login_server}/${var.project}-admin:latest"
+      image  = "${azurerm_container_registry.main.login_server}/admin:latest"
       cpu    = 0.25
       memory = "0.5Gi"
     }

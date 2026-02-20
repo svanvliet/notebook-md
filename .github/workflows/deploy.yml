@@ -17,6 +17,7 @@ jobs:
   build-and-push:
     name: Build & Push Images
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
       id-token: write
@@ -89,7 +90,7 @@ jobs:
             --registry-identity "/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.RESOURCE_GROUP }}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-notebookmd-prod" \
             --trigger-type Manual \
             --cpu 0.25 --memory 0.5Gi \
-            --command "node" "--" "node_modules/.bin/node-pg-migrate" "up" "--migrations-dir" "migrations" "--migration-file-language" "sql" \
+            --command "/bin/sh" "-c" "npx node-pg-migrate up --migrations-dir migrations --migration-file-language sql" \
             --env-vars "DATABASE_URL=secretref:database-url" \
             --secrets "database-url=keyvaultref:https://kv-notebookmd-prod.vault.azure.net/secrets/db-connection-string,identityref:/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.RESOURCE_GROUP }}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-notebookmd-prod" \
             --replica-timeout 120 \

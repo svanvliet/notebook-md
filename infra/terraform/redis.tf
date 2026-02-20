@@ -11,7 +11,7 @@ resource "azurerm_redis_cache" "main" {
   sku_name                      = "Basic"
   minimum_tls_version           = "1.2"
   public_network_access_enabled = true
-  redis_version                 = "7"
+  redis_version                 = "6"
 
   redis_configuration {}
 
