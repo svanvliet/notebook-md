@@ -62,70 +62,61 @@ const oneDriveAdapter: SourceAdapter = {
   },
 
   async listTree(accessToken: string, rootPath: string): Promise<FileEntry[]> {
-    // Use BFS with /children to recursively list all items under the root folder.
-    // Each call returns one folder's children; we queue subfolders for processing.
-    // This is more efficient than the old frontend approach because requests run
-    // in parallel batches instead of sequentially.
+    // Use the delta endpoint which returns ALL descendants recursively.
+    // On the first call (no delta token), it enumerates everything under the folder.
+    const deltaPath = `${driveItemPath(rootPath, '')}/delta`;
+    let url: string | null = `${GRAPH_BASE}${deltaPath}?$select=name,size,lastModifiedDateTime,folder,file,parentReference&$top=200`;
     const allEntries: FileEntry[] = [];
-    const queue: Array<{ dirPath: string }> = [{ dirPath: '' }];
 
-    while (queue.length > 0) {
-      // Process up to 6 folders concurrently per batch
-      const batch = queue.splice(0, 6);
-      const batchResults = await Promise.all(
-        batch.map(async ({ dirPath }) => {
-          const drivePath = dirPath
-            ? `${driveItemPath(rootPath, dirPath)}/children`
-            : `${driveItemPath(rootPath, '')}/children`;
+    while (url) {
+      const res = await fetch(url, { headers: headers(accessToken) });
 
-          let url: string | null = `${GRAPH_BASE}${drivePath}?$select=name,size,lastModifiedDateTime,folder,file&$top=200`;
-          const entries: FileEntry[] = [];
-
-          while (url) {
-            const res = await fetch(url, { headers: headers(accessToken) });
-            if (!res.ok) {
-              const body = await res.text();
-              logger.error('OneDrive listTree batch failed', { status: res.status, body, dirPath });
-              throw new Error(`OneDrive: failed to list tree (${res.status})`);
-            }
-
-            const data = (await res.json()) as {
-              value: Array<{
-                name: string;
-                size?: number;
-                lastModifiedDateTime?: string;
-                folder?: { childCount: number };
-                file?: { mimeType: string };
-              }>;
-              '@odata.nextLink'?: string;
-            };
-
-            for (const item of data.value) {
-              const fullPath = dirPath ? `${dirPath}/${item.name}` : item.name;
-              entries.push({
-                path: fullPath,
-                name: item.name,
-                type: item.folder ? 'folder' as const : 'file' as const,
-                size: item.size,
-                lastModified: item.lastModifiedDateTime,
-              });
-            }
-
-            url = data['@odata.nextLink'] ?? null;
-          }
-
-          return entries;
-        }),
-      );
-
-      for (const entries of batchResults) {
-        for (const entry of entries) {
-          allEntries.push(entry);
-          if (entry.type === 'folder') {
-            queue.push({ dirPath: entry.path });
-          }
-        }
+      if (!res.ok) {
+        const body = await res.text();
+        logger.error('OneDrive listTree (delta) failed', { status: res.status, body, rootPath });
+        throw new Error(`OneDrive: failed to list tree (${res.status})`);
       }
+
+      const data = (await res.json()) as {
+        value: Array<{
+          id: string;
+          name: string;
+          size?: number;
+          lastModifiedDateTime?: string;
+          folder?: { childCount: number };
+          file?: { mimeType: string };
+          parentReference?: { path?: string };
+          deleted?: { state: string };
+        }>;
+        '@odata.nextLink'?: string;
+        '@odata.deltaLink'?: string;
+      };
+
+      // Build a map of id → relative path for resolving child paths
+      const rootMarker = `:/${rootPath}`;
+
+      for (const item of data.value) {
+        // Skip deleted items and the root folder itself
+        if (item.deleted) continue;
+
+        const parentRefPath = item.parentReference?.path ?? '';
+        const markerIdx = parentRefPath.indexOf(rootMarker);
+        if (markerIdx === -1) continue; // item outside our root (e.g. the root itself)
+
+        const relativeDirPath = parentRefPath.slice(markerIdx + rootMarker.length).replace(/^\//, '');
+        const fullPath = relativeDirPath ? `${relativeDirPath}/${item.name}` : item.name;
+
+        allEntries.push({
+          path: fullPath,
+          name: item.name,
+          type: item.folder ? 'folder' as const : 'file' as const,
+          size: item.size,
+          lastModified: item.lastModifiedDateTime,
+        });
+      }
+
+      // Follow nextLink for pagination; stop at deltaLink (we don't need the token)
+      url = data['@odata.nextLink'] ?? null;
     }
 
     return allEntries;
