@@ -155,7 +155,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
 
   // Sync content from outside (e.g., when switching tabs)
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (editor && editor.view?.dom && content !== editor.getHTML()) {
       editor.commands.setContent(sanitize(content));
     }
     // Only trigger when content prop changes, not when editor types
@@ -164,7 +164,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
 
   // Sync spellcheck attribute when setting changes
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !editor.view?.dom) return;
     const el = editor.view.dom;
     el.setAttribute('spellcheck', spellCheckProp === false ? 'false' : 'true');
   }, [editor, spellCheckProp]);
