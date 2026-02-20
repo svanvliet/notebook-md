@@ -5,6 +5,8 @@ import { apiFetch } from '../../api/apiFetch';
 import { GitHubIcon, OneDriveIcon, GoogleDriveIcon } from '../icons/Icons';
 import { TwoFactorSetup } from './TwoFactorSetup';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 interface LinkedProvider {
   provider: string;
   providerEmail: string;
@@ -88,7 +90,7 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
   };
 
   const handleLinkProvider = (provider: string) => {
-    window.location.href = `/auth/oauth/${provider}?returnTo=/&linkToUser=${user.id}`;
+    window.location.href = `${API_BASE}/auth/oauth/${provider}?returnTo=/&linkToUser=${user.id}`;
   };
 
   const handleSaveProfile = async () => {
