@@ -19,13 +19,22 @@ export default function App() {
   }
 
   if (admin.error || !admin.currentUser) {
+    const appUrl = import.meta.env.VITE_APP_URL || 'http://localhost:5173';
+    const needs2FA = admin.error?.includes('two-factor');
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <h1 className="text-2xl font-bold mb-2">📓 Notebook.md Admin</h1>
-          <p className="text-red-600 mb-4">{admin.error || 'Unable to authenticate'}</p>
+          <p className={`mb-4 ${needs2FA ? 'text-amber-600' : 'text-red-600'}`}>
+            {admin.error || 'Unable to authenticate'}
+          </p>
+          {needs2FA ? (
+            <p className="text-gray-600 text-sm mb-4">
+              Open your account settings in Notebook.md to enable 2FA, then return here.
+            </p>
+          ) : null}
           <a
-            href={import.meta.env.VITE_APP_URL || 'http://localhost:5173'}
+            href={appUrl}
             className="text-blue-600 hover:underline text-sm"
           >
             Go to Notebook.md →

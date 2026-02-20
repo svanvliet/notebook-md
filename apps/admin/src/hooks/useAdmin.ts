@@ -84,6 +84,8 @@ export function useAdmin() {
       .then(({ user }) => {
         if (!user.isAdmin) {
           setError('Access denied. Admin privileges required.');
+        } else if (!user.twoFactorEnabled) {
+          setError('Admin access requires two-factor authentication. Please enable 2FA in your account settings.');
         } else {
           setCurrentUser(user);
         }
