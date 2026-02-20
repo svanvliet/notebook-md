@@ -120,6 +120,8 @@ export default function App() {
       const src = params.get('source');
       params.delete('source');
       params.delete('linked');
+      params.delete('github_installed');
+      params.delete('account');
       setInitialSource(src);
       setShowAddNotebook(true);
       const newUrl = params.toString() ? `/?${params.toString()}` : '/';
