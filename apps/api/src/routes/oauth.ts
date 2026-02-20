@@ -5,6 +5,7 @@ import { handleOAuthLogin, linkProviderToUser, unlinkProvider, getUserProviders 
 import { createSession } from '../services/session.js';
 import { generateToken, hashToken } from '../lib/crypto.js';
 import { redis } from '../lib/redis.js';
+import { setRefreshCookie } from '../lib/cookies.js';
 import { requireAuth } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
 import type { Request, Response } from 'express';
@@ -19,15 +20,6 @@ function getRedirectUri(provider: string): string {
   return `${API_URL}/auth/oauth/${provider}/callback`;
 }
 
-function setRefreshCookie(res: Response, token: string, rememberMe: boolean) {
-  res.cookie('refresh_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
-  });
-}
 
 function getClientIp(req: Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? undefined;

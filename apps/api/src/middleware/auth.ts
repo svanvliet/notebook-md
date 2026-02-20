@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getSessionByRefreshToken } from '../services/session.js';
+import { clearRefreshCookie } from '../lib/cookies.js';
 import { query } from '../db/pool.js';
 
 // Extend Request with authenticated user
@@ -22,7 +23,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   const session = await getSessionByRefreshToken(refreshToken);
   if (!session) {
-    res.clearCookie('refresh_token');
+    clearRefreshCookie(res);
     res.status(401).json({ error: 'Session expired or invalid' });
     return;
   }
@@ -35,7 +36,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     [session.userId],
   );
   if (userResult.rows.length === 0 || userResult.rows[0].is_suspended) {
-    res.clearCookie('refresh_token');
+    clearRefreshCookie(res);
     res.status(403).json({ error: 'Account suspended' });
     return;
   }
@@ -45,7 +46,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (idleTimeout && session.lastActiveAt) {
     const idleMs = Date.now() - new Date(session.lastActiveAt).getTime();
     if (idleMs > idleTimeout * 60 * 1000) {
-      res.clearCookie('refresh_token');
+      clearRefreshCookie(res);
       res.status(401).json({ error: 'Session timed out due to inactivity' });
       return;
     }

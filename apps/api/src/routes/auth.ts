@@ -7,6 +7,7 @@ import { sendMagicLink, sendVerificationEmail, sendPasswordResetEmail } from '..
 import { auditLog } from '../lib/audit.js';
 import { createSession, rotateRefreshToken, revokeSession, revokeAllUserSessions } from '../services/session.js';
 import { get2faStatus, createChallengeToken } from '../services/two-factor.js';
+import { setRefreshCookie, clearRefreshCookie } from '../lib/cookies.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 
@@ -47,15 +48,6 @@ const VERIFICATION_EXPIRY_HOURS = 24;
 const RESET_EXPIRY_HOURS = 1;
 const MIN_PASSWORD_LENGTH = 8;
 
-function setRefreshCookie(res: Response, token: string, rememberMe: boolean) {
-  res.cookie('refresh_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
-  });
-}
 
 function getClientIp(req: Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? undefined;
@@ -508,7 +500,7 @@ router.post('/refresh', authReadLimiter, async (req: Request, res: Response) => 
 
   const result = await rotateRefreshToken(oldToken);
   if (!result) {
-    res.clearCookie('refresh_token');
+    clearRefreshCookie(res);
     res.status(401).json({ error: 'Invalid or expired session' });
     return;
   }
@@ -546,7 +538,7 @@ router.post('/refresh', authReadLimiter, async (req: Request, res: Response) => 
 // ---------------------------------------------------------------------------
 router.post('/signout', authReadLimiter, requireAuth, async (req: Request, res: Response) => {
   await revokeSession(req.sessionId!);
-  res.clearCookie('refresh_token');
+  clearRefreshCookie(res);
 
   await auditLog({
     userId: req.userId,
@@ -746,7 +738,7 @@ router.delete('/account', authMutationLimiter, requireAuth, async (req: Request,
   // Delete user (cascades to sessions, identity_links, etc.)
   await query('DELETE FROM users WHERE id = $1', [req.userId!]);
 
-  res.clearCookie('refresh_token');
+  clearRefreshCookie(res);
   res.json({ message: 'Account deleted' });
 });
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth.js';
+import { setRefreshCookie } from '../lib/cookies.js';
 import { auditLog } from '../lib/audit.js';
 import { createSession } from '../services/session.js';
 import {
@@ -33,15 +34,6 @@ function getClientIp(req: Request): string {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? '127.0.0.1';
 }
 
-function setRefreshCookie(res: Response, token: string, rememberMe: boolean) {
-  res.cookie('refresh_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
-    path: '/',
-  });
-}
 
 // ── GET /auth/2fa/status — Get 2FA status (authenticated) ────────────────────
 
