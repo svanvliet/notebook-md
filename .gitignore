@@ -36,3 +36,4 @@ stuff.txt
 # Playwright
 playwright-report/
 test-results/
+*.tfplan
