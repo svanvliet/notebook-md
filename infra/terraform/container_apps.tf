@@ -97,7 +97,7 @@ resource "azurerm_container_app" "api" {
       }
       env {
         name  = "CORS_ORIGIN"
-        value = "https://${var.domain}"
+        value = "https://${var.domain},https://www.${var.domain}"
       }
       env {
         name  = "ADMIN_ORIGIN"

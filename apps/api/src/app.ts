@@ -66,7 +66,7 @@ app.use(
 // CORS: restrict to allowed origins
 const allowedOrigins = isDev
   ? [/^http:\/\/localhost:\d+$/]
-  : [process.env.CORS_ORIGIN ?? 'https://notebookmd.io', process.env.ADMIN_ORIGIN ?? 'https://admin.notebookmd.io'];
+  : [...(process.env.CORS_ORIGIN ?? 'https://notebookmd.io').split(','), process.env.ADMIN_ORIGIN ?? 'https://admin.notebookmd.io'];
 app.use(
   cors({
     origin: (origin, cb) => {
