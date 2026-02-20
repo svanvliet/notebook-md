@@ -478,21 +478,21 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
   const handleDirectImport = useCallback(
     async (notebookId: string, parentPath: string, fileName: string, content: string) => {
       try {
-        const nb = notebooks.find((n) => n.id === notebookId);
+        const notebook = notebooks.find((n) => n.id === notebookId);
         const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
         let entryPath = filePath;
         let entryName = fileName;
 
-        if (nb?.sourceType === 'github') {
-          const rootPath = nb.sourceConfig.rootPath as string;
-          const branch = await ensureWorkingBranch(notebookId, nb);
+        if (notebook?.sourceType === 'github') {
+          const rootPath = notebook.sourceConfig.rootPath as string;
+          const branch = await ensureWorkingBranch(notebookId, notebook);
           const result = await createGitHubFile(rootPath, filePath, content, branch);
           entryPath = result.path;
-        } else if (nb?.sourceType === 'onedrive') {
-          const rootPath = nb.sourceConfig.rootPath as string;
+        } else if (notebook?.sourceType === 'onedrive') {
+          const rootPath = notebook.sourceConfig.rootPath as string;
           await createOneDriveFile(rootPath, filePath, content);
-        } else if (nb?.sourceType === 'google-drive') {
-          const rootFolderId = nb.sourceConfig.rootPath as string;
+        } else if (notebook?.sourceType === 'google-drive') {
+          const rootFolderId = notebook.sourceConfig.rootPath as string;
           await createGoogleDriveFile(rootFolderId, filePath, content);
         } else {
           const entry = await createFile(notebookId, parentPath, fileName, 'file', content);
@@ -504,13 +504,22 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         toast?.(`Imported "${fileName}"`, 'success');
 
         // Auto-open the imported file
-        const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+        let htmlContent: string;
+        try {
+          htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+        } catch {
+          htmlContent = `<p>${content}</p>`;
+        }
         const tabId = `${notebookId}:${entryPath}`;
-        setTabs((prev) => [...prev, {
-          id: tabId, notebookId, path: entryPath, name: entryName,
-          content: htmlContent, savedContent: content,
-          hasUnsavedChanges: false, lastSaved: Date.now(),
-        }]);
+        setTabs((prev) => {
+          // Avoid duplicate tabs
+          if (prev.some((t) => t.id === tabId)) return prev;
+          return [...prev, {
+            id: tabId, notebookId, path: entryPath, name: entryName,
+            content: htmlContent, savedContent: content,
+            hasUnsavedChanges: false, lastSaved: Date.now(),
+          }];
+        });
         setActiveTabId(tabId);
       } catch (err) {
         toast?.(`Failed to import "${fileName}": ${(err as Error).message}`, 'error');
