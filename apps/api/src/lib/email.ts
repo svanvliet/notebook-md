@@ -71,6 +71,28 @@ export async function send2faCode(email: string, code: string): Promise<void> {
   logger.info('2FA code email sent', { email });
 }
 
+const getContactTo = () => process.env.CONTACT_EMAIL ?? 'contact@vanvlietventures.com';
+
+export async function sendContactForm(name: string, fromEmail: string, message: string): Promise<void> {
+  await transporter.sendMail({
+    from: getFrom(),
+    to: getContactTo(),
+    replyTo: fromEmail,
+    subject: `Notebook.md Contact: ${name}`,
+    text: `From: ${name} (${fromEmail})\n\n${message}`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="color: #1a1a1a;">New Contact Form Submission</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> <a href="mailto:${fromEmail}">${fromEmail}</a></p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;" />
+        <p style="white-space: pre-wrap;">${message}</p>
+      </div>
+    `,
+  });
+  logger.info('Contact form email sent', { from: fromEmail, name });
+}
+
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
   const url = `${getBaseUrl()}/app/reset-password?token=${encodeURIComponent(token)}`;
   await transporter.sendMail({
