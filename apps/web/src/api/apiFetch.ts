@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 /**
  * Wrapper around fetch for API calls. Automatically includes credentials
@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}
  * can log the user out without polling.
  */
 export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
-  const url = path.startsWith('/') ? path : `${API_BASE}/${path}`;
+  const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
   const res = await fetch(url, {
     credentials: 'include',
     ...options,
