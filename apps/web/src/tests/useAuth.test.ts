@@ -154,15 +154,21 @@ describe('useAuth', () => {
     expect(body.password).toBeUndefined();
   });
 
-  it('devSkipAuth creates fake user', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
+  it('devSkipAuth creates session via API', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false }); // initial /auth/me
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
-    act(() => {
+    // Mock the dev-login API call
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ user: { id: 'dev-123', displayName: 'Dev User', email: 'dev@localhost', emailVerified: true, avatarUrl: null, hasPassword: true } }),
+    });
+
+    await act(async () => {
       result.current.devSkipAuth();
     });
-    expect(result.current.user?.id).toBe('dev-user');
+    expect(result.current.user?.email).toBe('dev@localhost');
     expect(result.current.user?.hasPassword).toBe(true);
   });
 
