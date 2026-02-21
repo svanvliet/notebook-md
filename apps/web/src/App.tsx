@@ -42,6 +42,20 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Status bar state
+  const [wordCount, setWordCount] = useState(0);
+  const [charCount, setCharCount] = useState(0);
+
+  // Modal states
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
+  const [showAddNotebook, setShowAddNotebook] = useState(false);
+  const [initialSource, setInitialSource] = useState<string | null>(null);
+  const [showOnboarding2fa, setShowOnboarding2fa] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [welcomeView, setWelcomeView] = useState<'main' | 'signin' | 'signup' | undefined>(undefined);
+
   // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
     if (location.state?.enterDemo && !auth.isDemoMode && !auth.isSignedIn) {
@@ -61,20 +75,6 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [welcomeView, auth.isSignedIn]);
-
-  // Status bar state
-  const [wordCount, setWordCount] = useState(0);
-  const [charCount, setCharCount] = useState(0);
-
-  // Modal states
-  const [showSettings, setShowSettings] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
-  const [showAddNotebook, setShowAddNotebook] = useState(false);
-  const [initialSource, setInitialSource] = useState<string | null>(null);
-  const [showOnboarding2fa, setShowOnboarding2fa] = useState(false);
-  const [showPublishModal, setShowPublishModal] = useState(false);
-  const [showDiscardModal, setShowDiscardModal] = useState(false);
-  const [welcomeView, setWelcomeView] = useState<'main' | 'signin' | 'signup' | undefined>(undefined);
 
   // Integrate modals with browser history (back button closes them)
   const closeSettings = useModalHistory(showSettings, () => setShowSettings(false));
