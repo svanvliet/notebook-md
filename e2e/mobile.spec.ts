@@ -1,9 +1,10 @@
 import { test, expect, devices } from '@playwright/test';
 
 const iPhone = devices['iPhone 14'];
+const mobileConfig = { viewport: iPhone.viewport, userAgent: iPhone.userAgent, isMobile: true, hasTouch: true };
 
 test.describe('Mobile Navigation', () => {
-  test.use({ ...iPhone });
+  test.use(mobileConfig);
 
   test('hamburger menu is visible on mobile', async ({ page }) => {
     await page.goto('/');
@@ -64,7 +65,7 @@ test.describe('Mobile Navigation', () => {
 });
 
 test.describe('Mobile Content Pages', () => {
-  test.use({ ...iPhone });
+  test.use(mobileConfig);
 
   test('features page renders correctly on mobile', async ({ page }) => {
     await page.goto('/features');
@@ -100,7 +101,7 @@ test.describe('Desktop Navigation (no regression)', () => {
 });
 
 test.describe('Mobile Welcome Screen', () => {
-  test.use({ ...iPhone });
+  test.use(mobileConfig);
 
   test('sign-in form is accessible on mobile', async ({ page }) => {
     await page.goto('/');
