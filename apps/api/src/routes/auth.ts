@@ -755,7 +755,7 @@ if (process.env.NODE_ENV !== 'production') {
   router.post('/dev-login', async (req: Request, res: Response) => {
     const devEmail = 'dev@localhost';
     // Find or create the dev user
-    let result = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [devEmail]);
+    const result = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [devEmail]);
     let userId: string;
     if (result.rows.length > 0) {
       userId = result.rows[0].id;
