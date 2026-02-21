@@ -53,11 +53,11 @@ export function DocumentPane({
       {/* Tab bar */}
       {tabs.length > 0 && (
         <div className="document-tabs h-9 flex items-end border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-1 gap-0.5 shrink-0">
-          <div className="flex items-end overflow-x-auto gap-0.5 flex-1 min-w-0">
+          <div className="flex items-end overflow-x-auto scrollbar-hide gap-0.5 flex-1 min-w-0">
             {tabs.map((tab) => (
               <div
                 key={tab.id}
-                className={`group flex items-center gap-1.5 px-3 h-8 text-sm rounded-t-md cursor-pointer transition-colors select-none ${
+                className={`group flex items-center gap-1.5 px-3 h-8 text-sm rounded-t-md cursor-pointer transition-colors select-none shrink-0 ${
                   activeTabId === tab.id
                     ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 border border-b-0 border-gray-200 dark:border-gray-800'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'

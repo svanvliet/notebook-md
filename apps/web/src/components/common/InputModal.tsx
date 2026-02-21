@@ -37,7 +37,7 @@ export function InputModal({
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-[380px] overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-[calc(100%-2rem)] md:w-[380px] overflow-hidden border border-gray-200 dark:border-gray-700">
         <div className="px-5 pt-5 pb-3">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
         </div>

@@ -5,6 +5,10 @@ import { DevBadge } from '../common/DevBadge';
 import { useState, useRef, useEffect } from 'react';
 import type { User } from '../../hooks/useAuth';
 
+function MenuIcon({ className }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 18h18M3 6h18M3 12h18"/></svg>;
+}
+
 interface TitleBarProps {
   displayMode: DisplayMode;
   onDisplayModeChange: (mode: DisplayMode) => void;
@@ -16,9 +20,10 @@ interface TitleBarProps {
   onOpenAccount?: () => void;
   onOpenSettings?: () => void;
   onDevLogin?: () => void;
+  onToggleMobilePane?: () => void;
 }
 
-export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings, onDevLogin }: TitleBarProps) {
+export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings, onDevLogin, onToggleMobilePane }: TitleBarProps) {
   const { t } = useTranslation();
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -41,10 +46,20 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, o
 
   return (
     <header className="h-11 border-b border-gray-200 dark:border-gray-800 flex items-center px-3 shrink-0 bg-white dark:bg-gray-950 select-none relative">
+      {/* Mobile notebook pane toggle */}
+      {onToggleMobilePane && (
+        <button
+          onClick={onToggleMobilePane}
+          className="md:hidden p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors mr-1"
+          aria-label="Toggle notebooks"
+        >
+          <MenuIcon className="w-4 h-4" />
+        </button>
+      )}
       {/* Left: Logo + App Name */}
       <div className="flex items-center gap-2 shrink-0">
         <NotebookIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-        <span className="font-semibold text-sm">{t('app.name')}</span>
+        <span className="font-semibold text-sm hidden sm:inline">{t('app.name')}</span>
       </div>
 
       {/* Center: Toolbar placeholder — will hold formatting controls when a doc is open */}

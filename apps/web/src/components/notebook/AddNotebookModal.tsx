@@ -94,7 +94,7 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCancel}>
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-2 md:mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
