@@ -1190,6 +1190,33 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     toast?.(`Removed ${affected.length} notebook${affected.length > 1 ? 's' : ''} linked to ${provider}`, 'info');
   }, [notebooks, tabs, toast]);
 
+  // --- Deep link: intercept relative .md link clicks from editor ---
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { href } = (e as CustomEvent<{ href: string }>).detail;
+      if (!activeTabId) return;
+      const [notebookId, ...pathParts] = activeTabId.split(':');
+      const currentPath = pathParts.join(':');
+      // Decode URL-encoded characters (e.g. %20 → space)
+      const decoded = decodeURIComponent(href);
+      // Resolve relative path against current file's directory
+      const currentDir = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : '';
+      let resolved = decoded.startsWith('./') ? decoded.slice(2) : decoded;
+      if (currentDir) resolved = `${currentDir}/${resolved}`;
+      // Normalize: collapse any .. or . segments
+      const segments = resolved.split('/');
+      const normalized: string[] = [];
+      for (const seg of segments) {
+        if (seg === '..') normalized.pop();
+        else if (seg !== '.') normalized.push(seg);
+      }
+      handleOpenFile(notebookId, normalized.join('/'));
+      setPendingExpandPath({ notebookId, path: normalized.join('/') });
+    };
+    window.addEventListener('notebook-link-click', handler);
+    return () => window.removeEventListener('notebook-link-click', handler);
+  }, [activeTabId, handleOpenFile]);
+
   return {
     notebooks,
     files,
@@ -1228,6 +1255,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleProviderUnlinked,
     pendingExpandPath,
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
+    expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
   };
 }
