@@ -62,8 +62,11 @@ export default function App() {
     auth.enterDemoMode();
     await createDemoNotebook();
     await nb.reloadNotebooks();
-    // Small delay to let state settle before opening the file
-    setTimeout(() => nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH), 100);
+    // Small delay to let state settle before opening the file and expanding tree
+    setTimeout(() => {
+      nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+      nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+    }, 100);
   }, [auth, nb]);
 
   // Handle navigation state from content pages (signIn, enterDemo)

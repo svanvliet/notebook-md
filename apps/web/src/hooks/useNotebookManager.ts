@@ -1197,9 +1197,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
       if (!activeTabId) return;
       const [notebookId, ...pathParts] = activeTabId.split(':');
       const currentPath = pathParts.join(':');
+      // Decode URL-encoded characters (e.g. %20 → space)
+      const decoded = decodeURIComponent(href);
       // Resolve relative path against current file's directory
       const currentDir = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : '';
-      let resolved = href.startsWith('./') ? href.slice(2) : href;
+      let resolved = decoded.startsWith('./') ? decoded.slice(2) : decoded;
       if (currentDir) resolved = `${currentDir}/${resolved}`;
       // Normalize: collapse any .. or . segments
       const segments = resolved.split('/');
@@ -1209,6 +1211,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
         else if (seg !== '.') normalized.push(seg);
       }
       handleOpenFile(notebookId, normalized.join('/'));
+      setPendingExpandPath({ notebookId, path: normalized.join('/') });
     };
     window.addEventListener('notebook-link-click', handler);
     return () => window.removeEventListener('notebook-link-click', handler);
@@ -1252,6 +1255,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
     handleProviderUnlinked,
     pendingExpandPath,
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
+    expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
   };
 }
