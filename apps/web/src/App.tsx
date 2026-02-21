@@ -42,7 +42,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Handle enterDemo from navigation state (e.g., from content pages)
+  // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
     if (location.state?.enterDemo && !auth.isDemoMode && !auth.isSignedIn) {
       auth.enterDemoMode();
@@ -53,6 +53,14 @@ export default function App() {
       navigate('/', { replace: true, state: {} });
     }
   }, [location.state?.enterDemo, location.state?.signIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear welcomeView after it's been consumed (one-shot)
+  useEffect(() => {
+    if (welcomeView && !auth.isSignedIn) {
+      const timer = setTimeout(() => setWelcomeView(undefined), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [welcomeView, auth.isSignedIn]);
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
@@ -319,7 +327,7 @@ export default function App() {
         user={auth.user}
         isDemoMode={auth.isDemoMode}
         onSignOut={auth.signOut}
-        onExitDemo={auth.exitDemoMode}
+        onExitDemo={() => { setWelcomeView(undefined); auth.exitDemoMode(); }}
         onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }}
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
