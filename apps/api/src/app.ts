@@ -137,7 +137,9 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Input too long.' });
   }
   try {
-    await sendContactForm(name.trim(), email.trim(), message.trim());
+    const cleanName = name.trim().replace(/<[^>]*>/g, '');
+    const cleanMessage = message.trim().replace(/<[^>]*>/g, '');
+    await sendContactForm(cleanName, email.trim(), cleanMessage);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: 'Failed to send message. Please try again.' });

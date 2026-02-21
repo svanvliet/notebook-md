@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import bcryptjs from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
 import { query } from '../db/pool.js';
 import { generateToken, hashToken } from '../lib/crypto.js';
+import { redis } from '../lib/redis.js';
 import { sendMagicLink, sendVerificationEmail, sendPasswordResetEmail } from '../lib/email.js';
 import { auditLog } from '../lib/audit.js';
 import { createSession, rotateRefreshToken, revokeSession, revokeAllUserSessions } from '../services/session.js';
@@ -14,10 +16,15 @@ import type { Request, Response } from 'express';
 const router = Router();
 
 // ---------------------------------------------------------------------------
-// Rate limiting (memory-backed; swap to Redis store in production)
+// Rate limiting (Redis-backed in production, memory in test)
 // ---------------------------------------------------------------------------
 
 const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+
+const redisStore = isTest ? undefined : new RedisStore({
+  // @ts-expect-error - redis client types are compatible
+  sendCommand: (...args: string[]) => redis.call(...args),
+});
 
 // Strict limit for mutation endpoints (sign-up, sign-in, password reset)
 const authMutationLimiter = rateLimit({
@@ -25,6 +32,7 @@ const authMutationLimiter = rateLimit({
   max: isTest ? 10000 : 30,
   standardHeaders: true,
   legacyHeaders: false,
+  store: redisStore,
   message: { error: 'Too many requests, please try again later' },
 });
 
@@ -34,6 +42,7 @@ const authReadLimiter = rateLimit({
   max: isTest ? 10000 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  store: redisStore,
   message: { error: 'Too many requests, please try again later' },
 });
 
@@ -47,7 +56,13 @@ const MAGIC_LINK_EXPIRY_MIN = 15;
 const VERIFICATION_EXPIRY_HOURS = 24;
 const RESET_EXPIRY_HOURS = 1;
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_SEC = 15 * 60; // 15 minutes
 
+
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, '').trim();
+}
 
 function getClientIp(req: Request): string | undefined {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip ?? undefined;
@@ -60,6 +75,10 @@ function validateEmail(email: string): boolean {
 function validatePassword(password: string): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
   if (password.length > 128) return 'Password must be at most 128 characters';
+  if (!/[a-z]/.test(password)) return 'Password must contain at least one lowercase letter';
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+  if (!/[^a-zA-Z0-9]/.test(password)) return 'Password must contain at least one special character';
   return null;
 }
 
@@ -93,7 +112,7 @@ router.post('/signup', authMutationLimiter, async (req: Request, res: Response) 
   }
 
   const passwordHash = await bcryptjs.hash(password, BCRYPT_COST);
-  const name = displayName || email.split('@')[0];
+  const name = stripHtml(displayName || email.split('@')[0]);
 
   const result = await query<{ id: string }>(
     `INSERT INTO users (display_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id`,
@@ -146,6 +165,16 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
     return;
   }
 
+  // Account lockout check
+  const lockoutKey = `lockout:${email.toLowerCase()}`;
+  if (!isTest) {
+    const attempts = await redis.get(lockoutKey);
+    if (attempts && parseInt(attempts, 10) >= MAX_LOGIN_ATTEMPTS) {
+      res.status(429).json({ error: 'Account temporarily locked due to too many failed attempts. Try again in 15 minutes.' });
+      return;
+    }
+  }
+
   const result = await query<{
     id: string;
     display_name: string;
@@ -163,6 +192,7 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
   );
 
   if (result.rows.length === 0 || !result.rows[0].password_hash) {
+    if (!isTest) await redis.incr(lockoutKey).then(() => redis.expire(lockoutKey, LOCKOUT_DURATION_SEC));
     res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
@@ -176,6 +206,7 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
 
   const valid = await bcryptjs.compare(password, user.password_hash!);
   if (!valid) {
+    if (!isTest) await redis.incr(lockoutKey).then(() => redis.expire(lockoutKey, LOCKOUT_DURATION_SEC));
     await auditLog({
       userId: user.id,
       action: 'sign_in_failed',
@@ -186,6 +217,9 @@ router.post('/signin', authMutationLimiter, async (req: Request, res: Response) 
     res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
+
+  // Successful login — clear lockout counter
+  if (!isTest) await redis.del(lockoutKey);
 
   // Check if 2FA is enabled
   const twoFactorStatus = await get2faStatus(user.id);
@@ -604,7 +638,8 @@ router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Respon
 // PUT /auth/me — Update current user profile
 // ---------------------------------------------------------------------------
 router.put('/me', authReadLimiter, requireAuth, async (req: Request, res: Response) => {
-  const { displayName, avatarUrl } = req.body;
+  const displayName = req.body.displayName ? stripHtml(req.body.displayName) : undefined;
+  const avatarUrl = req.body.avatarUrl;
 
   const updates: string[] = [];
   const values: unknown[] = [];

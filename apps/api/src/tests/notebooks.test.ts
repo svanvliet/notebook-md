@@ -9,9 +9,9 @@ describe('Notebooks CRUD', () => {
 
   beforeEach(async () => {
     await cleanDb();
-    const { res: resA } = await signUp('alice@test.com', 'password123');
+    const { res: resA } = await signUp('alice@test.com', 'Password123!');
     tokenA = extractRefreshToken(resA)!;
-    const { res: resB } = await signUp('bob@test.com', 'password123');
+    const { res: resB } = await signUp('bob@test.com', 'Password123!');
     tokenB = extractRefreshToken(resB)!;
   });
 

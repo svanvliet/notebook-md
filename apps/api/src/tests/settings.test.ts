@@ -8,7 +8,7 @@ describe('Settings CRUD', () => {
 
   beforeEach(async () => {
     await cleanDb();
-    const { res } = await signUp('alice@test.com', 'password123');
+    const { res } = await signUp('alice@test.com', 'Password123!');
     token = extractRefreshToken(res)!;
   });
 
@@ -43,7 +43,7 @@ describe('Settings CRUD', () => {
     await request.put('/auth/settings').set('Cookie', `refresh_token=${token}`).send({ settings: { theme: 'dark' } });
 
     // Sign in again (new session)
-    const { res: signInRes } = await (await import('./helpers.js')).signIn('alice@test.com', 'password123');
+    const { res: signInRes } = await (await import('./helpers.js')).signIn('alice@test.com', 'Password123!');
     const newToken = extractRefreshToken(signInRes)!;
 
     const res = await request.get('/auth/settings').set('Cookie', `refresh_token=${newToken}`);

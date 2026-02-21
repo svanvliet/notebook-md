@@ -83,8 +83,8 @@ describe('AccountModal', () => {
   it('shows confirm password validation error on mismatch', async () => {
     renderModal({ hasPassword: false });
     fireEvent.click(screen.getByText('Add a password'));
-    fireEvent.change(screen.getByPlaceholderText('New password (min 8 characters)'), { target: { value: 'password123' } });
-    fireEvent.change(screen.getByPlaceholderText('Confirm new password'), { target: { value: 'different456' } });
+    fireEvent.change(screen.getByPlaceholderText('New password (min 8 characters)'), { target: { value: 'Password123!' } });
+    fireEvent.change(screen.getByPlaceholderText('Confirm new password'), { target: { value: 'Different456!' } });
     fireEvent.click(screen.getByText('Add Password'));
     expect(await screen.findByText('Passwords do not match')).toBeTruthy();
   });

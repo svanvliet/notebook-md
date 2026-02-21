@@ -15,7 +15,7 @@ describe('Two-Factor Authentication', () => {
   });
 
   // Helper: sign up and return cookies
-  async function setupUser(email = 'twofa@test.com', password = 'password123') {
+  async function setupUser(email = 'twofa@test.com', password = 'Password123!') {
     const { cookies } = await signUp(email, password, 'Test User');
     return cookies;
   }
@@ -135,7 +135,7 @@ describe('Two-Factor Authentication', () => {
   describe('Sign-in with 2FA', () => {
     it('should return 2FA challenge when signing in with 2FA enabled', async () => {
       const email = 'twofa@test.com';
-      const password = 'password123';
+      const password = 'Password123!';
       const cookies = await setupUser(email, password);
 
       // Enable email 2FA

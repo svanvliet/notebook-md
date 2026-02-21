@@ -7,13 +7,26 @@ import { useSettings } from '../hooks/useSettings';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+global.fetch = mockFetch as unknown as typeof fetch;
 
 const LOCAL_KEY = 'notebookmd-settings';
 
+// Provide a proper localStorage mock (jsdom version may be incomplete)
+const store = new Map<string, string>();
+const storageMock: Storage = {
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => { store.set(key, value); },
+  removeItem: (key: string) => { store.delete(key); },
+  clear: () => { store.clear(); },
+  get length() { return store.size; },
+  key: (i: number) => [...store.keys()][i] ?? null,
+};
+Object.defineProperty(window, 'localStorage', { value: storageMock, writable: true });
+Object.defineProperty(globalThis, 'localStorage', { value: storageMock, writable: true });
+
 describe('useSettings', () => {
   beforeEach(() => {
-    localStorage.clear();
+    store.clear();
     mockFetch.mockReset();
     // Default: server returns empty settings
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ settings: {} }) });

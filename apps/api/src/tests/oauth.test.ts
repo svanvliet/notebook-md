@@ -31,7 +31,7 @@ describe('OAuth Callbacks', () => {
   });
 
   it('should return empty linked accounts for new user', async () => {
-    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const { res: signUpRes } = await signUp('alice@test.com', 'Password123!');
     const token = extractRefreshToken(signUpRes)!;
 
     const res = await request.get('/auth/oauth/linked').set('Cookie', `refresh_token=${token}`);
@@ -50,7 +50,7 @@ describe('Provider Unlink Cleanup', () => {
 
   it('should delete notebooks and installations when unlinking a provider', async () => {
     // Sign up user
-    const { res: signUpRes } = await signUp('unlink@test.com', 'password123');
+    const { res: signUpRes } = await signUp('unlink@test.com', 'Password123!');
     const token = extractRefreshToken(signUpRes)!;
     const cookie = `refresh_token=${token}`;
 
@@ -117,7 +117,7 @@ describe('Provider Unlink Cleanup', () => {
   });
 
   it('should not delete notebooks from other providers', async () => {
-    const { res: signUpRes } = await signUp('multi@test.com', 'password123');
+    const { res: signUpRes } = await signUp('multi@test.com', 'Password123!');
     const token = extractRefreshToken(signUpRes)!;
     const cookie = `refresh_token=${token}`;
     const meRes = await request.get('/auth/me').set('Cookie', cookie);
@@ -149,7 +149,7 @@ describe('Provider Unlink Cleanup', () => {
   });
 
   it('should refuse to unlink the only sign-in method', async () => {
-    const { res: signUpRes } = await signUp('sole@test.com', 'password123');
+    const { res: signUpRes } = await signUp('sole@test.com', 'Password123!');
     const token = extractRefreshToken(signUpRes)!;
     const cookie = `refresh_token=${token}`;
     const res = await request.delete('/auth/oauth/github').set('Cookie', cookie);
@@ -160,7 +160,7 @@ describe('Provider Unlink Cleanup', () => {
     const { query } = await import('../db/pool.js');
 
     // Create User A with a Microsoft link
-    const { res: resA } = await signUp('userA@test.com', 'password123');
+    const { res: resA } = await signUp('userA@test.com', 'Password123!');
     const tokenA = extractRefreshToken(resA)!;
     const meA = await request.get('/auth/me').set('Cookie', `refresh_token=${tokenA}`);
     const userIdA = meA.body.user.id;
@@ -172,7 +172,7 @@ describe('Provider Unlink Cleanup', () => {
     );
 
     // Create User B
-    const { res: resB } = await signUp('userB@test.com', 'password123');
+    const { res: resB } = await signUp('userB@test.com', 'Password123!');
     const tokenB = extractRefreshToken(resB)!;
     const meB = await request.get('/auth/me').set('Cookie', `refresh_token=${tokenB}`);
     const userIdB = meB.body.user.id;
