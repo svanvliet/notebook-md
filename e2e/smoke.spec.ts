@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Smoke tests are designed for desktop viewports
 test.describe('Smoke Tests', () => {
-  test.skip(({ browserName }, testInfo) => testInfo.project.name.startsWith('mobile'), 'Desktop-only smoke tests');
 
   test('welcome screen loads with sign-in and sign-up buttons', async ({ page }) => {
     await page.goto('/');

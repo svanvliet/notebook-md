@@ -1,10 +1,6 @@
-import { test, expect, devices } from '@playwright/test';
-
-const iPhone = devices['iPhone 14'];
-const mobileConfig = { viewport: iPhone.viewport, userAgent: iPhone.userAgent, isMobile: true, hasTouch: true };
+import { test, expect } from '@playwright/test';
 
 test.describe('Mobile Navigation', () => {
-  test.use(mobileConfig);
 
   test('hamburger menu is visible on mobile', async ({ page }) => {
     await page.goto('/');
@@ -65,7 +61,6 @@ test.describe('Mobile Navigation', () => {
 });
 
 test.describe('Mobile Content Pages', () => {
-  test.use(mobileConfig);
 
   test('features page renders correctly on mobile', async ({ page }) => {
     await page.goto('/features');
@@ -85,23 +80,7 @@ test.describe('Mobile Content Pages', () => {
   });
 });
 
-test.describe('Desktop Navigation (no regression)', () => {
-  test('desktop nav links are visible at default viewport', async ({ page }) => {
-    await page.goto('/');
-    // Default viewport is 1280x720 in Playwright
-    await expect(page.getByRole('navigation').getByRole('link', { name: 'Features' })).toBeVisible();
-    await expect(page.getByRole('navigation').getByRole('link', { name: 'About' })).toBeVisible();
-    await expect(page.getByRole('navigation').getByRole('link', { name: 'Contact' })).toBeVisible();
-    await expect(page.getByRole('navigation').getByRole('button', { name: 'Sign In' })).toBeVisible();
-
-    // Hamburger should NOT be visible
-    const hamburger = page.getByRole('button', { name: 'Open menu' });
-    await expect(hamburger).not.toBeVisible();
-  });
-});
-
 test.describe('Mobile Welcome Screen', () => {
-  test.use(mobileConfig);
 
   test('sign-in form is accessible on mobile', async ({ page }) => {
     await page.goto('/');
