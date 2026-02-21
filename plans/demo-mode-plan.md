@@ -89,7 +89,7 @@ Add a `demoMode` state to the app that bypasses server-side auth while restricti
 - `welcomeView` useState declarations moved before useEffects to fix initialization error
 - E2E tests updated to scope `Sign In` selectors via `getByRole('navigation')` and `getByRole('main')`
 
-## Todos
+## Todos — Phase 1 (Core Demo Mode) ✅
 
 1. ~~**demo-auth** — Add `isDemoMode`, `enterDemoMode()`, `exitDemoMode()` to useAuth hook~~ ✅
 2. ~~**demo-welcome** — Add "Try it free" button to WelcomeScreen + "Try Demo" to MarketingNav~~ ✅
@@ -100,7 +100,58 @@ Add a `demoMode` state to the app that bypasses server-side auth while restricti
 7. ~~**demo-migrate** — Add `migrateAnonymousNotebooks()` to localNotebookStore.ts~~ ✅
 8. **demo-tests** — Add tests for demo auth state, migration, and gated features (pending)
 
-## Commits
+## Todos — Phase 2 (Demo Notebook & Deep Links)
+
+### Problem
+When users enter demo mode they see an empty workspace with no guidance. We want to auto-create a "Demo Notebook" populated with tutorial content that teaches the user about the app's features. Tutorial files should link to each other using relative paths, requiring a new **deep link** feature that intercepts clicks on internal `.md` links and opens them in a new tab.
+
+### Approach
+
+1. **Demo content module** (`apps/web/src/stores/demoContent.ts`)
+   - Exports a `createDemoNotebook()` function that uses `localNotebookStore` to create a notebook with tutorial files
+   - Content is defined as a simple array of `{ path, type, content }` entries
+   - Uses a stable notebook ID (e.g., `'demo-notebook'`) so we can detect if it already exists and avoid recreating on re-entry
+   - Structure:
+     ```
+     Demo Notebook/
+     ├── Getting Started.md          — Welcome tutorial, links to sub-pages
+     ├── Basics/
+     │   ├── Markdown Essentials.md  — Common markdown syntax with examples
+     │   └── Keyboard Shortcuts.md   — Editor shortcuts reference
+     └── Features/
+         ├── Slash Commands.md       — How to use / commands
+         └── Cloud Storage.md        — Connecting GitHub, OneDrive, Google Drive
+     ```
+
+2. **Deep linking** (internal `.md` link navigation)
+   - Add a custom ProseMirror plugin in `extensions.ts` that intercepts clicks on `<a>` elements with relative `href` values (starting with `./` or no protocol)
+   - On click, dispatch a `CustomEvent('notebook-link-click', { detail: { href } })` on the window
+   - In `useNotebookManager`, listen for `notebook-link-click` events, resolve the path relative to the current file, and call `handleOpenFile()` to open it in a new tab
+   - External links (http/https) continue to open in a new browser tab via right-click context menu
+
+3. **Wire into demo mode flow**
+   - In `enterDemoMode()` (or the calling code in App.tsx), after entering demo mode, call `createDemoNotebook()` then refresh the notebook list
+   - Auto-open `Getting Started.md` in the editor so the user lands on the tutorial
+   - On re-entry, detect existing demo notebook and skip recreation, but still open Getting Started
+
+### Content Plan
+
+**Getting Started.md** — Friendly welcome, overview of the UI (workspace pane, editor, toolbar), links to each sub-page for deeper dives. Short and visual — not a wall of text.
+
+**Basics/Markdown Essentials.md** — Headings, bold/italic, lists, links, images, code blocks, blockquotes, tables, horizontal rules. Each with a live example the user can edit.
+
+**Basics/Keyboard Shortcuts.md** — Table of keyboard shortcuts for formatting, navigation, and file management.
+
+**Features/Slash Commands.md** — How to type `/` to insert headings, lists, code blocks, etc. List of available commands.
+
+**Features/Cloud Storage.md** — Brief overview of connecting GitHub, OneDrive, Google Drive. Explains this requires a free account.
+
+9. **demo-content** — Create `demoContent.ts` with tutorial markdown and `createDemoNotebook()` function
+10. **demo-deep-links** — Add ProseMirror plugin to intercept relative `.md` link clicks + wire to `handleOpenFile`
+11. **demo-auto-open** — Wire demo mode entry to create notebook, refresh tree, auto-open Getting Started.md
+12. **demo-content-tests** — Tests for demo notebook creation and deep link navigation
+
+## Phase 1 Commits
 - `c3825d5` — Add demo mode (core implementation)
 - `bd8bb04` — Fix demo mode UX (navigation, CTAs, sign-up links)
 - `55c150b` — Nav Sign In → sign-in form
@@ -109,3 +160,5 @@ Add a `demoMode` state to the app that bypasses server-side auth while restricti
 - `909bf63` — Fix sticky welcomeView
 - `59d42c9` — Fix welcomeView declaration order
 - `d315f89` — Fix E2E: scope Sign In selectors
+
+## Phase 2 Commits

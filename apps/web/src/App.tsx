@@ -27,6 +27,7 @@ import { ToastContainer } from './components/common/ToastContainer';
 import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { migrateAnonymousNotebooks } from './stores/localNotebookStore';
+import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './stores/demoContent';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -56,10 +57,22 @@ export default function App() {
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [welcomeView, setWelcomeView] = useState<'main' | 'signin' | 'signup' | undefined>(undefined);
 
+  // Enter demo mode: create demo notebook, reload tree, auto-open Getting Started
+  const handleEnterDemo = useCallback(async () => {
+    auth.enterDemoMode();
+    await createDemoNotebook();
+    await nb.reloadNotebooks();
+    // Small delay to let state settle before opening the file and expanding tree
+    setTimeout(() => {
+      nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+      nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+    }, 100);
+  }, [auth, nb]);
+
   // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
     if (location.state?.enterDemo && !auth.isDemoMode && !auth.isSignedIn) {
-      auth.enterDemoMode();
+      handleEnterDemo();
       navigate('/', { replace: true, state: {} });
     }
     if (location.state?.signIn && !auth.isSignedIn) {
@@ -263,7 +276,7 @@ export default function App() {
           onSignUp={handleSignUp}
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
-          onEnterDemo={auth.enterDemoMode}
+          onEnterDemo={handleEnterDemo}
           onDevLogin={auth.devSkipAuth}
           initialView={welcomeView}
           error={oauthError ?? auth.error}
