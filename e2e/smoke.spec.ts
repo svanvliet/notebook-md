@@ -4,7 +4,8 @@ test.describe('Smoke Tests', () => {
   test('welcome screen loads with sign-in and sign-up buttons', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Notebook.md' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+    // Use nav-scoped selector since WelcomeScreen also has Sign In/Up buttons
+    await expect(page.getByRole('navigation').getByRole('button', { name: 'Sign In' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign Up' })).toBeVisible();
   });
 
@@ -35,12 +36,13 @@ test.describe('Smoke Tests', () => {
     });
     expect(signupRes.ok()).toBeTruthy();
 
-    // Sign in via UI
+    // Sign in via UI — use nav button to open the sign-in form
     await page.goto('/');
-    await page.getByRole('button', { name: 'Sign In' }).click();
+    await page.getByRole('navigation').getByRole('button', { name: 'Sign In' }).click();
     await page.getByPlaceholder('Email address').fill(email);
     await page.getByPlaceholder('Password').fill(password);
-    await page.getByRole('button', { name: 'Sign In' }).click();
+    // Submit button inside the form
+    await page.getByRole('main').getByRole('button', { name: 'Sign In' }).click();
     await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
 
     // Sign out via account dropdown
@@ -48,7 +50,7 @@ test.describe('Smoke Tests', () => {
     await page.getByText('Sign Out').click();
 
     // Should return to welcome screen
-    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('navigation').getByRole('button', { name: 'Sign In' })).toBeVisible({ timeout: 5_000 });
   });
 
   test('sign-in with existing account', async ({ page, request }) => {
@@ -62,11 +64,11 @@ test.describe('Smoke Tests', () => {
 
     // Now sign in via UI
     await page.goto('/');
-    await page.getByRole('button', { name: 'Sign In' }).click();
+    await page.getByRole('navigation').getByRole('button', { name: 'Sign In' }).click();
 
     await page.getByPlaceholder('Email address').fill(email);
     await page.getByPlaceholder('Password').fill(password);
-    await page.getByRole('button', { name: 'Sign In' }).click();
+    await page.getByRole('main').getByRole('button', { name: 'Sign In' }).click();
 
     // Should land in the app
     await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
