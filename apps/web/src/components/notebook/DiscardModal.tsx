@@ -23,7 +23,7 @@ export function DiscardModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6"
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md mx-2 md:mx-4 p-4 md:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">Discard Changes</h2>

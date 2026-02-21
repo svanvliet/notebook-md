@@ -36,8 +36,8 @@ export default function App() {
   const sidebar = useSidebarResize();
   const auth = useAuth();
   const { addToast } = useToast();
-  const nb = useNotebookManager(auth.user?.id, addToast);
-  const { settings, updateSettings } = useSettings(auth.isSignedIn);
+  const nb = useNotebookManager(auth.user?.id, addToast, auth.isDemoMode);
+  const { settings, updateSettings } = useSettings(auth.isSignedIn && !auth.isDemoMode);
   const cookieConsent = useCookieConsent();
   const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
   const navigate = useNavigate();
@@ -57,17 +57,28 @@ export default function App() {
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [welcomeView, setWelcomeView] = useState<'main' | 'signin' | 'signup' | undefined>(undefined);
 
-  // Enter demo mode: create demo notebook, reload tree, auto-open Getting Started
+  // Mobile notebook pane drawer
+  const [mobilePaneOpen, setMobilePaneOpen] = useState(false);
+
+  // Track pending demo initialization (needs fresh nb reference after re-render)
+  const demoInitPending = useRef(false);
+
+  // Enter demo mode: create demo notebook, then let the effect below finish init
   const handleEnterDemo = useCallback(async () => {
     auth.enterDemoMode();
     await createDemoNotebook();
-    await nb.reloadNotebooks();
-    // Small delay to let state settle before opening the file and expanding tree
-    setTimeout(() => {
+    demoInitPending.current = true;
+  }, [auth]);
+
+  // Complete demo init after re-render provides a fresh nb with correct userId
+  useEffect(() => {
+    if (!demoInitPending.current || !auth.isDemoMode) return;
+    demoInitPending.current = false;
+    nb.reloadNotebooks().then(() => {
       nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
       nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
-    }, 100);
-  }, [auth, nb]);
+    });
+  }, [auth.isDemoMode, nb]);
 
   // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
@@ -337,6 +348,7 @@ export default function App() {
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDevLogin={auth.devSkipAuth}
+        onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
       {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }} />}
       <ToastContainer />
@@ -377,6 +389,8 @@ export default function App() {
           expandToPath={nb.pendingExpandPath}
           onExpandToPathHandled={nb.clearPendingExpandPath}
           activeFilePath={nb.activeTabId}
+          mobileOpen={mobilePaneOpen}
+          onMobileClose={() => setMobilePaneOpen(false)}
         />
         <DocumentPane
           tabs={docTabs}

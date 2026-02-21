@@ -41,6 +41,8 @@ interface NotebookPaneProps {
   expandToPath?: { notebookId: string; path: string } | null;
   onExpandToPathHandled?: () => void;
   activeFilePath: string | null;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 export function NotebookPane({
@@ -68,6 +70,8 @@ export function NotebookPane({
   expandToPath,
   onExpandToPathHandled,
   activeFilePath,
+  mobileOpen,
+  onMobileClose,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -88,7 +92,14 @@ export function NotebookPane({
 
   const firstNotebookId = notebooks.length > 0 ? notebooks[0].id : null;
 
-  return (
+  // Wrap onOpenFile to close mobile drawer when a file is selected
+  const handleOpenFile = (notebookId: string, path: string) => {
+    onOpenFile(notebookId, path);
+    onMobileClose?.();
+  };
+
+  // Desktop: rendered inline. Mobile: rendered as overlay drawer.
+  const paneContent = (
     <div
       data-print="hide"
       className="notebook-pane relative shrink-0 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex flex-col select-none"
@@ -174,7 +185,7 @@ export function NotebookPane({
             onImportFile={onImportFile}
             onDeleteFile={onDeleteFile}
             onRenameFile={onRenameFile}
-            onOpenFile={onOpenFile}
+            onOpenFile={handleOpenFile}
             onExpandNotebook={onExpandNotebook}
             onRefreshNotebook={onRefreshNotebook}
             onMoveFile={onMoveFile}
@@ -188,11 +199,109 @@ export function NotebookPane({
         </div>
       )}
 
-      {/* Resize handle */}
+      {/* Resize handle — desktop only */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-10"
+        className="hidden md:block absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-10"
         onMouseDown={onResizeMouseDown}
       />
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop: inline pane */}
+      <div className="hidden md:contents">
+        {paneContent}
+      </div>
+
+      {/* Mobile: overlay drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={onMobileClose} />
+          <div className="absolute left-0 top-0 bottom-0 w-72 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shadow-xl animate-slide-in-left">
+            {/* Mobile drawer header */}
+            <div className="h-9 flex items-center px-2 border-b border-gray-200 dark:border-gray-800">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1">
+                Notebooks
+              </span>
+              <div className="relative">
+                <button
+                  ref={plusBtnRef}
+                  onClick={() => setShowPlusMenu((v) => !v)}
+                  className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors mr-1"
+                  title="New…"
+                  aria-label="New…"
+                >
+                  <PlusIcon className="w-3.5 h-3.5" />
+                </button>
+                {showPlusMenu && (
+                  <div
+                    ref={plusMenuRef}
+                    className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 min-w-[160px]"
+                  >
+                    <button
+                      onClick={() => { onCreateNotebook(); setShowPlusMenu(false); }}
+                      className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <span className="opacity-70"><NotebookPlusIcon /></span>
+                      <span>{t('notebook.addNotebook')}</span>
+                    </button>
+                    {firstNotebookId && (
+                      <>
+                        <button
+                          onClick={() => { onCreateFile(firstNotebookId, '', 'file'); setShowPlusMenu(false); }}
+                          className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          <span className="opacity-70"><FilePlusIcon /></span>
+                          <span>{t('notebook.newFile')}</span>
+                        </button>
+                        <button
+                          onClick={() => { onImportFile(); setShowPlusMenu(false); }}
+                          className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          <span className="opacity-70"><ImportIcon /></span>
+                          <span>Import File…</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={onMobileClose}
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+                aria-label="Close notebooks"
+              >
+                <ChevronLeftIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <NotebookTree
+                notebooks={notebooks}
+                files={files}
+                loadingNotebooks={loadingNotebooks}
+                onCreateNotebook={onCreateNotebook}
+                onDeleteNotebook={onDeleteNotebook}
+                onRenameNotebook={onRenameNotebook}
+                onCreateFile={onCreateFile}
+                onImportFile={onImportFile}
+                onDeleteFile={onDeleteFile}
+                onRenameFile={onRenameFile}
+                onOpenFile={handleOpenFile}
+                onExpandNotebook={onExpandNotebook}
+                onRefreshNotebook={onRefreshNotebook}
+                onMoveFile={onMoveFile}
+                onCopyFile={onCopyFile}
+                onReorderNotebooks={onReorderNotebooks}
+                onDropImport={onDropImport}
+                expandToPath={expandToPath}
+                onExpandToPathHandled={onExpandToPathHandled}
+                activeFilePath={activeFilePath}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

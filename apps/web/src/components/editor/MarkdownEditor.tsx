@@ -430,19 +430,27 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   }, []);
 
   // Intercept clicks on relative .md links to open them in-app
-  const handleEditorClick = useCallback((e: React.MouseEvent) => {
-    const target = (e.target as HTMLElement).closest('a');
-    if (!target) return;
-    const href = target.getAttribute('href');
-    if (!href) return;
-    const isRelative = !href.match(/^[a-z]+:/i) && !href.startsWith('#');
-    if (isRelative && href.endsWith('.md')) {
-      e.preventDefault();
-      e.stopPropagation();
-      window.dispatchEvent(
-        new CustomEvent('notebook-link-click', { detail: { href } }),
-      );
-    }
+  // Uses native capture-phase listener to fire before browser follows target="_blank"
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+    const handler = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest('a');
+      if (!target) return;
+      const href = target.getAttribute('href');
+      if (!href) return;
+      const isRelative = !href.match(/^[a-z]+:/i) && !href.startsWith('#');
+      if (isRelative && href.endsWith('.md')) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(
+          new CustomEvent('notebook-link-click', { detail: { href } }),
+        );
+      }
+    };
+    container.addEventListener('click', handler, true); // capture phase
+    return () => container.removeEventListener('click', handler, true);
   }, []);
 
   const editorStyle = {
@@ -486,7 +494,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
               <path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0-30-33h20V30h20v35h20z"/>
             </svg>
           </button>
-          {/* Split view toggle */}
+          {/* Split view toggle — hidden on mobile (unusable on narrow screens) */}
           <button
             onClick={() => {
               if (!editor) return;
@@ -497,7 +505,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
                 setViewMode('wysiwyg');
               }
             }}
-            className={`px-1.5 py-1 rounded transition-colors ${
+            className={`hidden md:inline-flex px-1.5 py-1 rounded transition-colors ${
               viewMode === 'split'
                 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                 : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -589,6 +597,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
             ref={(el) => {
               (editorWrapperRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
               (wysiwygScrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+              (editorContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
             }}
             className={`relative editor-wrapper overflow-auto ${
               viewMode === 'split' ? 'w-1/2' : 'w-full'
@@ -599,7 +608,6 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
             onDrop={handleEditorDrop}
             onDragOver={handleEditorDragOver}
             onDragLeave={handleEditorDragLeave}
-            onClick={handleEditorClick}
           >
             <EditorContent editor={editor} />
             {editor && <SlashCommandMenu editor={editor} />}

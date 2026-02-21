@@ -3289,8 +3289,75 @@ Enhanced demo mode with auto-created tutorial content and internal document link
 
 ---
 
+## Mobile Web Optimization 🔄
+**Date:** 2026-02-21
+**Branch:** `feature/mobile`
+
+Comprehensive mobile web optimization across 8 phases (Phase 5 deferred). See `plans/mobile-web-plan.md` for full details.
+
+### Phases Implemented
+
+**Phase 1 — Mobile Navigation ✅**
+- Hamburger menu (☰/✕) for marketing pages on mobile
+- Slide-down overlay with backdrop, escape key close, route-change auto-close
+- Desktop nav hidden below `md` breakpoint
+
+**Phase 2 — Responsive Notebook Pane ✅**
+- Mobile drawer overlay with backdrop and `animate-slide-in-left` animation
+- Hamburger toggle in TitleBar, auto-close on file select
+- Desktop layout unchanged above `md`
+
+**Phase 3 — Compact Editor Toolbar ✅**
+- Primary toolbar (Heading, Bold, Italic, Bullet List, Link) always visible
+- "⋯ More" overflow grid menu on mobile for remaining actions
+- Touch targets increased to 36px min
+
+**Phase 4 — Scrollable Tab Bar ✅**
+- Horizontal scroll with `scrollbar-hide` CSS
+- Left/right chevron buttons with ResizeObserver for visibility
+- Active tab auto-scrolls into view
+
+**Phase 5 — Mobile Input ⏸️ Deferred**
+- FAB for slash commands, long-press context menus, swipe actions — deferred to future iteration
+
+**Phase 6 — Responsive Modals ✅**
+- All modals updated with `mx-2 md:mx-4` margins and `max-h-[90vh]`
+
+**Phase 7 — Condensed Status Bar ✅**
+- Hidden char count on mobile, smaller text, safe area padding
+
+**Phase 8 — General Polish ✅**
+- `viewport-fit=cover` meta tag, iOS font-size fix, safe area insets, CSS animations
+
+### Bug Fixes
+
+1. **Spurious 401 errors ✅**: Passed `isDemoMode` flag to skip API sync in demo mode. Added `localStorage` session flag to skip `/auth/me` on first visit (no server changes — `requireAuth` preserved after security review of `optionalAuth` approach).
+2. **Internal deep links opening new tab ✅**: Extended TipTap Link extension's `renderHTML` to only set `target="_blank"` for absolute URLs. Relative `.md` links now handled by capture-phase click handler.
+3. **Split view on mobile ✅**: Hidden with `hidden md:inline-flex`.
+4. **Welcome page margins ✅**: Added `py-8 md:py-12` padding.
+5. **Demo mode stale closure ✅**: Split `handleEnterDemo` into immediate phase (enterDemoMode + createDemoNotebook) and post-render effect (reloadNotebooks + openFile with fresh `nb` ref).
+
+### Tests Added
+- **Unit**: 11 new tests (`mobileNav.test.tsx`, `mobileLayout.test.tsx`), 16 `useAuth.test.ts` tests updated for session flag
+- **E2E**: `mobile.spec.ts` with iPhone 14 viewport, `mobile-chrome` and `mobile-safari` Playwright projects
+- **All passing**: 144 web unit tests, 224 API tests
+
+### Commits
+- `e716a08` — Phase 1-8 implementation
+- `f185269` — Bug fixes (401s, deep links, split view, margins, tabs)
+- `83910a5` — Deep link target fix + 401 optionalAuth attempt
+- `3b05d39` — Revert optionalAuth (security concerns)
+- `fb582b5` — Skip /auth/me on first visit via localStorage flag
+- `0531877` — Fix demo mode stale closure for file auto-open
+
+### Requirements Updated
+- `requirements/requirements.md` §5.6 expanded to §5.6.1–5.6.9 (version 1.9)
+
+---
+
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
 - **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use. CASA Tier 2 assessment submitted.
 - **Demo mode tests:** Unit tests for demo auth state, migration function, and gated features are still pending.
+- **Phase 5 mobile input:** FAB for slash commands, long-press context menus on tree items — deferred to future iteration.
