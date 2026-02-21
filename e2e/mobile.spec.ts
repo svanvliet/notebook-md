@@ -64,7 +64,7 @@ test.describe('Mobile Content Pages', () => {
 
   test('features page renders correctly on mobile', async ({ page }) => {
     await page.goto('/features');
-    await expect(page.getByRole('heading', { name: /Features/i }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /everything you need/i }).first()).toBeVisible();
     // Hamburger should be visible
     await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible();
   });
@@ -76,7 +76,7 @@ test.describe('Mobile Content Pages', () => {
 
   test('contact page renders correctly on mobile', async ({ page }) => {
     await page.goto('/contact');
-    await expect(page.getByRole('heading', { name: /Contact/i }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /get in touch/i }).first()).toBeVisible();
   });
 });
 
