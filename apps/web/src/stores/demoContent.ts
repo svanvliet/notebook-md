@@ -33,10 +33,10 @@ The app is organized into three areas:
 
 This demo notebook has a few short guides you can explore:
 
-- [Markdown Essentials](./Basics/Markdown Essentials.md) — The building blocks of formatting
-- [Keyboard Shortcuts](./Basics/Keyboard Shortcuts.md) — Speed up your workflow
-- [Slash Commands](./Features/Slash Commands.md) — Quick-insert anything with \`/\`
-- [Cloud Storage](./Features/Cloud Storage.md) — Connect GitHub, OneDrive, and Google Drive
+- [Markdown Essentials](./Basics/Markdown%20Essentials.md) — The building blocks of formatting
+- [Keyboard Shortcuts](./Basics/Keyboard%20Shortcuts.md) — Speed up your workflow
+- [Slash Commands](./Features/Slash%20Commands.md) — Quick-insert anything with \`/\`
+- [Cloud Storage](./Features/Cloud%20Storage.md) — Connect GitHub, OneDrive, and Google Drive
 
 > **Tip:** Click any link above to open it in a new tab. You can edit everything — this is your personal sandbox.
 
