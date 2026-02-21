@@ -57,6 +57,9 @@ export default function App() {
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [welcomeView, setWelcomeView] = useState<'main' | 'signin' | 'signup' | undefined>(undefined);
 
+  // Mobile notebook pane drawer
+  const [mobilePaneOpen, setMobilePaneOpen] = useState(false);
+
   // Enter demo mode: create demo notebook, reload tree, auto-open Getting Started
   const handleEnterDemo = useCallback(async () => {
     auth.enterDemoMode();
@@ -337,6 +340,7 @@ export default function App() {
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDevLogin={auth.devSkipAuth}
+        onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
       {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }} />}
       <ToastContainer />
@@ -377,6 +381,8 @@ export default function App() {
           expandToPath={nb.pendingExpandPath}
           onExpandToPathHandled={nb.clearPendingExpandPath}
           activeFilePath={nb.activeTabId}
+          mobileOpen={mobilePaneOpen}
+          onMobileClose={() => setMobilePaneOpen(false)}
         />
         <DocumentPane
           tabs={docTabs}
