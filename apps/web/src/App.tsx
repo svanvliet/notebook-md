@@ -60,17 +60,25 @@ export default function App() {
   // Mobile notebook pane drawer
   const [mobilePaneOpen, setMobilePaneOpen] = useState(false);
 
-  // Enter demo mode: create demo notebook, reload tree, auto-open Getting Started
+  // Track pending demo initialization (needs fresh nb reference after re-render)
+  const demoInitPending = useRef(false);
+
+  // Enter demo mode: create demo notebook, then let the effect below finish init
   const handleEnterDemo = useCallback(async () => {
     auth.enterDemoMode();
     await createDemoNotebook();
-    await nb.reloadNotebooks();
-    // Small delay to let state settle before opening the file and expanding tree
-    setTimeout(() => {
+    demoInitPending.current = true;
+  }, [auth]);
+
+  // Complete demo init after re-render provides a fresh nb with correct userId
+  useEffect(() => {
+    if (!demoInitPending.current || !auth.isDemoMode) return;
+    demoInitPending.current = false;
+    nb.reloadNotebooks().then(() => {
       nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
       nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
-    }, 100);
-  }, [auth, nb]);
+    });
+  }, [auth.isDemoMode, nb]);
 
   // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
