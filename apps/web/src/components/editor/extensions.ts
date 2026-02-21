@@ -89,7 +89,16 @@ export function getEditorExtensions(placeholder?: string) {
       autolink: true,
       HTMLAttributes: {
         rel: 'noopener noreferrer nofollow',
-        target: '_blank',
+      },
+    }).extend({
+      // Only set target="_blank" for absolute URLs; relative .md links stay in-app
+      renderHTML({ HTMLAttributes }) {
+        const href = HTMLAttributes.href || '';
+        const isAbsolute = /^[a-z]+:/i.test(href);
+        return ['a', {
+          ...HTMLAttributes,
+          ...(isAbsolute ? { target: '_blank' } : {}),
+        }, 0];
       },
     }),
     Image.configure({

@@ -37,9 +37,10 @@ describe('Session Management', () => {
     // Rotate
     await request.post('/auth/refresh').set('Cookie', `refresh_token=${oldToken}`);
 
-    // Old token should no longer work for /auth/me
+    // Old token should no longer work for /auth/me — returns { user: null }
     const meRes = await request.get('/auth/me').set('Cookie', `refresh_token=${oldToken}`);
-    expect(meRes.status).toBe(401);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user).toBeNull();
   });
 
   it('should revoke entire token family on reuse detection', async () => {
@@ -60,7 +61,8 @@ describe('Session Management', () => {
 
     // The legitimate new token should also be revoked (family compromised)
     const meRes = await request.get('/auth/me').set('Cookie', `refresh_token=${newToken}`);
-    expect(meRes.status).toBe(401);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user).toBeNull();
   });
 
   it('should reject expired refresh token', async () => {
