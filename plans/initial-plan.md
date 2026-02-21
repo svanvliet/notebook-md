@@ -850,6 +850,17 @@ Required for Google Drive restricted scope (`auth/drive`) verification. Based on
 - [x] Twitter Card tags (summary_large_image with title, description, image)
 - [x] HTML metadata (description, author, theme-color, canonical URL)
 
+### 7.10 Demo Mode Phase 2 — Tutorial Notebook & Deep Links
+
+- [x] `demoContent.ts` module with tutorial markdown content and `createDemoNotebook()` function
+- [x] Demo Notebook auto-created on demo mode entry (Getting Started, Basics/, Features/ with 5 tutorial files)
+- [x] Getting Started.md auto-opens in editor with tree expanded to file location
+- [x] Internal deep links — relative `.md` link clicks intercepted and opened in editor tabs (not browser tabs)
+- [x] URL-encoded path handling (spaces as %20, decoded for IndexedDB lookup)
+- [x] `expandToFile()` helper in useNotebookManager for programmatic tree expansion
+- [x] Idempotent — demo notebook not recreated on re-entry (stable ID check)
+- [ ] Dev mode indicator badge (orange DEV pill in TitleBar/MarketingNav, replaces Skip to App button)
+
 ### 7.8 Phase 7 Validation
 
 - **Technical:** App meets all performance, accessibility, and security benchmarks. Monitoring is live. Analytics are flowing. Canary process is validated.

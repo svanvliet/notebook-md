@@ -3250,6 +3250,43 @@ Added an orange "DEV" pill badge to distinguish development from production envi
 
 **Commits:** `20e7643`, `905cb42`
 
+### Demo Mode Phase 2 — Tutorial Notebook & Deep Links 🔄
+**Date:** 2026-02-21
+**Branch:** `feature/demo-mode` ([PR #16](https://github.com/svanvliet/notebook-md/pull/16))
+
+Enhanced demo mode with auto-created tutorial content and internal document linking.
+
+**New Features:**
+
+1. **Demo Notebook with tutorial content:** When entering demo mode, a "Demo Notebook" is auto-created in IndexedDB with 5 tutorial files organized in 2 folders:
+   - `Getting Started.md` — Welcome overview, UI orientation, links to sub-pages
+   - `Basics/Markdown Essentials.md` — Formatting reference (headings, bold/italic, lists, tables, code blocks, etc.)
+   - `Basics/Keyboard Shortcuts.md` — Editor shortcuts table
+   - `Features/Slash Commands.md` — Complete list of all `/` commands by category
+   - `Features/Cloud Storage.md` — How to connect GitHub, OneDrive, Google Drive
+
+2. **Internal deep links:** Clicking a relative `.md` link in the editor (e.g., `[text](./Basics/Markdown%20Essentials.md)`) opens the file in a new editor tab instead of a browser tab. Uses React `onClick` handler on the editor container to intercept and prevent default navigation.
+
+3. **Auto-open & tree expansion:** `Getting Started.md` auto-opens in the editor when demo mode starts. The notebook tree expands to show the file's location. Deep link navigation also expands the tree to the target file.
+
+4. **Idempotent creation:** Demo notebook uses a stable ID (`demo-notebook`) — not recreated on re-entry.
+
+**Technical Details:**
+- `demoContent.ts` — New module with all tutorial markdown content and `createDemoNotebook()` function
+- Link interception moved from ProseMirror plugin to DOM-level `onClick` handler on editor container (ProseMirror handler couldn't reliably `preventDefault()` on `target="_blank"` links)
+- URL-encoded paths (`%20`) in markdown links, decoded back to spaces for IndexedDB file lookup
+- `expandToFile()` exposed from `useNotebookManager` for programmatic tree expansion
+- `handleEnterDemo()` wrapper in App.tsx orchestrates: `enterDemoMode()` → `createDemoNotebook()` → `reloadNotebooks()` → `handleOpenFile()` + `expandToFile()`
+
+**Files:**
+- `apps/web/src/stores/demoContent.ts` — new module
+- `apps/web/src/components/editor/MarkdownEditor.tsx` — internal link click handler
+- `apps/web/src/hooks/useNotebookManager.ts` — deep link event listener, `expandToFile()`
+- `apps/web/src/App.tsx` — `handleEnterDemo` wrapper, wired to WelcomeScreen and navigation state
+- `plans/demo-mode-plan.md` — Phase 2 plan and todos
+
+**Commits:** `3c6d8e9`, `218b1b6`, `dcca97d`
+
 ---
 
 ## Open Questions

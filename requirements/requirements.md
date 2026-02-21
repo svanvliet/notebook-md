@@ -1,6 +1,6 @@
 # Notebook.md — Product Requirements Document
 
-**Version:** 1.7  
+**Version:** 1.8  
 **Last Updated:** 2026-02-21  
 **Status:** Draft  
 **Domain:** notebookmd.io
@@ -583,6 +583,25 @@ Users can explore the app without creating an account via a limited "demo mode":
 #### 6.5.7 Exit Demo
 - "Exit Demo" returns the user to the welcome screen
 - Demo session data remains in IndexedDB until the user signs up or the browser clears storage
+
+#### 6.5.8 Demo Notebook (Tutorial Content)
+- On first entry into demo mode, a **Demo Notebook** is automatically created with tutorial content:
+  - `Getting Started.md` — Welcome overview of the UI, links to sub-pages
+  - `Basics/Markdown Essentials.md` — Formatting reference (headings, lists, tables, code, etc.)
+  - `Basics/Keyboard Shortcuts.md` — Editor keyboard shortcuts reference
+  - `Features/Slash Commands.md` — Complete list of available `/` commands
+  - `Features/Cloud Storage.md` — How to connect GitHub, OneDrive, Google Drive
+- `Getting Started.md` auto-opens in the editor and the notebook tree expands to show its location
+- The demo notebook uses a stable ID so it is not recreated on re-entry
+- Tutorial files contain inter-document links that open in new editor tabs (see §6.5.9)
+
+#### 6.5.9 Internal Deep Links
+- Relative `.md` links within documents (e.g., `[Markdown Essentials](./Basics/Markdown%20Essentials.md)`) are intercepted on click
+- Instead of opening a new browser tab, the linked file opens in a new **editor tab** within the app
+- Paths are resolved relative to the current file's directory, with `..` and `.` segments normalized
+- URL-encoded characters (e.g., `%20` for spaces) are decoded for file lookup
+- The notebook tree auto-expands to show the opened file's location
+- External links (http/https) continue to behave normally
 
 ---
 
