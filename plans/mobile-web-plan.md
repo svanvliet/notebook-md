@@ -1,5 +1,7 @@
 # Mobile Web Optimization Plan
 
+## Status: Phases 1–4, 6–8 Complete ✅ | Phase 5 Deferred
+
 ## Problem Statement
 
 Notebook.md is fully functional on mobile browsers but the UX is unintuitive. The app was designed desktop-first with no responsive breakpoints, causing layout overflow, cramped navigation, and unusable editing workflows on phones and small tablets. This plan addresses mobile web (portrait phones ≤ 430px, landscape phones ≤ 932px, tablets ≤ 1024px) — not native apps.
@@ -68,6 +70,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
 
 **Breakpoint**: `md` (768px) — below this, show hamburger; above, show inline nav
 
+**Status: ✅ Complete** — Implemented hamburger menu with slide-down overlay, backdrop, escape key close, and route-change auto-close. Touch targets increased to 44px min. Committed in `e716a08`.
+
 ---
 
 ### Phase 2: App Layout — Responsive Notebook Pane
@@ -92,6 +96,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
 
 **State management**: Add `isMobilePaneOpen` state to the layout, with a context or prop for the toggle button.
 
+**Status: ✅ Complete** — Added `mobilePaneOpen` state to App.tsx, hamburger icon in TitleBar, full-height drawer overlay with backdrop and `animate-slide-in-left` CSS animation, auto-close on file select. Committed in `e716a08`.
+
 ---
 
 ### Phase 3: Editor Toolbar — Compact Mobile Toolbar
@@ -115,6 +121,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
 - On mobile, make the toolbar `sticky top-0 z-10` so it stays visible while scrolling the document
 - Ensures formatting controls are always accessible without scrolling up
 
+**Status: ✅ Complete** — Split into primary (Heading, Bold, Italic, Bullet List, Link) always visible + "⋯ More" overflow grid menu. Touch targets 36px min. Committed in `e716a08`.
+
 ---
 
 ### Phase 4: Tab Bar — Mobile-Friendly Tabs
@@ -130,6 +138,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
 - When tabs overflow, show a small `▼` dropdown at the right edge
 - Dropdown lists all open files — tap to switch
 - Badge on the dropdown shows count of hidden tabs
+
+**Status: ✅ Complete** — Scrollable tab bar with `scrollbar-hide` CSS, left/right chevron scroll buttons with ResizeObserver for visibility, auto-scroll active tab into view. Tab overflow dropdown deferred. Committed in `e716a08` (scrollbar), `f185269` (chevron buttons).
 
 ---
 
@@ -153,6 +163,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
 - Swipe right → Rename
 - Common mobile pattern (iOS Mail, etc.)
 
+**Status: 🔲 Deferred** — Phase 5 deferred to a future iteration. FAB, long-press context menus, and swipe actions are stretch goals.
+
 ---
 
 ### Phase 6: Modal Dialogs — Responsive Modals
@@ -171,6 +183,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
   - Slide up from bottom on mobile (bottom sheet)
   - Easier to reach with thumbs than centered modals
 
+**Status: ✅ Complete** — All modals (Account, Settings, InputModal, AddNotebook, Discard, Publish) updated with `mx-2 md:mx-4` margins and `max-h-[90vh]` on mobile. Bottom sheet pattern deferred. Committed in `e716a08`.
+
 ---
 
 ### Phase 7: Status Bar — Minimal Mobile Status
@@ -183,6 +197,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
   - Reduce font size to `text-[10px]`
   - Reduce height from `h-6` to `h-5`
 - Flash messages still appear in full
+
+**Status: ✅ Complete** — Hidden char count on mobile, text size `text-[10px] md:text-xs`, safe area padding. Committed in `e716a08`.
 
 ---
 
@@ -204,6 +220,8 @@ Notebook.md is fully functional on mobile browsers but the UX is unintuitive. Th
 - Test that layout recalculates properly on rotate
 - Notebook pane drawer should close on orientation change
 - Toolbar should re-layout without flicker
+
+**Status: ✅ Complete** — `viewport-fit=cover` meta tag, 16px font-size on mobile inputs (prevents iOS zoom), safe area inset padding on StatusBar and CookieConsentBanner, slide-in-left animation. Committed in `e716a08`.
 
 ---
 
@@ -270,3 +288,43 @@ All changes use existing Tailwind CSS responsive utilities and React state. No n
 - Offline/PWA support — future enhancement
 - Mobile-specific gestures beyond basic swipe-to-dismiss — stretch goals noted inline
 - Drag-and-drop in notebook tree on mobile — complex, deferred
+
+---
+
+## Bug Fixes During Implementation
+
+### Spurious 401 Errors ✅
+- **Demo mode**: Passed `isDemoMode` flag to `useNotebookManager` and `useSettings` to skip API sync calls (`/api/notebooks`, `/auth/settings`) when in demo mode
+- **First visit**: Added `localStorage` flag (`notebookmd:hasSession`) to skip `/auth/me` fetch when no session has ever been established. Set on successful auth, cleared on sign-out/invalidation. OAuth callbacks detected via `?auth` URL param.
+
+### Internal Deep Links Opening New Tab ✅
+- **Root cause**: TipTap Link extension had `target: '_blank'` in HTMLAttributes applied to ALL links, including relative `.md` links. Browser followed `target="_blank"` before JS could `preventDefault()`.
+- **Fix**: Extended Link extension's `renderHTML` to conditionally set `target="_blank"` only for absolute URLs (`/^[a-z]+:/i`). Relative `.md` links render as plain `<a>` without target.
+- Added native capture-phase click handler on editor container for `.md` link interception.
+
+### Split View Button on Mobile ✅
+- Hidden with `hidden md:inline-flex` — only relevant for desktop/tablet.
+
+### Welcome Page Spacing ✅
+- Added `py-8 md:py-12` padding to WelcomeScreen main content area.
+
+### Demo Mode Stale Closure ✅
+- **Root cause**: `handleEnterDemo` captured `nb` (useNotebookManager) before `enterDemoMode()` triggered a re-render. The stale `nb` had `userId=undefined`.
+- **Fix**: Split into two phases — (1) `enterDemoMode()` + `createDemoNotebook()` immediate, (2) `useEffect` watches `auth.isDemoMode` with fresh `nb` ref for `reloadNotebooks()` and `handleOpenFile()`.
+
+### Security: /auth/me optionalAuth Reverted ✅
+- An initial attempt to fix 401 noise by changing `/auth/me` from `requireAuth` to `optionalAuth` was reverted after security analysis revealed it bypassed suspension checks, idle timeout enforcement, cookie clearing, and broke the visibility-change session detection.
+
+---
+
+## Tests Added
+
+### Unit Tests (Vitest)
+- `mobileNav.test.tsx` — 7 tests: hamburger toggle, menu items, onEnterDemo, mobile link class
+- `mobileLayout.test.tsx` — 4 tests: responsive StatusBar, hidden char count
+- `useAuth.test.ts` — Updated all 16 tests for session flag behavior + new "skips /auth/me" test
+
+### E2E Tests (Playwright)
+- `mobile.spec.ts` — iPhone 14 viewport tests: hamburger menu, mobile navigation
+- `playwright.config.ts` — Added `mobile-chrome` (Pixel 7) and `mobile-safari` (iPhone 14) projects
+- `smoke.spec.ts` — Updated to skip on mobile projects

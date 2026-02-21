@@ -1,6 +1,6 @@
 # Notebook.md — Product Requirements Document
 
-**Version:** 1.8  
+**Version:** 1.9  
 **Last Updated:** 2026-02-21  
 **Status:** Draft  
 **Domain:** notebookmd.io
@@ -490,12 +490,52 @@ The following events should produce toast notifications:
 - Password change failed
 - Network or API error
 
-### 5.6 Responsive Design
+### 5.6 Responsive Design & Mobile Web
 
-- The web version is responsive and usable on tablet and phone browsers
-- On narrow viewports (< 768px), the Notebook pane collapses by default and overlays the document pane when opened
-- Touch-friendly tap targets for mobile browsers
-- Full native mobile apps deferred to a future version
+The web app is fully responsive and optimized for mobile browsers (phones and tablets). The `md` breakpoint (768px) separates mobile and desktop layouts.
+
+#### 5.6.1 Mobile Navigation
+- Marketing pages use a **hamburger menu** below `md` breakpoint
+- Tapping the hamburger icon (☰) opens a slide-down overlay with nav links, "Try Demo", and "Sign In"
+- Menu closes on: link tap, backdrop tap, Escape key, or route change
+- All touch targets are ≥ 44×44px
+
+#### 5.6.2 Mobile App Layout
+- **Notebook pane**: Hidden by default on mobile; accessible via a hamburger icon (☰) in the TitleBar
+- Pane opens as a full-height **left drawer overlay** with semi-transparent backdrop and slide-in animation
+- Selecting a file closes the drawer automatically
+- The editor takes full viewport width when the drawer is closed
+
+#### 5.6.3 Compact Editor Toolbar
+- On mobile, only primary formatting actions are visible (Heading, Bold, Italic, Bullet List, Link)
+- An overflow menu ("⋯ More") reveals remaining actions in a grid layout
+- Desktop shows the full toolbar unchanged
+
+#### 5.6.4 Scrollable Tab Bar
+- When multiple files are open, the tab bar scrolls horizontally
+- Left/right chevron buttons appear when tabs overflow
+- The active tab auto-scrolls into view
+
+#### 5.6.5 Responsive Modals
+- All modal dialogs use responsive margins (`mx-2` on mobile, `mx-4` on desktop) and `max-h-[90vh]`
+- Modals are usable on phone screens without horizontal overflow
+
+#### 5.6.6 Condensed Status Bar
+- Character count hidden on mobile
+- Font size reduced; safe area insets applied for devices with home indicator
+
+#### 5.6.7 iOS Compatibility
+- `viewport-fit=cover` meta tag for full-screen edge-to-edge rendering
+- Input font size set to 16px to prevent iOS auto-zoom on focus
+- Safe area inset padding on StatusBar and CookieConsentBanner
+
+#### 5.6.8 Split View
+- Split view toggle (WYSIWYG/source) hidden on mobile — only relevant for desktop/tablet widths
+
+#### 5.6.9 Internal Document Links
+- Relative `.md` links (e.g., `[text](./Basics/file.md)`) open in a new editor tab within the app
+- External links (`http://`, `https://`) open in a new browser tab
+- Link behavior is determined by URL protocol detection in the TipTap Link extension
 
 ### 5.7 Client-Side Routing
 
@@ -1459,5 +1499,7 @@ A Privacy Policy is required at launch, especially for GDPR compliance (EU users
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.9 | 2026-02-21 | Expanded §5.6 Responsive Design into full mobile web section (§5.6.1–5.6.9): hamburger nav, drawer pane, compact toolbar, scrollable tabs, responsive modals, condensed status bar, iOS compatibility, split view, internal links |
+| 1.8 | 2026-02-21 | Security hardening (CASA), OG tags, demo mode phase 2 |
 | 1.6 | 2026-02-19 | Added §5.7 Client-Side Routing — React Router for SPA navigation |
 | 1.5 | 2026-02-18 | Session hardening, idle timeout, security headers |
