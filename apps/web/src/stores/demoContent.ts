@@ -25,9 +25,9 @@ Thanks for trying Notebook.md! This quick guide will help you get oriented.
 
 The app is organized into three areas:
 
-- **Workspace Pane** (left) — Your notebooks and files live here. Click a file to open it, or right-click for options like rename and delete.
-- **Document Pane** (center) — The editor where you read and write. You can have multiple files open in tabs.
-- **Toolbar** (top) — Formatting controls appear here when a document is open.
+- ⬅️ **Workspace Pane** (left) — Your notebooks and files live here. Click a file to open it, or right-click for options like rename and delete.
+- ➡️ **Document Pane** (center) — The editor where you read and write. You can have multiple files open in tabs.
+- ⬆️ **Toolbar** (top) — Formatting controls appear here when a document is open.
 
 ## Try It Out
 
@@ -38,7 +38,7 @@ This demo notebook has a few short guides you can explore:
 - [Slash Commands](./Features/Slash%20Commands.md) — Quick-insert anything with \`/\`
 - [Cloud Storage](./Features/Cloud%20Storage.md) — Connect GitHub, OneDrive, and Google Drive
 
-> **Tip:** Click any link above to open it in a new tab. You can edit everything — this is your personal sandbox.
+> [!NOTE] **Tip:** Click any link above to open it in a new tab. You can edit everything — this is your personal sandbox.
 
 ## Creating Content
 
