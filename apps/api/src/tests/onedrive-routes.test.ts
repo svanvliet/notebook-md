@@ -10,7 +10,7 @@ describe('OneDrive Routes', () => {
 
   beforeEach(async () => {
     await cleanDb();
-    const { res } = await signUp('oduser@test.com', 'password123');
+    const { res } = await signUp('oduser@test.com', 'Password123!');
     token = extractRefreshToken(res)!;
     const userRes = await request.get('/auth/me').set('Cookie', `refresh_token=${token}`);
     userId = userRes.body.user.id;

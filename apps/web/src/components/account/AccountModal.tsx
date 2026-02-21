@@ -116,6 +116,22 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
       setPasswordError('Password must be at most 128 characters');
       return;
     }
+    if (!/[a-z]/.test(newPassword)) {
+      setPasswordError('Password must contain at least one lowercase letter');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      setPasswordError('Password must contain at least one uppercase letter');
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      setPasswordError('Password must contain at least one number');
+      return;
+    }
+    if (!/[^a-zA-Z0-9]/.test(newPassword)) {
+      setPasswordError('Password must contain at least one special character');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setPasswordError('Passwords do not match');
       return;

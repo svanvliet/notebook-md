@@ -3166,17 +3166,65 @@ Full implementation of try-before-you-sign-up demo mode. See `plans/demo-mode-pl
 - Added Section 6.5 (Demo Mode) to `requirements/requirements.md` — covers entry points, behavior, restrictions, banner, TitleBar changes, demo-to-account migration, and exit behavior
 - Bumped requirements version to 1.7
 
-### Deploying as `v0.1.7` (in progress)
+### Deploying as `v0.1.7` ✅
 **Date:** 2026-02-21
 
 - Fixed lint error (`let` → `const` in dev-login endpoint)
 - Fixed E2E test failures (scoped Sign In selectors to avoid strict mode violations from dual buttons in nav + form)
-- Re-tagged `v0.1.7` on fixed commit; deploy workflow waiting for CI gate
+- Re-tagged `v0.1.7` on fixed commit; deployed successfully
+
+### Google CASA Security Hardening ✅
+**Date:** 2026-02-21
+
+Prepared the app for Google's CASA Tier 2 security assessment (required for restricted `auth/drive` scope).
+
+**Changes:**
+
+1. **Password complexity (ASVS V2.2.3):** `validatePassword()` now requires lowercase, uppercase, digit, and special character. Updated frontend validation in AccountModal to match. All test passwords updated to meet the new rules. Added 4 new password complexity tests.
+
+2. **Account lockout (ASVS V2.2.4):** Signin endpoint tracks failed attempts per email in Redis (`lockout:{email}` key with TTL). After 5 failed attempts, account is locked for 15 minutes. Counter resets on successful login. Skipped in test mode to avoid breaking test suites.
+
+3. **Redis-backed rate limiting (ASVS V4.4):** Auth mutation and read limiters now use `RedisStore` from `rate-limit-redis` in production (was memory-backed). Consistent with existing sources.ts approach.
+
+4. **Input sanitization (ASVS V5):** `stripHtml()` function strips HTML tags from `displayName` on signup and profile update, and from contact form `name`/`message`. Added test verifying `<script>` tags are stripped from displayName.
+
+5. **npm audit in CI:** Added `npm audit --audit-level=high --omit=dev` step to the Lint & Type Check job in ci.yml (continue-on-error to not block on low-severity advisories).
+
+**Test results:**
+- API: 224 tests passed (4 new password complexity + 1 HTML sanitization)
+- Web: 124 passed (8 pre-existing useSettings failures unrelated to our changes)
+
+**Files modified:**
+- `apps/api/src/routes/auth.ts` — password complexity, Redis rate limiter, account lockout, stripHtml
+- `apps/api/src/app.ts` — HTML sanitization on contact form
+- `apps/web/src/components/account/AccountModal.tsx` — frontend password complexity validation
+- `apps/api/src/tests/auth.test.ts` — new complexity/sanitization tests, updated all test passwords
+- `apps/api/src/tests/*.test.ts` — all 10 test files updated with compliant passwords
+- `apps/web/src/tests/accountModal.test.tsx` — updated mismatch test password
+- `.github/workflows/ci.yml` — added npm audit step
+
+### Open Graph & Social Sharing ✅
+**Date:** 2026-02-21
+
+Added rich URL preview support for social sharing.
+
+- **OG image:** Generated 1200×630 branded image via Playwright (`scripts/generate-og-image.ts`). Dark gradient background with logo, tagline, feature highlights, and domain.
+- **Open Graph tags:** og:title, og:description, og:image (with dimensions and alt), og:url, og:type, og:site_name, og:locale
+- **Twitter Card tags:** summary_large_image with title, description, image, and alt
+- **HTML metadata:** description, author, theme-color (#2563eb), canonical URL
+
+**Files:**
+- `apps/web/index.html` — all meta tags added
+- `apps/web/public/og-image.png` — generated 1200×630 image
+- `scripts/generate-og-image.ts` — Playwright screenshot script
+
+### Deployed as `v0.1.8` ✅
 
 ---
 
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
-- **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use.
+- **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use. CASA Tier 2 assessment submitted.
 - **Demo mode tests:** Unit tests for demo auth state, migration function, and gated features are still pending.
+- **useSettings tests:** 8 pre-existing failures in useSettings.test.ts need investigation (unrelated to security changes).

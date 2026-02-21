@@ -8,12 +8,12 @@ describe('Session Management', () => {
   beforeEach(async () => { await cleanDb(); });
 
   it('should issue refresh token on sign-up', async () => {
-    const { res } = await signUp('alice@test.com', 'password123');
+    const { res } = await signUp('alice@test.com', 'Password123!');
     expect(extractRefreshToken(res)).toBeTruthy();
   });
 
   it('should rotate refresh token on /auth/refresh', async () => {
-    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const { res: signUpRes } = await signUp('alice@test.com', 'Password123!');
     const oldToken = extractRefreshToken(signUpRes)!;
 
     const refreshRes = await request
@@ -31,7 +31,7 @@ describe('Session Management', () => {
   });
 
   it('should invalidate old token after rotation', async () => {
-    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const { res: signUpRes } = await signUp('alice@test.com', 'Password123!');
     const oldToken = extractRefreshToken(signUpRes)!;
 
     // Rotate
@@ -43,7 +43,7 @@ describe('Session Management', () => {
   });
 
   it('should revoke entire token family on reuse detection', async () => {
-    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const { res: signUpRes } = await signUp('alice@test.com', 'Password123!');
     const originalToken = extractRefreshToken(signUpRes)!;
 
     // Rotate to get a new token
@@ -64,7 +64,7 @@ describe('Session Management', () => {
   });
 
   it('should reject expired refresh token', async () => {
-    const { res: signUpRes } = await signUp('alice@test.com', 'password123');
+    const { res: signUpRes } = await signUp('alice@test.com', 'Password123!');
     const token = extractRefreshToken(signUpRes)!;
 
     // Manually expire the session in the DB
@@ -82,7 +82,7 @@ describe('Session Management', () => {
   });
 
   it('should return user data on successful refresh', async () => {
-    const { res: signUpRes } = await signUp('alice@test.com', 'password123', 'Alice');
+    const { res: signUpRes } = await signUp('alice@test.com', 'Password123!', 'Alice');
     const token = extractRefreshToken(signUpRes)!;
 
     const refreshRes = await request

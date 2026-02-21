@@ -10,7 +10,7 @@ beforeAll(() => {
 });
 
 /** Create an admin user with 2FA enabled (required for admin access) */
-async function createAdmin(email = 'admin@test.com', password = 'password123') {
+async function createAdmin(email = 'admin@test.com', password = 'Password123!') {
   const { cookies } = await signUp(email, password, 'Admin User');
   // Enable email 2FA so admin middleware passes
   await request.post('/auth/2fa/enable').set('Cookie', cookies).send({ method: 'email' });
@@ -20,7 +20,7 @@ async function createAdmin(email = 'admin@test.com', password = 'password123') {
 }
 
 /** Create a regular user */
-async function createRegularUser(email = 'user@test.com', password = 'password123') {
+async function createRegularUser(email = 'user@test.com', password = 'Password123!') {
   const { cookies } = await signUp(email, password, 'Regular User');
   return cookies;
 }
@@ -43,7 +43,7 @@ describe('Admin Console API', () => {
     });
 
     it('should reject admin without 2FA or OAuth', async () => {
-      const { cookies } = await signUp('admin@test.com', 'password123', 'Admin');
+      const { cookies } = await signUp('admin@test.com', 'Password123!', 'Admin');
       await query('UPDATE users SET is_admin = true WHERE email = $1', ['admin@test.com']);
       const res = await request.get('/admin/health').set('Cookie', cookies).expect(403);
       expect(res.body.error).toContain('two-factor');

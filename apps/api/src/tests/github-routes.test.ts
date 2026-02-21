@@ -10,7 +10,7 @@ describe('GitHub Routes', () => {
 
   beforeEach(async () => {
     await cleanDb();
-    const { res } = await signUp('ghuser@test.com', 'password123');
+    const { res } = await signUp('ghuser@test.com', 'Password123!');
     token = extractRefreshToken(res)!;
     // Get the userId from the user we just created
     const userRes = await request.get('/auth/me').set('Cookie', `refresh_token=${token}`);
@@ -81,7 +81,7 @@ describe('GitHub Routes', () => {
 
     it('should not return other users installations', async () => {
       // Create another user
-      const { res: res2 } = await signUp('other@test.com', 'password123');
+      const { res: res2 } = await signUp('other@test.com', 'Password123!');
       const token2 = extractRefreshToken(res2)!;
       const user2Res = await request.get('/auth/me').set('Cookie', `refresh_token=${token2}`);
       const userId2 = user2Res.body.user.id;
@@ -132,7 +132,7 @@ describe('GitHub Routes', () => {
 
     it('should reject access to installations not owned by user', async () => {
       // Create another user
-      const { res: res2 } = await signUp('other@test.com', 'password123');
+      const { res: res2 } = await signUp('other@test.com', 'Password123!');
       const token2 = extractRefreshToken(res2)!;
       const user2Res = await request.get('/auth/me').set('Cookie', `refresh_token=${token2}`);
 

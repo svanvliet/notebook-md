@@ -822,6 +822,34 @@ Expands the Playwright smoke tests from Phase 6.4 into comprehensive browser-lev
 - [ ] Load test: simulate 100 concurrent users
 - [ ] README.md updated with final feature list
 
+### 7.8 Google CASA Security Assessment
+
+Required for Google Drive restricted scope (`auth/drive`) verification. Based on OWASP ASVS.
+
+**Security hardening (completed):**
+- [x] Password complexity: require uppercase, lowercase, digit, and special character
+- [x] Account lockout: lock after 5 failed login attempts for 15 minutes (Redis-backed)
+- [x] Redis-backed rate limiting: auth mutation and read limiters use RedisStore in production
+- [x] Input sanitization: strip HTML tags from displayName, contact form name/message
+- [x] npm audit in CI: added `npm audit --audit-level=high` step to Lint & Type Check job
+
+**Assessment preparation:**
+- [ ] Run OWASP ZAP scan against production deployment
+- [ ] Remediate any high-severity findings
+- [ ] Complete CASA self-assessment questionnaire (SAQ)
+- [ ] Submit scan results and SAQ to CASA portal
+- [ ] Obtain Letter of Validation (LOV) from authorized lab
+
+**Annual recertification:**
+- [ ] Schedule annual CASA recertification (Tier 2)
+
+### 7.9 Open Graph & Social Sharing
+
+- [x] OG image generated via Playwright (1200x630, branded design)
+- [x] Open Graph meta tags (og:title, og:description, og:image, og:url, og:type, og:site_name)
+- [x] Twitter Card tags (summary_large_image with title, description, image)
+- [x] HTML metadata (description, author, theme-color, canonical URL)
+
 ### 7.8 Phase 7 Validation
 
 - **Technical:** App meets all performance, accessibility, and security benchmarks. Monitoring is live. Analytics are flowing. Canary process is validated.

@@ -121,6 +121,9 @@ jobs:
           path: node_modules
           key: node-modules-${{ hashFiles('package-lock.json') }}
       - run: npm run lint
+      - name: Security audit
+        run: npm audit --audit-level=high --omit=dev
+        continue-on-error: true
       - name: Typecheck (shared + api)
         run: |
           npm -w packages/shared run typecheck

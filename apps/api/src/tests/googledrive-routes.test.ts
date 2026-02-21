@@ -10,7 +10,7 @@ describe('Google Drive Routes', () => {
 
   beforeEach(async () => {
     await cleanDb();
-    const { res } = await signUp('gduser@test.com', 'password123');
+    const { res } = await signUp('gduser@test.com', 'Password123!');
     token = extractRefreshToken(res)!;
     const userRes = await request.get('/auth/me').set('Cookie', `refresh_token=${token}`);
     userId = userRes.body.user.id;
