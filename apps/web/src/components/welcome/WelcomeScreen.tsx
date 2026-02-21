@@ -255,7 +255,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
         </div>
 
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{t('app.name')}</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-8">{t('app.tagline')}</p>
+        <p className="text-gray-500 dark:text-gray-400 mb-6">{t('app.tagline')}</p>
 
         {/* Main view: buttons */}
         {view === 'main' && (
