@@ -8,6 +8,21 @@ import { useAuth } from '../hooks/useAuth';
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+// Provide localStorage/sessionStorage for jsdom
+const storageProto = {
+  _store: {} as Record<string, string>,
+  getItem(key: string) { return this._store[key] ?? null; },
+  setItem(key: string, value: string) { this._store[key] = value; },
+  removeItem(key: string) { delete this._store[key]; },
+  clear() { this._store = {}; },
+};
+if (typeof localStorage === 'undefined' || !localStorage.clear) {
+  vi.stubGlobal('localStorage', { ...storageProto, _store: {} });
+}
+if (typeof sessionStorage === 'undefined' || !sessionStorage.clear) {
+  vi.stubGlobal('sessionStorage', { ...storageProto, _store: {} });
+}
+
 const testUser = {
   id: 'u1',
   displayName: 'Test User',
@@ -20,9 +35,12 @@ const testUser = {
 describe('useAuth', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
   it('starts in loading state and resolves user from /auth/me', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
     const { result } = renderHook(() => useAuth());
     expect(result.current.loading).toBe(true);
@@ -33,15 +51,26 @@ describe('useAuth', () => {
     expect(result.current.user?.id).toBe('u1');
   });
 
+  it('skips /auth/me and resolves immediately when no session flag', async () => {
+    const { result } = renderHook(() => useAuth());
+    await act(async () => {});
+    expect(result.current.user).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('sets user to null when /auth/me returns non-ok', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
     expect(result.current.user).toBeNull();
     expect(result.current.loading).toBe(false);
+    expect(localStorage.getItem('notebookmd:hasSession')).toBeNull();
   });
 
   it('sets user to null on network failure', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
@@ -50,8 +79,7 @@ describe('useAuth', () => {
   });
 
   it('signUp sets user on success', async () => {
-    // Initial /auth/me
-    mockFetch.mockResolvedValueOnce({ ok: false });
+    // Initial /auth/me — no session flag, skips fetch
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -66,7 +94,6 @@ describe('useAuth', () => {
   });
 
   it('signUp sets error on failure', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -79,7 +106,6 @@ describe('useAuth', () => {
   });
 
   it('signIn sets user on success', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -93,7 +119,6 @@ describe('useAuth', () => {
   });
 
   it('signIn sets error on wrong credentials', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -105,6 +130,7 @@ describe('useAuth', () => {
   });
 
   it('signOut clears user state', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
@@ -115,9 +141,11 @@ describe('useAuth', () => {
       await result.current.signOut();
     });
     expect(result.current.user).toBeNull();
+    expect(localStorage.getItem('notebookmd:hasSession')).toBeNull();
   });
 
   it('changePassword sends confirmPassword', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
@@ -136,6 +164,7 @@ describe('useAuth', () => {
   });
 
   it('deleteAccount sends confirmation for OAuth-only users', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
@@ -152,10 +181,10 @@ describe('useAuth', () => {
     const body = JSON.parse(deleteCall![1]!.body as string);
     expect(body.confirmation).toBe('DELETE');
     expect(body.password).toBeUndefined();
+    expect(localStorage.getItem('notebookmd:hasSession')).toBeNull();
   });
 
   it('devSkipAuth creates session via API', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false }); // initial /auth/me
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -173,7 +202,6 @@ describe('useAuth', () => {
   });
 
   it('clearError resets error state', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -190,7 +218,6 @@ describe('useAuth', () => {
   });
 
   it('signIn handles network error gracefully', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
 
@@ -202,6 +229,7 @@ describe('useAuth', () => {
   });
 
   it('logs out when auth:session-invalid event is dispatched', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});
@@ -215,6 +243,7 @@ describe('useAuth', () => {
   });
 
   it('re-validates session on visibility change', async () => {
+    localStorage.setItem('notebookmd:hasSession', '1');
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: testUser }) });
     const { result } = renderHook(() => useAuth());
     await act(async () => {});

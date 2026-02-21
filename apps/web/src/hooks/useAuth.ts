@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const SESSION_FLAG = 'notebookmd:hasSession';
 
 export interface User {
   id: string;
@@ -35,6 +36,7 @@ export function useAuth() {
   // the session is no longer valid (401/403). Avoids polling; instead we
   // piggyback on existing API calls and check on tab re-focus.
   const handleSessionInvalid = useCallback(() => {
+    localStorage.removeItem(SESSION_FLAG);
     setState(prev => {
       if (!prev.user) return prev; // Already logged out
       return { user: null, loading: false, error: 'Your session has ended.' };
@@ -44,13 +46,25 @@ export function useAuth() {
   // Check existing session on mount (skip in demo mode)
   useEffect(() => {
     if (demoMode) return;
+    // Skip /auth/me for first-time visitors who have never logged in.
+    // The refresh_token is HttpOnly so JS can't check it directly; we use
+    // a localStorage flag set on successful auth. OAuth callbacks land with
+    // ?auth=success so we always check those.
+    const hasFlag = localStorage.getItem(SESSION_FLAG);
+    const isAuthCallback = new URLSearchParams(window.location.search).has('auth');
+    if (!hasFlag && !isAuthCallback) {
+      setState({ user: null, loading: false, error: null });
+      return;
+    }
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
+          localStorage.setItem(SESSION_FLAG, '1');
           setState({ user: data.user, loading: false, error: null });
         } else {
+          localStorage.removeItem(SESSION_FLAG);
           setState({ user: null, loading: false, error: null });
         }
       } catch {
@@ -98,6 +112,7 @@ export function useAuth() {
         return false;
       }
       setState({ user: data.user, loading: false, error: null });
+      localStorage.setItem(SESSION_FLAG, '1');
       // Clear demo mode on successful sign-up (migration handled by App.tsx)
       if (demoMode) {
         sessionStorage.removeItem('notebookmd:demoMode');
@@ -130,6 +145,7 @@ export function useAuth() {
         return false; // Not fully signed in yet
       }
       setState({ user: data.user, loading: false, error: null });
+      localStorage.setItem(SESSION_FLAG, '1');
       return true;
     } catch (err) {
       setState(s => ({ ...s, error: 'Network error. Please try again.' }));
@@ -161,6 +177,7 @@ export function useAuth() {
       });
       const data = await res.json();
       if (res.ok) {
+        localStorage.setItem(SESSION_FLAG, '1');
         setState({ user: data.user, loading: false, error: null });
         return true;
       }
@@ -188,6 +205,7 @@ export function useAuth() {
     try {
       await fetch(`${API_BASE}/auth/signout`, { method: 'POST', credentials: 'include' });
     } catch { /* ignore */ }
+    localStorage.removeItem(SESSION_FLAG);
     setState({ user: null, loading: false, error: null });
   }, []);
 
@@ -234,6 +252,7 @@ export function useAuth() {
         body: JSON.stringify({ password, confirmation }),
       });
       if (res.ok) {
+        localStorage.removeItem(SESSION_FLAG);
         setState({ user: null, loading: false, error: null });
         return true;
       }
@@ -290,6 +309,7 @@ export function useAuth() {
       });
       if (res.ok) {
         const data = await res.json();
+        localStorage.setItem(SESSION_FLAG, '1');
         setState({ user: data.user, loading: false, error: null });
       }
     } catch {
@@ -320,6 +340,7 @@ export function useAuth() {
         return false;
       }
       setTwoFactorChallenge(null);
+      localStorage.setItem(SESSION_FLAG, '1');
       setState({ user: data.user, loading: false, error: null });
       return true;
     } catch {

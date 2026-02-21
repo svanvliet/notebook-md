@@ -1,6 +1,6 @@
 import { Editor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useToast } from '../../hooks/useToast';
 
 interface EditorToolbarProps {
@@ -67,6 +67,10 @@ function ImageIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
 }
 
+function MoreIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>;
+}
+
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
 const SUPPORTED_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'svg', 'gif', 'webp']);
 const SUPPORTED_VIDEO_EXTS = new Set(['mp4', 'webm']);
@@ -119,7 +123,7 @@ function ToolbarButton({ onClick, isActive, disabled, title, children }: Toolbar
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`p-1.5 rounded text-xs font-medium transition-colors ${
+      className={`p-1.5 md:p-1.5 min-w-[36px] min-h-[36px] md:min-w-0 md:min-h-0 rounded text-xs font-medium transition-colors flex items-center justify-center ${
         isActive
           ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
           : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -269,6 +273,20 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
   const { t } = useTranslation();
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
+  const overflowRef = useRef<HTMLDivElement>(null);
+
+  // Close overflow on outside click
+  useEffect(() => {
+    if (!showOverflow) return;
+    const handler = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setShowOverflow(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showOverflow]);
 
   const insertMedia = useCallback(
     (url: string, alt: string) => {
@@ -341,7 +359,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
       <Divider />
 
-      {/* Text formatting */}
+      {/* Primary: Bold, Italic, Lists, Link — always visible */}
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         isActive={editor.isActive('bold')}
@@ -358,41 +376,44 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         <ItalicIcon />
       </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        isActive={editor.isActive('underline')}
-        title={`${t('editor.toolbar.underline')} (⌘U)`}
-      >
-        <UnderlineIcon />
-      </ToolbarButton>
+      {/* Desktop-only: Underline, Strikethrough, Code, Highlight */}
+      <span className="hidden md:contents">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          isActive={editor.isActive('underline')}
+          title={`${t('editor.toolbar.underline')} (⌘U)`}
+        >
+          <UnderlineIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        isActive={editor.isActive('strike')}
-        title={t('editor.toolbar.strikethrough')}
-      >
-        <StrikethroughIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          isActive={editor.isActive('strike')}
+          title={t('editor.toolbar.strikethrough')}
+        >
+          <StrikethroughIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        isActive={editor.isActive('code')}
-        title={`${t('editor.toolbar.inlineCode')} (⌘E)`}
-      >
-        <CodeIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          isActive={editor.isActive('code')}
+          title={`${t('editor.toolbar.inlineCode')} (⌘E)`}
+        >
+          <CodeIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHighlight().run()}
-        isActive={editor.isActive('highlight')}
-        title={t('editor.toolbar.highlight')}
-      >
-        <HighlightIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHighlight().run()}
+          isActive={editor.isActive('highlight')}
+          title={t('editor.toolbar.highlight')}
+        >
+          <HighlightIcon />
+        </ToolbarButton>
+      </span>
 
       <Divider />
 
-      {/* Lists */}
+      {/* Lists — always visible */}
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         isActive={editor.isActive('bulletList')}
@@ -401,64 +422,67 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         <BulletListIcon />
       </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        isActive={editor.isActive('orderedList')}
-        title={t('editor.toolbar.orderedList')}
-      >
-        <OrderedListIcon />
-      </ToolbarButton>
+      {/* Desktop-only: ordered list, task list */}
+      <span className="hidden md:contents">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          isActive={editor.isActive('orderedList')}
+          title={t('editor.toolbar.orderedList')}
+        >
+          <OrderedListIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleTaskList().run()}
-        isActive={editor.isActive('taskList')}
-        title={t('editor.toolbar.taskList')}
-      >
-        <TaskListIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          isActive={editor.isActive('taskList')}
+          title={t('editor.toolbar.taskList')}
+        >
+          <TaskListIcon />
+        </ToolbarButton>
 
-      <Divider />
+        <Divider />
 
-      {/* Block elements */}
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        isActive={editor.isActive('blockquote')}
-        title={t('editor.toolbar.blockquote')}
-      >
-        <BlockquoteIcon />
-      </ToolbarButton>
+        {/* Block elements */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          isActive={editor.isActive('blockquote')}
+          title={t('editor.toolbar.blockquote')}
+        >
+          <BlockquoteIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        isActive={editor.isActive('codeBlock')}
-        title={t('editor.toolbar.codeBlock')}
-      >
-        <CodeBlockIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          isActive={editor.isActive('codeBlock')}
+          title={t('editor.toolbar.codeBlock')}
+        >
+          <CodeBlockIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        title={t('editor.toolbar.horizontalRule')}
-      >
-        <HrIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          title={t('editor.toolbar.horizontalRule')}
+        >
+          <HrIcon />
+        </ToolbarButton>
 
-      <ToolbarButton
-        onClick={() =>
-          editor
-            .chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run()
-        }
-        title={t('editor.toolbar.table')}
-      >
-        <TableIcon />
-      </ToolbarButton>
+        <ToolbarButton
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run()
+          }
+          title={t('editor.toolbar.table')}
+        >
+          <TableIcon />
+        </ToolbarButton>
 
-      <Divider />
+        <Divider />
+      </span>
 
-      {/* Link */}
+      {/* Link — always visible */}
       <div className="relative">
         <ToolbarButton
           onClick={() => {
@@ -487,49 +511,175 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         )}
       </div>
 
-      {/* Media insert */}
-      <div className="relative">
+      {/* Desktop-only: Media, Undo/Redo, Print */}
+      <span className="hidden md:contents">
+        {/* Media insert */}
+        <div className="relative">
+          <ToolbarButton
+            onClick={() => setShowMediaMenu(!showMediaMenu)}
+            title={t('editor.toolbar.insertMedia', 'Insert image/video')}
+          >
+            <ImageIcon />
+          </ToolbarButton>
+          {showMediaMenu && (
+            <MediaInsertMenu
+              onInsertUrl={insertMedia}
+              onUploadFile={uploadMedia}
+              onCancel={() => setShowMediaMenu(false)}
+            />
+          )}
+        </div>
+
+        <Divider />
         <ToolbarButton
-          onClick={() => setShowMediaMenu(!showMediaMenu)}
-          title={t('editor.toolbar.insertMedia', 'Insert image/video')}
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={!editor.can().undo()}
+          title={`${t('editor.toolbar.undo')} (⌘Z)`}
         >
-          <ImageIcon />
+          <UndoIcon />
         </ToolbarButton>
-        {showMediaMenu && (
-          <MediaInsertMenu
-            onInsertUrl={insertMedia}
-            onUploadFile={uploadMedia}
-            onCancel={() => setShowMediaMenu(false)}
-          />
+
+        <ToolbarButton
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={!editor.can().redo()}
+          title={`${t('editor.toolbar.redo')} (⌘⇧Z)`}
+        >
+          <RedoIcon />
+        </ToolbarButton>
+
+        <Divider />
+
+        {/* Print / Export PDF */}
+        <ToolbarButton
+          onClick={() => window.print()}
+          title={`${t('editor.toolbar.print', 'Print')} (⌘P)`}
+        >
+          <PrintIcon />
+        </ToolbarButton>
+      </span>
+
+      {/* Mobile overflow menu */}
+      <div className="relative md:hidden" ref={overflowRef}>
+        <ToolbarButton
+          onClick={() => setShowOverflow(!showOverflow)}
+          title="More formatting"
+        >
+          <MoreIcon />
+        </ToolbarButton>
+        {showOverflow && (
+          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-2 z-50 w-56">
+            <div className="grid grid-cols-4 gap-1 px-2 pb-2">
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleUnderline().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('underline')}
+                title={t('editor.toolbar.underline')}
+              >
+                <UnderlineIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleStrike().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('strike')}
+                title={t('editor.toolbar.strikethrough')}
+              >
+                <StrikethroughIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleCode().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('code')}
+                title={t('editor.toolbar.inlineCode')}
+              >
+                <CodeIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleHighlight().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('highlight')}
+                title={t('editor.toolbar.highlight')}
+              >
+                <HighlightIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleOrderedList().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('orderedList')}
+                title={t('editor.toolbar.orderedList')}
+              >
+                <OrderedListIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleTaskList().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('taskList')}
+                title={t('editor.toolbar.taskList')}
+              >
+                <TaskListIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleBlockquote().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('blockquote')}
+                title={t('editor.toolbar.blockquote')}
+              >
+                <BlockquoteIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().toggleCodeBlock().run(); setShowOverflow(false); }}
+                isActive={editor.isActive('codeBlock')}
+                title={t('editor.toolbar.codeBlock')}
+              >
+                <CodeBlockIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().setHorizontalRule().run(); setShowOverflow(false); }}
+                title={t('editor.toolbar.horizontalRule')}
+              >
+                <HrIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); setShowOverflow(false); }}
+                title={t('editor.toolbar.table')}
+              >
+                <TableIcon />
+              </ToolbarButton>
+            </div>
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-2 px-2">
+              <div className="grid grid-cols-4 gap-1">
+                <div className="relative">
+                  <ToolbarButton
+                    onClick={() => setShowMediaMenu(!showMediaMenu)}
+                    title={t('editor.toolbar.insertMedia', 'Insert image/video')}
+                  >
+                    <ImageIcon />
+                  </ToolbarButton>
+                  {showMediaMenu && (
+                    <MediaInsertMenu
+                      onInsertUrl={(url, alt) => { insertMedia(url, alt); setShowOverflow(false); }}
+                      onUploadFile={(file) => { uploadMedia(file); setShowOverflow(false); }}
+                      onCancel={() => setShowMediaMenu(false)}
+                    />
+                  )}
+                </div>
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().undo().run()}
+                  disabled={!editor.can().undo()}
+                  title={t('editor.toolbar.undo')}
+                >
+                  <UndoIcon />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().redo().run()}
+                  disabled={!editor.can().redo()}
+                  title={t('editor.toolbar.redo')}
+                >
+                  <RedoIcon />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => { window.print(); setShowOverflow(false); }}
+                  title={t('editor.toolbar.print', 'Print')}
+                >
+                  <PrintIcon />
+                </ToolbarButton>
+              </div>
+            </div>
+          </div>
         )}
       </div>
-
-      <Divider />
-      <ToolbarButton
-        onClick={() => editor.chain().focus().undo().run()}
-        disabled={!editor.can().undo()}
-        title={`${t('editor.toolbar.undo')} (⌘Z)`}
-      >
-        <UndoIcon />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => editor.chain().focus().redo().run()}
-        disabled={!editor.can().redo()}
-        title={`${t('editor.toolbar.redo')} (⌘⇧Z)`}
-      >
-        <RedoIcon />
-      </ToolbarButton>
-
-      <Divider />
-
-      {/* Print / Export PDF */}
-      <ToolbarButton
-        onClick={() => window.print()}
-        title={`${t('editor.toolbar.print', 'Print')} (⌘P)`}
-      >
-        <PrintIcon />
-      </ToolbarButton>
     </div>
   );
 }

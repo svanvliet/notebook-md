@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Smoke Tests', () => {
+
   test('welcome screen loads with sign-in and sign-up buttons', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Notebook.md' })).toBeVisible();
