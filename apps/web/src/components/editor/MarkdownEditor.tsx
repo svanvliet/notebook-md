@@ -429,6 +429,22 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     }
   }, []);
 
+  // Intercept clicks on relative .md links to open them in-app
+  const handleEditorClick = useCallback((e: React.MouseEvent) => {
+    const target = (e.target as HTMLElement).closest('a');
+    if (!target) return;
+    const href = target.getAttribute('href');
+    if (!href) return;
+    const isRelative = !href.match(/^[a-z]+:/i) && !href.startsWith('#');
+    if (isRelative && href.endsWith('.md')) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent('notebook-link-click', { detail: { href } }),
+      );
+    }
+  }, []);
+
   const editorStyle = {
     '--editor-font-family': fontFamily || 'inherit',
     '--editor-font-size': fontSize ? `${fontSize}px` : '16px',
@@ -583,6 +599,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
             onDrop={handleEditorDrop}
             onDragOver={handleEditorDragOver}
             onDragLeave={handleEditorDragLeave}
+            onClick={handleEditorClick}
           >
             <EditorContent editor={editor} />
             {editor && <SlashCommandMenu editor={editor} />}

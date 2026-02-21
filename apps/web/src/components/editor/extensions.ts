@@ -21,7 +21,6 @@ import Subscript from '@tiptap/extension-subscript';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { Mathematics } from '@tiptap/extension-mathematics';
-import { Plugin } from '@tiptap/pm/state';
 import 'katex/dist/katex.min.css';
 import { Callout } from './CalloutExtension';
 import { createLowlight } from 'lowlight';
@@ -85,37 +84,7 @@ export function getEditorExtensions(placeholder?: string) {
     }),
     Underline,
     Highlight.configure({ multicolor: true }),
-    Link.extend({
-      addProseMirrorPlugins() {
-        const parentPlugins = this.parent?.() ?? [];
-        return [
-          ...parentPlugins,
-          new Plugin({
-            props: {
-              handleDOMEvents: {
-                click: (_view, event) => {
-                  const target = (event.target as HTMLElement).closest('a');
-                  if (!target) return false;
-                  const href = target.getAttribute('href');
-                  if (!href) return false;
-                  // Intercept relative .md links (e.g. ./Basics/Foo.md, Basics/Foo.md)
-                  const isRelative = !href.match(/^[a-z]+:/i) && !href.startsWith('#');
-                  if (isRelative && href.endsWith('.md')) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    window.dispatchEvent(
-                      new CustomEvent('notebook-link-click', { detail: { href } }),
-                    );
-                    return true;
-                  }
-                  return false;
-                },
-              },
-            },
-          }),
-        ];
-      },
-    }).configure({
+    Link.configure({
       openOnClick: false,
       autolink: true,
       HTMLAttributes: {
