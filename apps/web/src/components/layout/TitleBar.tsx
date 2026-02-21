@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { DisplayMode } from '@notebook-md/shared';
 import { NotebookIcon, UserIcon, SunIcon, MoonIcon, MonitorIcon } from '../icons/Icons';
+import { DevBadge } from '../common/DevBadge';
 import { useState, useRef, useEffect } from 'react';
 import type { User } from '../../hooks/useAuth';
 
@@ -14,9 +15,10 @@ interface TitleBarProps {
   onCreateAccount?: () => void;
   onOpenAccount?: () => void;
   onOpenSettings?: () => void;
+  onDevLogin?: () => void;
 }
 
-export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings }: TitleBarProps) {
+export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings, onDevLogin }: TitleBarProps) {
   const { t } = useTranslation();
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -46,8 +48,9 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, o
       </div>
 
       {/* Center: Toolbar placeholder — will hold formatting controls when a doc is open */}
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center gap-3">
         <div id="toolbar-portal" />
+        <DevBadge onDevLogin={onDevLogin} />
       </div>
 
       {/* Right: Theme toggle + Account */}

@@ -264,6 +264,7 @@ export default function App() {
           onMagicLink={auth.requestMagicLink}
           onOAuth={handleOAuth}
           onEnterDemo={auth.enterDemoMode}
+          onDevLogin={auth.devSkipAuth}
           initialView={welcomeView}
           error={oauthError ?? auth.error}
           onClearError={() => { setOauthError(null); auth.clearError(); }}
@@ -272,15 +273,6 @@ export default function App() {
           onSend2faEmailCode={auth.send2faEmailCode}
           onCancel2fa={auth.cancel2fa}
         />
-        {/* Dev shortcut to skip auth */}
-        {process.env.NODE_ENV !== 'production' && (
-          <button
-            onClick={auth.devSkipAuth}
-            className="fixed bottom-4 right-4 z-50 px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors shadow-md"
-          >
-            Skip to app (dev)
-          </button>
-        )}
         {cookieConsent.showBanner && (
           <CookieConsentBanner
             onAcceptAll={cookieConsent.acceptAll}
@@ -331,6 +323,7 @@ export default function App() {
         onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }}
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onDevLogin={auth.devSkipAuth}
       />
       {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }} />}
       <ToastContainer />
