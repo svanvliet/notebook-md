@@ -46,10 +46,13 @@ export default function App() {
   useEffect(() => {
     if (location.state?.enterDemo && !auth.isDemoMode && !auth.isSignedIn) {
       auth.enterDemoMode();
-      // Clear the state so refreshing doesn't re-trigger
       navigate('/', { replace: true, state: {} });
     }
-  }, [location.state?.enterDemo]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (location.state?.signIn && !auth.isSignedIn) {
+      setWelcomeView('signin');
+      navigate('/', { replace: true, state: {} });
+    }
+  }, [location.state?.enterDemo, location.state?.signIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
