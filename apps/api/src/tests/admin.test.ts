@@ -130,9 +130,10 @@ describe('Admin Console API', () => {
       const detailRes = await request.get(`/admin/users/${userId}`).set('Cookie', cookies);
       expect(detailRes.body.user.isSuspended).toBe(true);
 
-      // User's session is revoked — they get 401 (session invalid)
+      // User's session is revoked — optionalAuth returns { user: null }
       const meRes = await request.get('/auth/me').set('Cookie', userCookies);
-      expect([401, 403]).toContain(meRes.status);
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.user).toBeNull();
     });
 
     it('should prevent self-modification', async () => {
