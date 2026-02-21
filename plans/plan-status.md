@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-21
 
 ---
 
@@ -3125,9 +3125,58 @@ Added public-facing content pages for the welcome screen with a shared marketing
 
 ### Deployed as `v0.1.6` ✅
 
+### API Tests for New Endpoints ✅
+**Date:** 2026-02-20
+
+Added tests for recently created endpoints:
+- **`contact.test.ts`** (9 tests): POST /api/contact — validates required fields, length limits, rate limiting, success path
+- **`dev-login.test.ts`** (3 tests): POST /auth/dev-login — creates dev user, reuses existing dev user, rejects in production
+
+**Commit:** `c2ec87e`
+
+### Demo Mode ✅
+**Date:** 2026-02-20
+
+Full implementation of try-before-you-sign-up demo mode. See `plans/demo-mode-plan.md` for detailed plan and status.
+
+**New Components:**
+- **DemoBanner** (`DemoBanner.tsx`): Dismissible blue info banner shown in demo mode with "Create a free account" CTA
+
+**Modified Components:**
+- **useAuth**: Added `isDemoMode`, `enterDemoMode()`, `exitDemoMode()` — sessionStorage-backed, synthetic demo user, skips `/auth/me` checks
+- **App.tsx**: Demo mode wiring — navigation state handling for cross-page "Try Demo" / "Sign In" actions, `welcomeView` for direct-to-form navigation, notebook migration on sign-up
+- **WelcomeScreen**: "Try it free" as primary CTA above Sign In, `initialView` prop for direct form navigation, `<main>` tag for semantics
+- **MarketingNav**: "Try Demo" button on all content pages using `navigate()` with state
+- **TitleBar**: Demo mode dropdown (Demo Mode label, Settings, Create Account, Exit Demo)
+- **AddNotebookModal**: Remote sources gated with clickable "Sign up to connect →" links
+- **localNotebookStore.ts**: `migrateAnonymousNotebooks(newUserId)` — copies IndexedDB records from anonymous scope to user scope, deletes anonymous DB
+
+**UX Refinements:**
+- "Try it free" positioned as primary CTA above Sign In
+- Separator between Sign Up and OAuth removed
+- Spacing tightened between UI elements for cleaner flow
+- Sign In navigation stabilized with one-shot `welcomeView` pattern
+- E2E tests scoped to avoid strict mode violations (nav vs main `Sign In` buttons)
+
+**Commits:** `c3825d5`, `bd8bb04`, `55c150b`, `ceec1f2`, `764633e`, `909bf63`, `59d42c9`, `d7864ca`, `d315f89`
+
+### Requirements Updated ✅
+**Date:** 2026-02-21
+
+- Added Section 6.5 (Demo Mode) to `requirements/requirements.md` — covers entry points, behavior, restrictions, banner, TitleBar changes, demo-to-account migration, and exit behavior
+- Bumped requirements version to 1.7
+
+### Deploying as `v0.1.7` (in progress)
+**Date:** 2026-02-21
+
+- Fixed lint error (`let` → `const` in dev-login endpoint)
+- Fixed E2E test failures (scoped Sign In selectors to avoid strict mode violations from dual buttons in nav + form)
+- Re-tagged `v0.1.7` on fixed commit; deploy workflow waiting for CI gate
+
 ---
 
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
 - **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use.
+- **Demo mode tests:** Unit tests for demo auth state, migration function, and gated features are still pending.

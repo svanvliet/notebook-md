@@ -1,7 +1,7 @@
 # Notebook.md — Product Requirements Document
 
-**Version:** 1.6  
-**Last Updated:** 2026-02-19  
+**Version:** 1.7  
+**Last Updated:** 2026-02-21  
 **Status:** Draft  
 **Domain:** notebookmd.io
 
@@ -547,6 +547,42 @@ Displayed when the user is not signed in:
 ### 6.4 Post-Sign-In (No Notebooks)
 
 - If the user has no Notebooks configured, show an empty state with a prompt: "Add your first notebook" with buttons for each source type
+
+### 6.5 Demo Mode (Try Without Account)
+
+Users can explore the app without creating an account via a limited "demo mode":
+
+#### 6.5.1 Entry Points
+- **WelcomeScreen:** "Try it free — no account needed" button displayed prominently above the Sign In button
+- **MarketingNav:** "Try Demo" button visible on all public pages (Home, Features, About, Contact)
+
+#### 6.5.2 Demo Mode Behavior
+- Demo mode activates without any server-side authentication; state stored in `sessionStorage` (clears on tab close)
+- A synthetic demo user is created client-side (no API calls)
+- Full editor functionality is available — users can create, edit, and manage local notebooks
+- Local notebooks are stored in IndexedDB under the `anonymous` scope
+
+#### 6.5.3 Feature Restrictions
+- **Remote sources disabled:** GitHub, OneDrive, and Google Drive notebook sources are not available
+- **Account settings hidden:** No account management or source linking options
+- **Restricted UI elements** show "Sign up to connect" or "Create a free account" calls-to-action that link directly to the sign-up form
+
+#### 6.5.4 Demo Banner
+- A dismissible informational banner appears at the top of the main app view: "You're using Notebook.md in demo mode. Create a free account to connect cloud storage and sync across devices."
+- The banner's "Create a free account" link navigates directly to the sign-up form
+
+#### 6.5.5 TitleBar in Demo Mode
+- Account dropdown shows: "Demo Mode" label, Settings (allowed), "Create Account" CTA, "Exit Demo"
+- Account Settings, Admin Site, and Sign Out are hidden
+
+#### 6.5.6 Demo-to-Account Migration
+- When a demo user signs up, all notebooks and files created during the demo session are automatically migrated from the `anonymous` IndexedDB to the new user's scoped database
+- The anonymous database is deleted after successful migration
+- Migration preserves notebook structure, file content, and metadata
+
+#### 6.5.7 Exit Demo
+- "Exit Demo" returns the user to the welcome screen
+- Demo session data remains in IndexedDB until the user signs up or the browser clears storage
 
 ---
 
