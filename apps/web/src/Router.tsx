@@ -22,7 +22,15 @@ function AppRoutes() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         {/* Auth callback routes — App handles these via useEffect */}
-        <Route path="/app/*" element={<App />} />
+        <Route path="/app/magic-link" element={<App />} />
+        <Route path="/app/verify-email" element={<App />} />
+        <Route path="/app/auth-error" element={<App />} />
+        {/* Main app with document deep links */}
+        <Route path="/app" element={<App />} />
+        <Route path="/app/:notebookName/*" element={<App />} />
+        {/* Demo mode with document deep links */}
+        <Route path="/demo" element={<App />} />
+        <Route path="/demo/:notebookName/*" element={<App />} />
         {/* Catch-all: redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

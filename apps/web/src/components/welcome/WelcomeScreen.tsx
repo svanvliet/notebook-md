@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NotebookIcon } from '../icons/Icons';
 import { MarketingNav, MarketingFooter } from '../marketing/MarketingLayout';
 
@@ -26,6 +26,7 @@ type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnterDemo, onDevLogin, initialView, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigateToDemo = useNavigate();
   const [view, setView] = useState<View>(error ? 'signin' : initialView ?? 'main');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -263,7 +264,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
           <>
             <div className="w-full space-y-3">
               <button
-                onClick={onEnterDemo}
+                onClick={() => navigateToDemo('/demo')}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors text-sm"
               >
                 Try it free — no account needed

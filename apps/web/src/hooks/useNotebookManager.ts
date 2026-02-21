@@ -80,6 +80,7 @@ export type ToastFn = (message: string, type?: ToastType) => void;
 
 export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDemoMode?: boolean) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
+  const navigateToFileRef = useRef<((notebookId: string, path: string) => void) | null>(null);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
   const [loadingNotebooks, setLoadingNotebooks] = useState<Set<string>>(new Set());
   const [tabs, setTabs] = useState<OpenTab[]>([]);
@@ -89,6 +90,16 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   const [saveLocationRequest, setSaveLocationRequest] = useState<SaveLocationRequest | null>(null);
   const [pendingExpandPath, setPendingExpandPath] = useState<{ notebookId: string; path: string } | null>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const tabRestorationDone = useRef(false);
+
+  // Persist open tabs to sessionStorage on every change
+  useEffect(() => {
+    if (!tabRestorationDone.current && tabs.length === 0) return; // Don't clear before restore
+    try {
+      const data = tabs.map((t) => ({ id: t.id, notebookId: t.notebookId, path: t.path, name: t.name }));
+      sessionStorage.setItem('nb:tabs', JSON.stringify(data));
+    } catch { /* sessionStorage may be full */ }
+  }, [tabs]);
 
   // Show a temporary status bar message
   const flash = useCallback((msg: string, ms = 2000) => {
@@ -1089,6 +1100,22 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     setFiles(fileMap);
   }, []);
 
+  // Restore previously open tabs from sessionStorage (called after notebooks are loaded)
+  const restoreTabs = useCallback(async () => {
+    if (tabRestorationDone.current) return;
+    tabRestorationDone.current = true;
+    try {
+      const raw = sessionStorage.getItem('nb:tabs');
+      if (!raw) return;
+      const persisted: { id: string; notebookId: string; path: string; name: string }[] = JSON.parse(raw);
+      if (!persisted.length) return;
+      // Re-open each tab silently (errors are swallowed for individual tabs)
+      for (const t of persisted) {
+        await handleOpenFile(t.notebookId, t.path).catch(() => {});
+      }
+    } catch { /* ignore corrupt data */ }
+  }, [handleOpenFile]);
+
   const handleCopyFile = useCallback(async (
     sourceNotebookId: string,
     sourcePath: string,
@@ -1210,8 +1237,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         if (seg === '..') normalized.pop();
         else if (seg !== '.') normalized.push(seg);
       }
-      handleOpenFile(notebookId, normalized.join('/'));
-      setPendingExpandPath({ notebookId, path: normalized.join('/') });
+      const resolvedPath = normalized.join('/');
+      // Use navigateToFile (URL-based) if available, otherwise fall back to direct open
+      if (navigateToFileRef.current) {
+        navigateToFileRef.current(notebookId, resolvedPath);
+      } else {
+        handleOpenFile(notebookId, resolvedPath);
+      }
+      setPendingExpandPath({ notebookId, path: resolvedPath });
     };
     window.addEventListener('notebook-link-click', handler);
     return () => window.removeEventListener('notebook-link-click', handler);
@@ -1257,5 +1290,10 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
+    restoreTabs,
+    /** Set the navigation callback for URL-based routing of link clicks */
+    setNavigateToFile: useCallback((fn: ((notebookId: string, path: string) => void) | null) => {
+      navigateToFileRef.current = fn;
+    }, []),
   };
 }

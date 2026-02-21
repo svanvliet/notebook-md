@@ -28,6 +28,7 @@ import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { migrateAnonymousNotebooks } from './stores/localNotebookStore';
 import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './stores/demoContent';
+import { useDocumentRoute } from './hooks/useDocumentRoute';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -42,6 +43,22 @@ export default function App() {
   const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // URL-based navigation state
+  const docRoute = useDocumentRoute({
+    notebooks: nb.notebooks,
+    activeTabId: nb.activeTabId,
+    isDemoMode: auth.isDemoMode,
+    isSignedIn: auth.isSignedIn,
+    handleOpenFile: nb.handleOpenFile,
+    expandToFile: nb.expandToFile,
+  });
+
+  // Wire navigateToFile into notebook manager for link clicks
+  useEffect(() => {
+    nb.setNavigateToFile(docRoute.navigateToFile);
+    return () => nb.setNavigateToFile(null);
+  }, [nb.setNavigateToFile, docRoute.navigateToFile]);
 
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
@@ -63,34 +80,52 @@ export default function App() {
   // Track pending demo initialization (needs fresh nb reference after re-render)
   const demoInitPending = useRef(false);
 
-  // Enter demo mode: create demo notebook, then let the effect below finish init
+  // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {
     auth.enterDemoMode();
     await createDemoNotebook();
     demoInitPending.current = true;
   }, [auth]);
 
+  // Auto-enter demo mode when navigating to /demo
+  useEffect(() => {
+    if (location.pathname.startsWith('/demo') && !auth.isDemoMode && !auth.isSignedIn && !auth.loading) {
+      handleEnterDemo();
+    }
+  }, [location.pathname, auth.isDemoMode, auth.isSignedIn, auth.loading, handleEnterDemo]);
+
   // Complete demo init after re-render provides a fresh nb with correct userId
   useEffect(() => {
     if (!demoInitPending.current || !auth.isDemoMode) return;
     demoInitPending.current = false;
     nb.reloadNotebooks().then(() => {
-      nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
-      nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+      // If URL has a specific file path, useDocumentRoute will handle it.
+      // Otherwise, open Getting Started by default.
+      if (!docRoute.urlFilePath) {
+        nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+        nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+      }
     });
-  }, [auth.isDemoMode, nb]);
+  }, [auth.isDemoMode, nb]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
     if (location.state?.enterDemo && !auth.isDemoMode && !auth.isSignedIn) {
       handleEnterDemo();
-      navigate('/', { replace: true, state: {} });
+      navigate('/demo', { replace: true, state: {} });
     }
     if (location.state?.signIn && !auth.isSignedIn) {
       setWelcomeView('signin');
       navigate('/', { replace: true, state: {} });
     }
   }, [location.state?.enterDemo, location.state?.signIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore previously open tabs after notebooks finish loading (non-demo)
+  useEffect(() => {
+    if (auth.isSignedIn && !auth.isDemoMode && nb.notebooks.length > 0 && nb.tabs.length === 0) {
+      nb.restoreTabs();
+    }
+  }, [auth.isSignedIn, auth.isDemoMode, nb.notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear welcomeView after it's been consumed (one-shot)
   useEffect(() => {
@@ -99,6 +134,17 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [welcomeView, auth.isSignedIn]);
+
+  // Redirect to stored deep link URL after successful login
+  useEffect(() => {
+    if (auth.isSignedIn && !auth.loading) {
+      const returnTo = sessionStorage.getItem('nb:returnTo');
+      if (returnTo) {
+        sessionStorage.removeItem('nb:returnTo');
+        navigate(returnTo, { replace: true });
+      }
+    }
+  }, [auth.isSignedIn, auth.loading, navigate]);
 
   // Integrate modals with browser history (back button closes them)
   const closeSettings = useModalHistory(showSettings, () => setShowSettings(false));
@@ -261,6 +307,10 @@ export default function App() {
 
   // Welcome screen when not signed in
   if (!auth.isSignedIn && !auth.loading) {
+    // Store deep link URL for post-login redirect
+    if (location.pathname.startsWith('/app/') && !location.pathname.startsWith('/app/magic-link') && !location.pathname.startsWith('/app/verify-email') && !location.pathname.startsWith('/app/auth-error')) {
+      sessionStorage.setItem('nb:returnTo', location.pathname);
+    }
     const handleOAuth = (provider: string) => {
       window.location.href = `${API_BASE}/auth/oauth/${provider}?returnTo=/`;
     };
@@ -368,7 +418,7 @@ export default function App() {
           onImportFile={nb.handleImportFile}
           onDeleteFile={nb.handleDeleteFile}
           onRenameFile={nb.handleRenameFile}
-          onOpenFile={nb.handleOpenFile}
+          onOpenFile={docRoute.navigateToFile}
           onExpandNotebook={(notebookId: string) => {
             // Lazy-load files for remote notebooks when expanded
             const notebook = nb.notebooks.find((n) => n.id === notebookId);
@@ -396,7 +446,10 @@ export default function App() {
           tabs={docTabs}
           activeTabId={nb.activeTabId}
           onTabSelect={nb.setActiveTabId}
-          onTabClose={nb.handleTabClose}
+          onTabClose={(tabId: string) => {
+            docRoute.markReplaceNext(); // URL update should replace, not push
+            nb.handleTabClose(tabId);
+          }}
           onContentChange={nb.handleContentChange}
           onWordCountChange={handleWordCountChange}
           showPublish={!!(nb.activeTab && nb.hasWorkingBranch(nb.activeTab.notebookId))}
@@ -497,6 +550,7 @@ export default function App() {
           initialSource={initialSource}
           isDemoMode={auth.isDemoMode}
           onDemoSignUp={() => { closeAddNotebook(); setWelcomeView('signup'); auth.exitDemoMode(); }}
+          existingNames={nb.notebooks.map((n) => n.name)}
         />
       )}
 

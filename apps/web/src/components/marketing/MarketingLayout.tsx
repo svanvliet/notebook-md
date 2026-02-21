@@ -52,7 +52,7 @@ export function MarketingNav({ onEnterDemo, onDevLogin }: { onEnterDemo?: () => 
     if (onEnterDemo) {
       onEnterDemo();
     } else {
-      navigate('/', { state: { enterDemo: true } });
+      navigate('/demo');
     }
   };
 

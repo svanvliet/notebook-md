@@ -41,11 +41,13 @@ interface AddNotebookModalProps {
   initialSource?: string | null;
   isDemoMode?: boolean;
   onDemoSignUp?: () => void;
+  /** Existing notebook names for uniqueness validation */
+  existingNames?: string[];
 }
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode, onDemoSignUp }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
   const [sourceType, setSourceType] = useState<SourceType | null>(validSource);
@@ -75,6 +77,10 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
     const trimmed = name.trim();
     if (!trimmed) {
       setError('Name is required');
+      return;
+    }
+    if (existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase())) {
+      setError('A notebook with this name already exists. Please choose a different name.');
       return;
     }
     onAdd(trimmed, sourceType!, sourceConfig);
