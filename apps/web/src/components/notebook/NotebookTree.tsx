@@ -158,11 +158,31 @@ export function NotebookTree({
   activeFilePath,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
-  const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(new Set());
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  // Restore tree expansion state from sessionStorage
+  const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem('nb:tree:notebooks');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+  });
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem('nb:tree:folders');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [renamingItem, setRenamingItem] = useState<{ type: 'notebook' | 'file'; key: string } | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  // Persist tree expansion state to sessionStorage on changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('nb:tree:notebooks', JSON.stringify([...expandedNotebooks]));
+      sessionStorage.setItem('nb:tree:folders', JSON.stringify([...expandedFolders]));
+    } catch { /* ignore */ }
+  }, [expandedNotebooks, expandedFolders]);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   // Drag state for tree items
@@ -247,16 +267,25 @@ export function NotebookTree({
   const startRename = useCallback((type: 'notebook' | 'file', key: string, currentName: string) => {
     setRenamingItem({ type, key });
     setRenameValue(currentName);
+    setRenameError(null);
     setContextMenu(null);
   }, []);
 
   const commitRename = useCallback(() => {
     if (!renamingItem || !renameValue.trim()) {
       setRenamingItem(null);
+      setRenameError(null);
       return;
     }
     if (renamingItem.type === 'notebook') {
-      onRenameNotebook(renamingItem.key, renameValue.trim());
+      const trimmed = renameValue.trim();
+      // Check uniqueness (case-insensitive, excluding the notebook being renamed)
+      const duplicate = notebooks.some((n) => n.id !== renamingItem.key && n.name.toLowerCase() === trimmed.toLowerCase());
+      if (duplicate) {
+        setRenameError('A notebook with this name already exists');
+        return;
+      }
+      onRenameNotebook(renamingItem.key, trimmed);
     } else {
       const sepIdx = renamingItem.key.indexOf(':');
       const notebookId = renamingItem.key.slice(0, sepIdx);
@@ -264,7 +293,8 @@ export function NotebookTree({
       onRenameFile(notebookId, path, renameValue.trim());
     }
     setRenamingItem(null);
-  }, [renamingItem, renameValue, onRenameNotebook, onRenameFile]);
+    setRenameError(null);
+  }, [renamingItem, renameValue, onRenameNotebook, onRenameFile, notebooks]);
 
   const renderFileItem = (file: FileEntry, depth: number) => {
     const isFolder = file.type === 'folder';
@@ -559,18 +589,21 @@ export function NotebookTree({
               <ChevronRightIcon className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
               <SourceIcon sourceType={nb.sourceType ?? 'local'} className="w-4 h-4 shrink-0" />
               {isRenaming ? (
-                <input
-                  ref={renameInputRef}
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitRename();
-                    if (e.key === 'Escape') setRenamingItem(null);
-                  }}
-                  onBlur={commitRename}
-                  className="flex-1 text-sm bg-white dark:bg-gray-800 border border-blue-500 rounded px-1 py-0 outline-none min-w-0 font-medium"
-                  onClick={(e) => e.stopPropagation()}
-                />
+                <div className="flex-1 min-w-0">
+                  <input
+                    ref={renameInputRef}
+                    value={renameValue}
+                    onChange={(e) => { setRenameValue(e.target.value); setRenameError(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') { setRenamingItem(null); setRenameError(null); }
+                    }}
+                    onBlur={commitRename}
+                    className={`w-full text-sm bg-white dark:bg-gray-800 border ${renameError ? 'border-red-500' : 'border-blue-500'} rounded px-1 py-0 outline-none min-w-0 font-medium`}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {renameError && <p className="text-xs text-red-500 mt-0.5">{renameError}</p>}
+                </div>
               ) : (
                 <span className="font-medium text-gray-800 dark:text-gray-200 truncate">{nb.name}</span>
               )}
