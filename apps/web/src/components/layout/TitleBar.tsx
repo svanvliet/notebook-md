@@ -40,7 +40,7 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, o
   ];
 
   return (
-    <header className="h-11 border-b border-gray-200 dark:border-gray-800 flex items-center px-3 shrink-0 bg-white dark:bg-gray-950 select-none">
+    <header className="h-11 border-b border-gray-200 dark:border-gray-800 flex items-center px-3 shrink-0 bg-white dark:bg-gray-950 select-none relative">
       {/* Left: Logo + App Name */}
       <div className="flex items-center gap-2 shrink-0">
         <NotebookIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -48,8 +48,12 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, o
       </div>
 
       {/* Center: Toolbar placeholder — will hold formatting controls when a doc is open */}
-      <div className="flex-1 flex items-center justify-center gap-3">
+      <div className="flex-1 flex items-center justify-center">
         <div id="toolbar-portal" />
+      </div>
+
+      {/* Centered DEV badge — absolute so position is consistent across pages */}
+      <div className="absolute left-1/2 -translate-x-1/2">
         <DevBadge onDevLogin={onDevLogin} />
       </div>
 
