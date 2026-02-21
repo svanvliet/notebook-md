@@ -78,7 +78,7 @@ import type { ToastType } from './useToast';
 
 export type ToastFn = (message: string, type?: ToastType) => void;
 
-export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
+export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDemoMode?: boolean) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
   const [files, setFiles] = useState<Record<string, FileEntry[]>>({});
   const [loadingNotebooks, setLoadingNotebooks] = useState<Set<string>>(new Set());
@@ -101,8 +101,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn) {
   useEffect(() => {
     setStorageScope(userId ?? null);
     (async () => {
-      // Sync remote notebooks from server into IndexedDB
-      if (userId) {
+      // Sync remote notebooks from server into IndexedDB (skip in demo mode)
+      if (userId && !isDemoMode) {
         try {
           const res = await apiFetch('/api/notebooks');
           if (res.ok) {
