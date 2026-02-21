@@ -1,11 +1,12 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NotebookIcon } from '../icons/Icons';
+import { DevBadge } from '../common/DevBadge';
 
 interface MarketingLayoutProps {
   children: React.ReactNode;
 }
 
-export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
+export function MarketingNav({ onEnterDemo, onDevLogin }: { onEnterDemo?: () => void; onDevLogin?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const isActive = (path: string) => location.pathname === path;
@@ -45,6 +46,7 @@ export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
           >
             Try Demo
           </button>
+          <DevBadge onDevLogin={onDevLogin} />
           <button
             onClick={() => navigate('/', { state: { signIn: true } })}
             className="ml-2 px-4 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"

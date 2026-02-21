@@ -10,6 +10,7 @@ interface WelcomeScreenProps {
   onMagicLink: (email: string) => Promise<boolean>;
   onOAuth: (provider: string) => void;
   onEnterDemo: () => void;
+  onDevLogin?: () => void;
   initialView?: View;
   error: string | null;
   onClearError: () => void;
@@ -22,7 +23,7 @@ interface WelcomeScreenProps {
 
 type View = 'main' | 'signin' | 'signup' | 'magic-link-sent';
 
-export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnterDemo, initialView, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
+export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnterDemo, onDevLogin, initialView, error, onClearError, twoFactorChallenge, onVerify2fa, onSend2faEmailCode, onCancel2fa }: WelcomeScreenProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const [view, setView] = useState<View>(error ? 'signin' : initialView ?? 'main');
@@ -246,7 +247,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
-      <MarketingNav onEnterDemo={onEnterDemo} />
+      <MarketingNav onEnterDemo={onEnterDemo} onDevLogin={onDevLogin} />
       <main className="flex-1 flex flex-col items-center justify-center">
       <div className="flex flex-col items-center w-full max-w-sm px-6">
         {/* Logo */}
