@@ -3220,6 +3220,36 @@ Added rich URL preview support for social sharing.
 
 ### Deployed as `v0.1.8` ✅
 
+### useSettings Test Fix ✅
+**Date:** 2026-02-21
+
+Fixed 8 pre-existing `useSettings.test.ts` failures caused by jsdom not providing a fully functional `localStorage`. Methods like `clear()`, `setItem()`, `removeItem()` were "not a function".
+
+- Created a `Map`-backed `Storage` mock implementing the full `Storage` interface
+- Applied via `Object.defineProperty` on both `window` and `globalThis`
+- All 132 web tests now pass (was 124 + 8 failures)
+
+**Files:** `apps/web/src/tests/useSettings.test.ts`
+
+### Dev Mode Indicator Badge ✅
+**Date:** 2026-02-21
+
+Added an orange "DEV" pill badge to distinguish development from production environments when running locally.
+
+- **DevBadge component:** Orange pill with `DEV` text, only rendered when `NODE_ENV !== 'production'`. Clickable with dropdown menu containing "Log in to Dev Account" action and current hostname display.
+- **Consistent positioning:** Uses `absolute left-1/2 -translate-x-1/2` in both TitleBar and MarketingNav so the badge is always centered horizontally on the page regardless of surrounding content.
+- **Replaces old dev button:** Removed the fixed-position "Skip to app (dev)" button from App.tsx. Dev login action now accessible via the DEV badge dropdown on all pages.
+- **Props wired through:** `onDevLogin` prop threaded from `App.tsx` → `TitleBar` and `App.tsx` → `WelcomeScreen` → `MarketingNav`.
+
+**Files:**
+- `apps/web/src/components/common/DevBadge.tsx` — new component
+- `apps/web/src/components/layout/TitleBar.tsx` — added DevBadge with absolute centering
+- `apps/web/src/components/marketing/MarketingLayout.tsx` — added DevBadge with absolute centering
+- `apps/web/src/components/welcome/WelcomeScreen.tsx` — added `onDevLogin` prop passthrough
+- `apps/web/src/App.tsx` — removed old dev button, wired `onDevLogin` to TitleBar and WelcomeScreen
+
+**Commits:** `20e7643`, `905cb42`
+
 ---
 
 ## Open Questions
@@ -3227,4 +3257,3 @@ Added rich URL preview support for social sharing.
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
 - **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use. CASA Tier 2 assessment submitted.
 - **Demo mode tests:** Unit tests for demo auth state, migration function, and gated features are still pending.
-- **useSettings tests:** 8 pre-existing failures in useSettings.test.ts need investigation (unrelated to security changes).
