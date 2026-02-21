@@ -269,7 +269,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
               </button>
             </div>
 
-            <div className="w-full mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+            <div className="w-full mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">already have an account?</p>
               <div className="w-full space-y-3">
                 <button
