@@ -287,7 +287,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
               </div>
             </div>
 
-            <div className="w-full mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+            <div className="w-full mt-4">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">or continue with</p>
               <div className="flex justify-center gap-3">
                 {providers.map(p => (

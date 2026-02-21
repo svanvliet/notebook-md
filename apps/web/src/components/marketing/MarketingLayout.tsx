@@ -47,6 +47,7 @@ export function MarketingNav({ onEnterDemo }: { onEnterDemo?: () => void }) {
           </button>
           <Link
             to="/"
+            state={{ signIn: true }}
             className="ml-2 px-4 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
           >
             Sign In
