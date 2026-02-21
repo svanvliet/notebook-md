@@ -248,7 +248,7 @@ export function WelcomeScreen({ onSignIn, onSignUp, onMagicLink, onOAuth, onEnte
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
       <MarketingNav onEnterDemo={onEnterDemo} onDevLogin={onDevLogin} />
-      <main className="flex-1 flex flex-col items-center justify-center">
+      <main className="flex-1 flex flex-col items-center justify-center py-8 md:py-12">
       <div className="flex flex-col items-center w-full max-w-sm px-6">
         {/* Logo */}
         <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mb-6 shadow-lg">

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { XIcon } from '../icons/Icons';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { XIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons/Icons';
 import { MarkdownEditor } from '../editor/MarkdownEditor';
 import { EditorErrorBoundary } from '../editor/EditorErrorBoundary';
 
@@ -47,16 +48,56 @@ export function DocumentPane({
 }: DocumentPaneProps) {
   const { t } = useTranslation();
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollButtons = useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    updateScrollButtons();
+    el.addEventListener('scroll', updateScrollButtons, { passive: true });
+    const ro = new ResizeObserver(updateScrollButtons);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', updateScrollButtons); ro.disconnect(); };
+  }, [tabs.length, updateScrollButtons]);
+
+  // Auto-scroll active tab into view
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el || !activeTabId) return;
+    const activeEl = el.querySelector(`[data-tab-id="${activeTabId}"]`) as HTMLElement;
+    activeEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [activeTabId]);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction === 'left' ? -150 : 150, behavior: 'smooth' });
+  };
 
   return (
     <div className="document-pane flex-1 flex flex-col min-w-0">
       {/* Tab bar */}
       {tabs.length > 0 && (
         <div className="document-tabs h-9 flex items-end border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-1 gap-0.5 shrink-0">
-          <div className="flex items-end overflow-x-auto scrollbar-hide gap-0.5 flex-1 min-w-0">
+          {canScrollLeft && (
+            <button onClick={() => scrollTabs('left')} className="self-center p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0" aria-label="Scroll tabs left">
+              <ChevronLeftIcon className="w-3 h-3" />
+            </button>
+          )}
+          <div ref={tabsContainerRef} className="flex items-end overflow-x-auto scrollbar-hide gap-0.5 flex-1 min-w-0">
             {tabs.map((tab) => (
               <div
                 key={tab.id}
+                data-tab-id={tab.id}
                 className={`group flex items-center gap-1.5 px-3 h-8 text-sm rounded-t-md cursor-pointer transition-colors select-none shrink-0 ${
                   activeTabId === tab.id
                     ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 border border-b-0 border-gray-200 dark:border-gray-800'
@@ -81,6 +122,11 @@ export function DocumentPane({
               </div>
             ))}
           </div>
+          {canScrollRight && (
+            <button onClick={() => scrollTabs('right')} className="self-center p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0" aria-label="Scroll tabs right">
+              <ChevronRightIcon className="w-3 h-3" />
+            </button>
+          )}
           {showPublish && (
             <div className="flex items-center gap-1 shrink-0">
               <button

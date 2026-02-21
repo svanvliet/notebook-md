@@ -36,8 +36,8 @@ export default function App() {
   const sidebar = useSidebarResize();
   const auth = useAuth();
   const { addToast } = useToast();
-  const nb = useNotebookManager(auth.user?.id, addToast);
-  const { settings, updateSettings } = useSettings(auth.isSignedIn);
+  const nb = useNotebookManager(auth.user?.id, addToast, auth.isDemoMode);
+  const { settings, updateSettings } = useSettings(auth.isSignedIn && !auth.isDemoMode);
   const cookieConsent = useCookieConsent();
   const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
   const navigate = useNavigate();
