@@ -10,7 +10,7 @@ import { auditLog } from '../lib/audit.js';
 import { createSession, rotateRefreshToken, revokeSession, revokeAllUserSessions } from '../services/session.js';
 import { get2faStatus, createChallengeToken } from '../services/two-factor.js';
 import { setRefreshCookie, clearRefreshCookie } from '../lib/cookies.js';
-import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -591,14 +591,9 @@ router.post('/signout', authReadLimiter, requireAuth, async (req: Request, res: 
 });
 
 // ---------------------------------------------------------------------------
-// GET /auth/me — Get current user (returns { user: null } when not authenticated)
+// GET /auth/me — Get current user
 // ---------------------------------------------------------------------------
-router.get('/me', authReadLimiter, optionalAuth, async (req: Request, res: Response) => {
-  if (!req.userId) {
-    res.json({ user: null });
-    return;
-  }
-
+router.get('/me', authReadLimiter, requireAuth, async (req: Request, res: Response) => {
   const result = await query<{
     id: string;
     display_name: string;

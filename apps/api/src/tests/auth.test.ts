@@ -203,12 +203,11 @@ describe('Auth Flows', () => {
       .set('Cookie', `refresh_token=${token}`);
     expect(signOutRes.status).toBe(200);
 
-    // Session should be invalid now — optionalAuth returns { user: null }
+    // Session should be invalid now
     const meRes = await request
       .get('/auth/me')
       .set('Cookie', `refresh_token=${token}`);
-    expect(meRes.status).toBe(200);
-    expect(meRes.body.user).toBeNull();
+    expect(meRes.status).toBe(401);
   });
 
   // --- Get current user (/auth/me) ---
@@ -223,10 +222,9 @@ describe('Auth Flows', () => {
     expect(meRes.body.user.displayName).toBe('Alice');
   });
 
-  it('should return { user: null } for unauthenticated /auth/me', async () => {
+  it('should return 401 for unauthenticated /auth/me', async () => {
     const res = await request.get('/auth/me');
-    expect(res.status).toBe(200);
-    expect(res.body.user).toBeNull();
+    expect(res.status).toBe(401);
   });
 
   // --- Update profile ---
