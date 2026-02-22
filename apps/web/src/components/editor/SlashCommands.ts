@@ -216,6 +216,11 @@ export const SlashCommandExtension = Extension.create({
               return { active: false, query: '', range: null, decorationSet: DecorationSet.empty };
             }
 
+            // Don't trigger inside code blocks or inline code
+            if ($from.parent.type.name === 'codeBlock' || $from.marks().some(m => m.type.name === 'code')) {
+              return { active: false, query: '', range: null, decorationSet: DecorationSet.empty };
+            }
+
             const textBefore = $from.parent.textContent.slice(0, $from.parentOffset);
             const slashMatch = textBefore.match(/\/([a-zA-Z0-9 ]*)$/);
 
