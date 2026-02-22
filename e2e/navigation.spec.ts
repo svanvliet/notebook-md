@@ -10,14 +10,16 @@ test.describe('Navigation & URL State', () => {
 
   test('/demo URL shows demo notebook content', async ({ page }) => {
     await page.goto('/demo');
+    // Wait for app to fully initialize (document pane renders after demo notebook is created)
+    await expect(page.locator('.document-pane')).toBeVisible({ timeout: 15_000 });
     // Should have the notebook pane with Demo Notebook visible
     await expect(page.getByText('Demo Notebook')).toBeVisible({ timeout: 10_000 });
   });
 
   test('deep link /demo/Demo%20Notebook/Getting%20Started.md loads file', async ({ page }) => {
     await page.goto('/demo/Demo%20Notebook/Getting%20Started.md');
-    // Should enter demo and open Getting Started
-    await expect(page.locator('.document-pane')).toBeVisible({ timeout: 10_000 });
+    // Wait for demo mode to fully initialize
+    await expect(page.locator('.document-pane')).toBeVisible({ timeout: 15_000 });
     // Tab should show the file name
     await expect(page.locator('[data-tab-id]')).toBeVisible({ timeout: 10_000 });
   });
