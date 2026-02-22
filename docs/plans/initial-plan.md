@@ -255,13 +255,42 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 - [x] GitHub Octocat icon in notebook tree
 - [x] Manual save: commit to working branch
 - [x] Auto-save: batch commits (30s inactivity threshold), squash on publish
-- [x] Publish flow: squash merge working branch → base branch (or open PR)
 - [x] "Delete branch on publish" setting integration
 - [x] Webhook endpoint (`/webhooks/github`):
   - HMAC-SHA256 signature verification
   - Timestamp validation (reject > 5 min old)
   - Delivery ID deduplication (Redis, 10-min TTL)
   - On external `push`: notify connected clients to refresh file tree
+
+#### 3.4.1 Publish Workflow — PR-based Squash Merge
+
+The current publish uses the GitHub Merges API which only does regular merge commits, preserving the full working branch history on the target branch. This should be replaced with PR-based squash merge for clean single-commit publishes.
+
+- [ ] **Backend: PR-based publish** — Replace `publishBranch()` in `services/sources/github.ts`:
+  - Create a pull request (working → base) via GitHub Pull Requests API
+  - Attempt squash-merge via `PUT /repos/{owner}/{repo}/pulls/{number}/merge` with `merge_method: "squash"`
+  - Return outcome: `merged`, `pr_created` (couldn't auto-merge), or `conflict`
+  - On successful merge + keep branch: reset working branch ref to base HEAD via Git Refs API
+  - On successful merge + delete branch: delete working branch ref
+  - On auto-merge blocked (branch protection): return PR URL and number for user reference
+  - On merge conflict: return conflict status with PR URL to resolve on GitHub
+- [ ] **Backend: Webhook for PR merge** — Extend webhook handler for `pull_request` events:
+  - On `pull_request.closed` + `merged: true`: check if the PR was created by Notebook.md
+  - If so, mark the working branch as merged (Redis key or DB flag)
+  - Notify connected clients to refresh notebook state
+- [ ] **Frontend: Update PublishModal** — Enhance the publish modal:
+  - Add commit message field (pre-filled with "Notebook.md: update from {branch}", editable)
+  - Add "Auto-merge if possible" checkbox (default on)
+  - Show post-publish outcome: success toast, "PR pending" toast with link, or conflict warning with link
+- [ ] **Frontend: Post-publish state management** — Handle notebook state after publish:
+  - On merge + delete branch: clear working branch, refresh files from base branch, reload open tabs
+  - On merge + keep branch: reset working branch state, refresh files (SHAs updated)
+  - On PR pending: keep working branch active, show "PR pending" indicator on notebook in tree
+  - On PR merged via webhook: auto-refresh notebook state, clear working branch
+- [ ] **Frontend: PR pending indicator** — Show visual indicator on notebooks with open PRs:
+  - Small PR icon overlay on notebook in tree view
+  - Tooltip showing "PR #N pending — awaiting approval"
+  - Clear indicator when PR is merged (via webhook) or closed
 
 ### 3.5 Add Notebook Flow
 
