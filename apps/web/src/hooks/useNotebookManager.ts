@@ -151,6 +151,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       }
 
       const nbs = await listNotebooks();
+      // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
+      tabRestorationDone.current = false;
       setNotebooks(nbs);
       const fileMap: Record<string, FileEntry[]> = {};
       for (const nb of nbs) {
@@ -160,8 +162,6 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         // Remote notebooks load their tree on expand (lazy)
       }
       setFiles(fileMap);
-      // Reset AFTER real notebooks are loaded so restoration uses correct data
-      tabRestorationDone.current = false;
     })();
   }, [userId]);
 
