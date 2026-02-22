@@ -148,11 +148,39 @@ export default function App() {
     }
   }, [location.state?.enterDemo, location.state?.signIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore previously open tabs after notebooks finish loading (non-demo).
+  // Restore previously open tabs after notebooks finish loading.
   // This is the SOLE initial tab opener — URL→State is blocked until this completes.
   useEffect(() => {
-    if (auth.isSignedIn && !auth.isDemoMode && nb.notebooks.length > 0 && nb.tabs.length === 0) {
-      // Resolve URL file (if the URL points to a specific document)
+    if (!auth.isSignedIn || nb.notebooks.length === 0 || nb.tabs.length > 0) return;
+    // Skip if demo init is in progress (it handles its own file opening)
+    if (demoInitPending.current) return;
+
+    if (auth.isDemoMode) {
+      // Demo refresh: demo mode was restored from sessionStorage (not fresh enter).
+      // Restore persisted demo tabs, or open Getting Started if none.
+      const urlFile = (docRoute.urlNotebookName && docRoute.urlFilePath)
+        ? (() => {
+            const notebook = nb.notebooks.find((n) => n.name === docRoute.urlNotebookName);
+            return notebook ? { notebookId: notebook.id, path: docRoute.urlFilePath! } : null;
+          })()
+        : null;
+      const hadPersistedTabs = (() => {
+        try { const raw = sessionStorage.getItem('nb:tabs'); return raw && JSON.parse(raw).length > 0; }
+        catch { return false; }
+      })();
+      nb.restoreTabs(urlFile).then(() => {
+        // If nothing was restored and no URL file, open Getting Started
+        if (!hadPersistedTabs && !urlFile) {
+          const demoNb = nb.notebooks.find((n) => n.id === DEMO_NOTEBOOK_ID);
+          if (demoNb) {
+            nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+            nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
+          }
+        }
+        docRoute.completeInitialLoad();
+      });
+    } else {
+      // Normal signed-in user: restore persisted tabs + URL file
       let urlFile: { notebookId: string; path: string } | null = null;
       if (docRoute.urlNotebookName && docRoute.urlFilePath) {
         const notebook = nb.notebooks.find((n) => n.name === docRoute.urlNotebookName);

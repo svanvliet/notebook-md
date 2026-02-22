@@ -185,19 +185,20 @@ export function NotebookTree({
   }, [expandedNotebooks, expandedFolders]);
 
   // After notebooks load, trigger file loading for restored expanded remote notebooks
-  const restoredRemotesRef = useRef(false);
+  const loadedRemotesRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (restoredRemotesRef.current || notebooks.length === 0) return;
-    restoredRemotesRef.current = true;
+    if (notebooks.length === 0) return;
     for (const id of expandedNotebooks) {
+      if (loadedRemotesRef.current.has(id)) continue;
       const nb = notebooks.find((n) => n.id === id);
       if (nb && nb.sourceType && nb.sourceType !== 'local') {
         if (!files[id] || files[id].length === 0) {
+          loadedRemotesRef.current.add(id);
           onExpandNotebook?.(id);
         }
       }
     }
-  }, [notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [notebooks, expandedNotebooks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
