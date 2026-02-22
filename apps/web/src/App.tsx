@@ -81,6 +81,8 @@ export default function App() {
   const demoInitPending = useRef(false);
   // Guard: prevent auto-enter effect from re-entering demo after intentional exit
   const demoExitingRef = useRef(false);
+  // Track restoration attempts to allow fallback on retry
+  const restorationAttemptRef = useRef(0);
 
   // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {
@@ -155,9 +157,11 @@ export default function App() {
     // Skip if demo init is in progress (it handles its own file opening)
     if (demoInitPending.current) return;
 
+    const attempt = ++restorationAttemptRef.current;
+    const urlExpected = !!(docRoute.urlNotebookName && docRoute.urlFilePath);
+
     if (auth.isDemoMode) {
       // Demo refresh: demo mode was restored from sessionStorage (not fresh enter).
-      // Restore persisted demo tabs, or open Getting Started if none.
       const urlFile = (docRoute.urlNotebookName && docRoute.urlFilePath)
         ? (() => {
             const notebook = nb.notebooks.find((n) => n.name === docRoute.urlNotebookName);
@@ -169,7 +173,6 @@ export default function App() {
         catch { return false; }
       })();
       nb.restoreTabs(urlFile).then(() => {
-        // If nothing was restored and no URL file, open Getting Started
         if (!hadPersistedTabs && !urlFile) {
           const demoNb = nb.notebooks.find((n) => n.id === DEMO_NOTEBOOK_ID);
           if (demoNb) {
@@ -177,11 +180,13 @@ export default function App() {
             nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
           }
         }
-        // Expand tree to the URL file so its notebook/folder is visible
         if (urlFile) {
           nb.expandToFile(urlFile.notebookId, urlFile.path);
         }
-        docRoute.completeInitialLoad();
+        // Only unlock URL→State when URL resolved, no URL expected, or retry (fallback)
+        if (urlFile || !urlExpected || attempt > 1) {
+          docRoute.completeInitialLoad();
+        }
       });
     } else {
       // Normal signed-in user: restore persisted tabs + URL file
@@ -193,11 +198,13 @@ export default function App() {
         }
       }
       nb.restoreTabs(urlFile).then(() => {
-        // Expand tree to the URL file so its notebook/folder is visible
         if (urlFile) {
           nb.expandToFile(urlFile.notebookId, urlFile.path);
         }
-        docRoute.completeInitialLoad();
+        // Only unlock URL→State when URL resolved, no URL expected, or retry (fallback)
+        if (urlFile || !urlExpected || attempt > 1) {
+          docRoute.completeInitialLoad();
+        }
       });
     }
   }, [auth.isSignedIn, auth.isDemoMode, nb.notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
