@@ -3425,6 +3425,35 @@ The implementation required solving a cascade of timing issues in notebook loadi
 
 ---
 
+## Future: E2E Test Optimization Plan
+
+**Current state (2026-02-22):** 23 E2E tests across 3 files — all web-facing. No admin-specific or API-specific E2E tests. The `docker compose up` setup (~90% of job time) is fixed cost. Change detection gates the job at the top level (`needs-e2e`), but API-only changes currently skip E2E entirely.
+
+**Phased plan:**
+
+1. **Phase 1 — Add API to E2E triggers** (when ready)
+   - API changes can break auth/signup flows tested by E2E smoke tests
+   - Add `steps.filter.outputs.api == 'true'` to the `needs-e2e` condition in `ci.yml`
+
+2. **Phase 2 — Tag-based filtering** (when admin/API E2E tests exist)
+   - Tag tests with `@web`, `@admin`, `@api` annotations (Playwright `test.describe` tags or `grep` patterns)
+   - In the E2E job, build a `--grep` filter from change detection outputs:
+     - web changed → include `@web`
+     - admin changed → include `@admin`
+     - api changed → include `@api`
+     - shared/docker changed → run all (no filter)
+   - Same compose stack, selective test execution — avoids separate job overhead
+   - Example: `npx playwright test --grep "@web|@api"` when only web and API changed
+
+3. **Phase 3 — Parallel sharding** (when test count exceeds ~50)
+   - Use Playwright's built-in `--shard=N/M` to split across parallel runners
+   - Each shard connects to the same compose stack (or each spins its own if isolation needed)
+   - Consider GitHub Actions matrix strategy for parallelism
+
+**Key constraint:** Setup/teardown (compose up, Playwright install, npm ci) dominates runtime. Optimizations should focus on selective *test execution* within a single job, not separate jobs per app.
+
+---
+
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
