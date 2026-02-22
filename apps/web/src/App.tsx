@@ -499,6 +499,7 @@ export default function App() {
           notebooks={nb.notebooks}
           files={nb.files}
           loadingNotebooks={nb.loadingNotebooks}
+          pendingPrs={nb.pendingPrs}
           onCreateNotebook={() => setShowAddNotebook(true)}
           onDeleteNotebook={nb.handleDeleteNotebook}
           onRenameNotebook={nb.handleRenameNotebook}
