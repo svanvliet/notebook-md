@@ -583,6 +583,21 @@ Links within rendered Markdown documents are intercepted and handled in-app:
 - **External URLs** (`https://...`): Opened in a new browser tab with `target="_blank"` and `rel="noopener noreferrer nofollow"`
 - **Anchor links** (`#section`): Handled by the browser's default scroll behavior
 
+### 5.11 Document Outline Pane
+
+A collapsible panel between the notebook pane and the document pane that displays a navigable table of contents for the active document:
+
+- **Heading extraction:** Parses the active document's TipTap editor state for all heading nodes (`h1`–`h6`), displayed in real-time as the user edits
+- **Hierarchical tree view:** Headings are displayed as an indented tree reflecting their nesting depth (e.g., `##` nested under `#`, `###` nested under `##`)
+- **Click-to-scroll:** Clicking a heading in the outline scrolls the document pane to that heading, positioning it at the top of the visible area
+- **Active heading highlight:** The currently visible heading (based on scroll position) is highlighted in the outline to indicate reading position
+- **Collapsible:** The outline pane can be expanded/collapsed independently of the notebook pane, via a toggle button or keyboard shortcut
+- **Resizable:** Drag handle between the outline pane and the document pane to adjust width
+- **Width persistence:** Collapsed state and width are persisted to `localStorage`
+- **Empty state:** When the active document has no headings, the outline pane shows a brief message (e.g., "No headings found")
+- **No active document:** When no document is open, the outline pane is hidden or shows a placeholder
+- **Mobile:** The outline pane is hidden on mobile viewports; outline access can be provided via a toolbar button or sheet in a future iteration
+
 ---
 
 ## 6. Welcome Screen & Onboarding
@@ -1532,6 +1547,7 @@ A Privacy Policy is required at launch, especially for GDPR compliance (EU users
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | 2026-02-22 | Added §5.11 Document Outline Pane — navigable table of contents with heading hierarchy, click-to-scroll, active heading highlight |
 | 2.0 | 2026-02-22 | Added §5.8 URL-Based Navigation & Deep Linking, §5.9 Session Persistence, §5.10 In-Document Link Handling — URL-addressable documents, browser history, deep links, tab/tree restoration, link interception |
 | 1.9 | 2026-02-21 | Expanded §5.6 Responsive Design into full mobile web section (§5.6.1–5.6.9): hamburger nav, drawer pane, compact toolbar, scrollable tabs, responsive modals, condensed status bar, iOS compatibility, split view, internal links |
 | 1.8 | 2026-02-21 | Security hardening (CASA), OG tags, demo mode phase 2 |
