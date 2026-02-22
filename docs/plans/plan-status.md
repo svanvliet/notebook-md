@@ -3691,3 +3691,45 @@ Added `skip_ci_gate` boolean input to the Deploy to Production workflow (`workfl
 - **Google OAuth publishing:** Currently in "Testing" mode — limited to 100 test users. Needs Google verification for production use. CASA Tier 2 assessment submitted.
 - **Demo mode tests:** Unit tests for demo auth state, migration function, and gated features are still pending.
 - **Phase 5 mobile input:** FAB for slash commands, long-press context menus on tree items — deferred to future iteration.
+
+---
+
+## Phase 3.4.1: GitHub PR-based Squash Merge Publish — IN PROGRESS 🚧
+
+**Date:** 2026-02-22
+**Branch:** `feature/github-integration`
+
+### Problem
+The current publish workflow uses the GitHub Merges API (`POST /repos/{owner}/{repo}/merges`) which only creates regular merge commits. This preserves the full working branch commit history (dozens of individual save commits) on the target branch. Users expect publish to produce a single clean commit on the target branch.
+
+### Solution
+Replace with PR-based squash merge:
+1. Create a PR from working branch → base branch
+2. Squash-merge the PR via `PUT /repos/{owner}/{repo}/pulls/{number}/merge` with `merge_method: "squash"`
+3. Handle three outcomes: auto-merged, PR pending (branch protection), or conflict
+
+### Plan
+
+**Phase 1: Backend — PR-based publish endpoint**
+- Replace `publishBranch()` in `services/sources/github.ts` to create PR + squash-merge
+- Add working branch reset (delete + recreate ref from base HEAD) for "keep branch" case
+- Return structured result: `{ outcome: 'merged' | 'pr_created' | 'conflict', pr_url?, pr_number? }`
+
+**Phase 2: Backend — Webhook for PR merge events**
+- Extend webhook handler to process `pull_request.closed` + `merged: true`
+- Identify Notebook.md-created PRs and notify clients
+
+**Phase 3: Frontend — PublishModal enhancements**
+- Add commit message field (pre-filled, editable)
+- Add "Auto-merge if possible" checkbox
+- Show post-publish outcome (success, PR pending with link, conflict with link)
+
+**Phase 4: Frontend — Post-publish state management**
+- Handle merged + delete branch: clear working branch, refresh from base
+- Handle merged + keep branch: reset working branch state, refresh SHAs
+- Handle PR pending: keep editing, show indicator
+- Handle webhook-driven merge: auto-refresh notebook state
+
+**Phase 5: Frontend — PR pending indicator**
+- Visual indicator on notebook tree for open PRs
+- Clear on merge via webhook
