@@ -999,7 +999,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         try {
           const status = await checkPrStatus(owner, repo, branch);
           if (status.merged) {
-            // PR was merged externally — clean up
+            // PR was merged externally — clean up working branch
             delete workingBranches.current[notebookId];
             delete defaultBranches.current[notebookId];
             persistBranches(workingBranches.current, defaultBranches.current);
@@ -1018,6 +1018,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
               prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
             );
             toast?.(`PR #${pr.prNumber} merged — notebook refreshed`, 'success');
+          } else if (status.status === 'closed') {
+            // PR was closed without merging — clear pending PR but keep working branch
+            setPendingPrs((prev) => {
+              const next = new Map(prev);
+              next.delete(notebookId);
+              return next;
+            });
+            toast?.(`PR #${pr.prNumber} was closed without merging. Your changes are still saved — you can re-publish or discard them.`, 'info');
           }
         } catch {
           // Polling failure is not critical — silently retry
