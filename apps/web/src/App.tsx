@@ -114,9 +114,11 @@ export default function App() {
     if (!demoInitPending.current || !auth.isDemoMode) return;
     demoInitPending.current = false;
     nb.reloadNotebooks().then(() => {
-      // If URL has a specific file path, useDocumentRoute will handle it.
+      // Check current URL for a specific file path — if present, useDocumentRoute handles it.
       // Otherwise, open Getting Started by default.
-      if (!docRoute.urlFilePath) {
+      const path = window.location.pathname;
+      const hasFilePath = path.startsWith('/demo/') && path.split('/').length > 3;
+      if (!hasFilePath) {
         nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
         nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
       }
