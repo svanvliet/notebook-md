@@ -348,6 +348,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   const defaultBranches = useRef<Record<string, string>>({});
   // Reactive set of notebook IDs that have a working branch (for UI)
   const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
+  // Track notebooks with pending PRs (not yet merged)
+  const [pendingPrs, setPendingPrs] = useState<Map<string, { prNumber: number; prUrl: string }>>(new Map());
 
   // Restore persisted working branches on mount
   useEffect(() => {
@@ -835,6 +837,12 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         const result = await publishBranch(owner, repo, branch, baseBranch, commitMessage, shouldDeleteBranch, autoMerge);
 
         if (result.outcome === 'merged') {
+          // Clear any pending PR indicator
+          setPendingPrs((prev) => {
+            const next = new Map(prev);
+            next.delete(notebookId);
+            return next;
+          });
           if (shouldDeleteBranch) {
             // Branch was deleted — clear working branch state
             delete workingBranches.current[notebookId];
@@ -853,8 +861,18 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           );
           toast?.(`Changes published to ${baseBranch}`, 'success');
         } else if (result.outcome === 'pr_created') {
+          setPendingPrs((prev) => {
+            const next = new Map(prev);
+            next.set(notebookId, { prNumber: result.prNumber!, prUrl: result.prUrl! });
+            return next;
+          });
           toast?.(`PR #${result.prNumber} created — awaiting approval`, 'info');
         } else if (result.outcome === 'conflict') {
+          setPendingPrs((prev) => {
+            const next = new Map(prev);
+            next.set(notebookId, { prNumber: result.prNumber!, prUrl: result.prUrl! });
+            return next;
+          });
           toast?.(`Merge conflict — resolve on GitHub`, 'warning');
         }
 
@@ -1320,6 +1338,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
     restoreTabs,
+    pendingPrs,
     /** Set the navigation callback for URL-based routing of link clicks */
     setNavigateToFile: useCallback((fn: ((notebookId: string, path: string) => void) | null) => {
       navigateToFileRef.current = fn;
