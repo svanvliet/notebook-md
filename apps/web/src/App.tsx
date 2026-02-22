@@ -328,6 +328,7 @@ export default function App() {
     hasUnsavedChanges: t.hasUnsavedChanges,
     content: t.content,
     loading: t.loading,
+    readOnly: nb.pendingPrs.has(t.notebookId),
   }));
 
   const lastSaved = nb.activeTab?.lastSaved

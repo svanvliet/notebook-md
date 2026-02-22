@@ -30,6 +30,7 @@ import {
   publishBranch,
   type PublishResult,
   deleteWorkingBranch,
+  checkPrStatus,
   listBranches,
 } from '../api/github';
 import {
@@ -899,7 +900,17 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const repo = nb.sourceConfig.repo as string;
 
       try {
-        await deleteWorkingBranch(owner, repo, branch);
+        // Close any pending PR before deleting the branch
+        const pr = pendingPrs.get(notebookId);
+        await deleteWorkingBranch(owner, repo, branch, pr?.prNumber);
+
+        // Clear pending PR state
+        setPendingPrs((prev) => {
+          const next = new Map(prev);
+          next.delete(notebookId);
+          return next;
+        });
+
         delete workingBranches.current[notebookId];
         delete defaultBranches.current[notebookId];
         persistBranches(workingBranches.current, defaultBranches.current);
@@ -970,6 +981,52 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     (notebookId: string) => publishableNotebooks.has(notebookId),
     [publishableNotebooks],
   );
+
+  // Poll for PR merge status when there are pending PRs
+  useEffect(() => {
+    if (pendingPrs.size === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const [notebookId, pr] of pendingPrs) {
+        const nb = notebooks.find((n) => n.id === notebookId);
+        if (!nb || nb.sourceType !== 'github') continue;
+
+        const owner = nb.sourceConfig.owner as string;
+        const repo = nb.sourceConfig.repo as string;
+        const branch = workingBranches.current[notebookId];
+        if (!branch) continue;
+
+        try {
+          const status = await checkPrStatus(owner, repo, branch);
+          if (status.merged) {
+            // PR was merged externally — clean up
+            delete workingBranches.current[notebookId];
+            delete defaultBranches.current[notebookId];
+            persistBranches(workingBranches.current, defaultBranches.current);
+            setPublishableNotebooks((prev) => {
+              const next = new Set(prev);
+              next.delete(notebookId);
+              return next;
+            });
+            setPendingPrs((prev) => {
+              const next = new Map(prev);
+              next.delete(notebookId);
+              return next;
+            });
+            await refreshFiles(notebookId);
+            setTabs((prev) =>
+              prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
+            );
+            toast?.(`PR #${pr.prNumber} merged — notebook refreshed`, 'success');
+          }
+        } catch {
+          // Polling failure is not critical — silently retry
+        }
+      }
+    }, 15000); // Poll every 15 seconds
+
+    return () => clearInterval(interval);
+  }, [pendingPrs, notebooks, refreshFiles, persistBranches, toast]);
 
   const handleContentChange = useCallback(
     (tabId: string, html: string) => {

@@ -11,7 +11,7 @@ import { v4 as uuid } from 'uuid';
 import { requireAuth } from '../middleware/auth.js';
 import { query } from '../db/pool.js';
 import { getInstallationToken, listInstallationRepos } from '../lib/github-app.js';
-import { createWorkingBranch, listBranches, publishBranch, deleteBranch, resetBranchToBase } from '../services/sources/github.js';
+import { createWorkingBranch, listBranches, publishBranch, deleteBranch, resetBranchToBase, closePullRequest } from '../services/sources/github.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 
@@ -317,6 +317,7 @@ router.delete('/branches', async (req: Request, res: Response) => {
   const owner = req.query.owner as string;
   const repo = req.query.repo as string;
   const branch = req.query.branch as string;
+  const closePr = req.query.close_pr as string | undefined;
 
   if (!owner || !repo || !branch) {
     res.status(400).json({ error: 'owner, repo, and branch query params are required' });
@@ -334,6 +335,16 @@ router.delete('/branches', async (req: Request, res: Response) => {
 
   try {
     const token = await getInstallationToken(install.rows[0].installation_id);
+
+    // Close pending PR if specified
+    if (closePr) {
+      const prNum = parseInt(closePr, 10);
+      if (!isNaN(prNum)) {
+        await closePullRequest(token, owner, repo, prNum);
+        logger.info('PR closed before branch deletion', { owner, repo, pr: prNum });
+      }
+    }
+
     await deleteBranch(token, owner, repo, branch);
     res.json({ message: 'Branch deleted' });
   } catch (err) {
