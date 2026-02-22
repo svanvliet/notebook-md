@@ -161,7 +161,11 @@ export function DocumentPane({
       <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
         {activeTab ? (
           activeTab.loading ? (
-            <div className="max-w-3xl mx-auto px-8 py-10 animate-pulse">
+            <div
+              className="py-10 animate-pulse"
+              style={{ paddingLeft: margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem',
+                       paddingRight: margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem' }}
+            >
               <div className="h-7 bg-gray-200 dark:bg-gray-800 rounded w-2/5 mb-6" />
               <div className="space-y-3">
                 <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full" />
