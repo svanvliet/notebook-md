@@ -100,9 +100,8 @@ export default function App() {
   const demoExitingRef = useRef(false);
 
   // Enter demo mode via /demo route or "Try Demo" button
-  const handleEnterDemo = useCallback(async () => {
+  const handleEnterDemo = useCallback(() => {
     auth.enterDemoMode();
-    await createDemoNotebook();
     demoInitPending.current = true;
   }, [auth]);
 
@@ -130,7 +129,9 @@ export default function App() {
   useEffect(() => {
     if (!demoInitPending.current || !auth.isDemoMode) return;
     demoInitPending.current = false;
-    nb.reloadNotebooks().then(() => {
+    (async () => {
+      await createDemoNotebook();
+      await nb.reloadNotebooks();
       // Check current URL for a specific file path — if present, open it directly.
       // Otherwise, open Getting Started by default.
       const path = window.location.pathname;
@@ -138,19 +139,18 @@ export default function App() {
       if (hasFilePath) {
         // Parse the URL and open the deep-linked file
         const parts = path.split('/');
-        const notebookName = decodeURIComponent(parts[2]);
         const filePath = parts.slice(3).join('/');
+        const notebookName = decodeURIComponent(parts[2]);
         const notebook = nb.notebooks.find((n) => n.name === notebookName);
-        if (notebook) {
-          nb.handleOpenFile(notebook.id, filePath);
-          nb.expandToFile(notebook.id, filePath);
-        }
+        const notebookId = notebook?.id ?? DEMO_NOTEBOOK_ID;
+        nb.handleOpenFile(notebookId, filePath);
+        nb.expandToFile(notebookId, filePath);
       } else {
         nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
         nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
       }
       docRoute.completeInitialLoad();
-    });
+    })();
   }, [auth.isDemoMode, nb]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle navigation state from content pages (signIn, enterDemo)
