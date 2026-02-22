@@ -108,7 +108,7 @@ export async function deleteWorkingBranch(owner: string, repo: string, branch: s
   });
 }
 
-export async function checkPrStatus(owner: string, repo: string, branch: string): Promise<{ merged: boolean; prNumber?: number; baseBranch?: string }> {
+export async function checkPrStatus(owner: string, repo: string, branch: string): Promise<{ status: 'open' | 'merged' | 'closed'; merged: boolean; prNumber?: number; baseBranch?: string }> {
   return api(`/api/github/pr-status?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`);
 }
 

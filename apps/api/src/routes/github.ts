@@ -366,13 +366,18 @@ router.get('/pr-status', async (req: Request, res: Response) => {
   }
 
   const mergedKey = `github:pr-merged:${owner}/${repo}:${branch}`;
-  const merged = await redis.get(mergedKey);
+  const closedKey = `github:pr-closed:${owner}/${repo}:${branch}`;
+  const [merged, closed] = await Promise.all([redis.get(mergedKey), redis.get(closedKey)]);
 
   if (merged) {
     const data = JSON.parse(merged) as { pr: number; base: string };
-    res.json({ merged: true, prNumber: data.pr, baseBranch: data.base });
+    res.json({ status: 'merged', merged: true, prNumber: data.pr, baseBranch: data.base });
+  } else if (closed) {
+    const data = JSON.parse(closed) as { pr: number; base: string };
+    await redis.del(closedKey); // consume the marker so it doesn't fire again
+    res.json({ status: 'closed', merged: false, prNumber: data.pr, baseBranch: data.base });
   } else {
-    res.json({ merged: false });
+    res.json({ status: 'open', merged: false });
   }
 });
 

@@ -184,24 +184,37 @@ async function handlePullRequest(payload: Record<string, unknown>) {
   };
   const repository = payload.repository as { full_name: string };
 
-  // Only process merged PRs that were created by Notebook.md
-  if (action !== 'closed' || !pr.merged) return;
+  // Only process closed PRs that were created by Notebook.md
+  if (action !== 'closed') return;
   if (!pr.body?.includes('Notebook.md')) return;
 
-  logger.info('Notebook.md PR merged', {
-    repo: repository.full_name,
-    pr: pr.number,
-    head: pr.head.ref,
-    base: pr.base.ref,
-  });
+  if (pr.merged) {
+    logger.info('Notebook.md PR merged', {
+      repo: repository.full_name,
+      pr: pr.number,
+      head: pr.head.ref,
+      base: pr.base.ref,
+    });
 
-  // Mark the base branch as stale so clients refresh their file tree
-  const staleKey = `github:stale:${repository.full_name}:${pr.base.ref}`;
-  await redis.set(staleKey, Date.now().toString(), 'EX', 3600);
+    // Mark the base branch as stale so clients refresh their file tree
+    const staleKey = `github:stale:${repository.full_name}:${pr.base.ref}`;
+    await redis.set(staleKey, Date.now().toString(), 'EX', 3600);
 
-  // Store a "merged" marker for the working branch so clients know to clear it
-  const mergedKey = `github:pr-merged:${repository.full_name}:${pr.head.ref}`;
-  await redis.set(mergedKey, JSON.stringify({ pr: pr.number, base: pr.base.ref }), 'EX', 86400); // 24h TTL
+    // Store a "merged" marker for the working branch so clients know to clear it
+    const mergedKey = `github:pr-merged:${repository.full_name}:${pr.head.ref}`;
+    await redis.set(mergedKey, JSON.stringify({ pr: pr.number, base: pr.base.ref }), 'EX', 86400); // 24h TTL
+  } else {
+    logger.info('Notebook.md PR closed without merge', {
+      repo: repository.full_name,
+      pr: pr.number,
+      head: pr.head.ref,
+      base: pr.base.ref,
+    });
+
+    // Store a "closed" marker so clients know to clear pending PR state
+    const closedKey = `github:pr-closed:${repository.full_name}:${pr.head.ref}`;
+    await redis.set(closedKey, JSON.stringify({ pr: pr.number, base: pr.base.ref }), 'EX', 86400);
+  }
 }
 
 export default router;
