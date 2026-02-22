@@ -10,6 +10,7 @@ export interface Tab {
   hasUnsavedChanges: boolean;
   content: string;
   loading?: boolean;
+  readOnly?: boolean;
 }
 
 interface DocumentPaneProps {
@@ -112,7 +113,12 @@ export function DocumentPane({
                 onClick={() => onTabSelect(tab.id)}
               >
                 <span className="truncate max-w-[140px]">{tab.name}</span>
-                {tab.hasUnsavedChanges && (
+                {tab.readOnly && (
+                  <svg className="w-3 h-3 shrink-0 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                )}
+                {tab.hasUnsavedChanges && !tab.readOnly && (
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" title={t('editor.unsavedChanges')} />
                 )}
                 <button
@@ -151,8 +157,13 @@ export function DocumentPane({
               )}
               <button
                 onClick={onPublish}
-                className="flex items-center gap-1.5 px-3 h-7 mb-0.5 text-xs font-semibold rounded-md bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors"
-                title="Publish changes — merge working branch"
+                disabled={!!pendingPr}
+                className={`flex items-center gap-1.5 px-3 h-7 mb-0.5 text-xs font-semibold rounded-md shadow-sm transition-colors ${
+                  pendingPr
+                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+                title={pendingPr ? 'PR pending — waiting for merge' : 'Publish changes — merge working branch'}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M12 19V5m0 0l-5 5m5-5l5 5" />
@@ -162,7 +173,7 @@ export function DocumentPane({
               <button
                 onClick={onDiscard}
                 className="flex items-center gap-1.5 px-2.5 h-7 mb-0.5 text-xs rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                title="Discard changes — delete working branch"
+                title={pendingPr ? 'Discard changes and close PR' : 'Discard changes — delete working branch'}
               >
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -209,6 +220,7 @@ export function DocumentPane({
               spellCheck={spellCheck}
               margins={margins}
               lineNumbers={lineNumbers}
+              readOnly={activeTab.readOnly}
             />
           </EditorErrorBoundary>
           )
