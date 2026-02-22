@@ -90,6 +90,8 @@ export function useDocumentRoute({
   const lastUrlRef = useRef<string>('');
   // When true, the next State→URL update uses replace instead of push (e.g. after tab close)
   const replaceNextRef = useRef(false);
+  // Track whether initial tab restoration has had a chance to run
+  const initialLoadRef = useRef(true);
 
   // --- URL → State ---
   // When the URL changes (navigation, back/forward), open the document
@@ -128,7 +130,9 @@ export function useDocumentRoute({
     const prefix = isDemoMode ? '/demo' : '/app';
 
     if (!activeTabId) {
-      // No active tab — navigate to base app URL if we're on a document URL
+      // No active tab — navigate to base app URL if we're on a document URL.
+      // But skip during initial load (tabs haven't been restored yet).
+      if (initialLoadRef.current) return;
       if (location.pathname.startsWith(prefix + '/')) {
         syncingRef.current = true;
         navigate(prefix === '/demo' ? '/demo' : '/app', { replace: true });
@@ -136,6 +140,9 @@ export function useDocumentRoute({
       }
       return;
     }
+
+    // Once we have an active tab, initial load is complete
+    initialLoadRef.current = false;
 
     const parsed = parseTabId(activeTabId);
     if (!parsed) return;
