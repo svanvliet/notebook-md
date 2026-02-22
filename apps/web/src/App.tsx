@@ -393,14 +393,14 @@ export default function App() {
         user={auth.user}
         isDemoMode={auth.isDemoMode}
         onSignOut={auth.signOut}
-        onExitDemo={() => { setWelcomeView(undefined); auth.exitDemoMode(); }}
-        onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }}
+        onExitDemo={() => { setWelcomeView(undefined); auth.exitDemoMode(); navigate('/', { replace: true }); }}
+        onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); navigate('/', { replace: true }); }}
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDevLogin={auth.devSkipAuth}
         onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
-      {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); }} />}
+      {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); navigate('/', { replace: true }); }} />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
