@@ -114,14 +114,25 @@ export default function App() {
     if (!demoInitPending.current || !auth.isDemoMode) return;
     demoInitPending.current = false;
     nb.reloadNotebooks().then(() => {
-      // Check current URL for a specific file path — if present, useDocumentRoute handles it.
+      // Check current URL for a specific file path — if present, open it directly.
       // Otherwise, open Getting Started by default.
       const path = window.location.pathname;
       const hasFilePath = path.startsWith('/demo/') && path.split('/').length > 3;
-      if (!hasFilePath) {
+      if (hasFilePath) {
+        // Parse the URL and open the deep-linked file
+        const parts = path.split('/');
+        const notebookName = decodeURIComponent(parts[2]);
+        const filePath = parts.slice(3).join('/');
+        const notebook = nb.notebooks.find((n) => n.name === notebookName);
+        if (notebook) {
+          nb.handleOpenFile(notebook.id, filePath);
+          nb.expandToFile(notebook.id, filePath);
+        }
+      } else {
         nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
         nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
       }
+      docRoute.completeInitialLoad();
     });
   }, [auth.isDemoMode, nb]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -137,10 +148,21 @@ export default function App() {
     }
   }, [location.state?.enterDemo, location.state?.signIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore previously open tabs after notebooks finish loading (non-demo)
+  // Restore previously open tabs after notebooks finish loading (non-demo).
+  // This is the SOLE initial tab opener — URL→State is blocked until this completes.
   useEffect(() => {
     if (auth.isSignedIn && !auth.isDemoMode && nb.notebooks.length > 0 && nb.tabs.length === 0) {
-      nb.restoreTabs();
+      // Resolve URL file (if the URL points to a specific document)
+      let urlFile: { notebookId: string; path: string } | null = null;
+      if (docRoute.urlNotebookName && docRoute.urlFilePath) {
+        const notebook = nb.notebooks.find((n) => n.name === docRoute.urlNotebookName);
+        if (notebook) {
+          urlFile = { notebookId: notebook.id, path: docRoute.urlFilePath };
+        }
+      }
+      nb.restoreTabs(urlFile).then(() => {
+        docRoute.completeInitialLoad();
+      });
     }
   }, [auth.isSignedIn, auth.isDemoMode, nb.notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 

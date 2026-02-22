@@ -689,7 +689,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
             lastSaved: Date.now(),
             sha: file.sha,
           };
-          setTabs((prev) => [...prev, tab]);
+          setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
           setActiveTabId(tabId);
         } catch (err) {
           toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
@@ -718,7 +718,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
             lastSaved: Date.now(),
             sha: file.sha,
           };
-          setTabs((prev) => [...prev, tab]);
+          setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
           setActiveTabId(tabId);
         } catch (err) {
           toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
@@ -747,7 +747,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
             lastSaved: Date.now(),
             sha: file.sha,
           };
-          setTabs((prev) => [...prev, tab]);
+          setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
           setActiveTabId(tabId);
         } catch (err) {
           toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
@@ -776,7 +776,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         lastSaved: entry.updatedAt,
       };
 
-      setTabs((prev) => [...prev, tab]);
+      setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
       setActiveTabId(tabId);
     },
     [tabs, notebooks, flash, toast],
@@ -1100,20 +1100,37 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     setFiles(fileMap);
   }, []);
 
-  // Restore previously open tabs from sessionStorage (called after notebooks are loaded)
-  const restoreTabs = useCallback(async () => {
+  // Restore previously open tabs from sessionStorage + URL file (single coordinated flow)
+  const restoreTabs = useCallback(async (urlFile?: { notebookId: string; path: string } | null) => {
     if (tabRestorationDone.current) return;
-    tabRestorationDone.current = true;
     try {
       const raw = sessionStorage.getItem('nb:tabs');
-      if (!raw) return;
-      const persisted: { id: string; notebookId: string; path: string; name: string }[] = JSON.parse(raw);
-      if (!persisted.length) return;
-      // Re-open each tab silently (errors are swallowed for individual tabs)
-      for (const t of persisted) {
+      const persisted: { id: string; notebookId: string; path: string; name: string }[] =
+        raw ? JSON.parse(raw) : [];
+
+      // Build combined list: persisted tabs + URL file (if not already included)
+      const toOpen = [...persisted];
+      if (urlFile && !toOpen.some((t) => t.notebookId === urlFile.notebookId && t.path === urlFile.path)) {
+        toOpen.push({
+          id: `${urlFile.notebookId}:${urlFile.path}`,
+          notebookId: urlFile.notebookId,
+          path: urlFile.path,
+          name: urlFile.path.split('/').pop() || '',
+        });
+      }
+
+      // Open each tab (errors are swallowed for individual tabs)
+      for (const t of toOpen) {
         await handleOpenFile(t.notebookId, t.path).catch(() => {});
       }
+
+      // Make the URL file the active tab (if provided)
+      if (urlFile) {
+        setActiveTabId(`${urlFile.notebookId}:${urlFile.path}`);
+      }
     } catch { /* ignore corrupt data */ }
+    // Mark restoration as done AFTER all opens complete (prevents premature persistence clearing)
+    tabRestorationDone.current = true;
   }, [handleOpenFile]);
 
   const handleCopyFile = useCallback(async (
