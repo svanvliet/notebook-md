@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 const STORAGE_KEY = 'notebook-md-sidebar-width';
-const MIN_WIDTH = 48;
+const MIN_WIDTH = 40;
 const DEFAULT_WIDTH = 260;
 const MAX_WIDTH = 480;
 const COLLAPSE_THRESHOLD = 80;

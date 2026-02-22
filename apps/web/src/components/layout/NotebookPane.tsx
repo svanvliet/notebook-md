@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '../icons/Icons';
+import { NotebookIcon } from '../icons/Icons';
 import { NotebookTree } from '../notebook/NotebookTree';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 
@@ -196,6 +197,13 @@ export function NotebookPane({
             onExpandToPathHandled={onExpandToPathHandled}
             activeFilePath={activeFilePath}
           />
+        </div>
+      )}
+
+      {/* Collapsed icon */}
+      {collapsed && (
+        <div className="flex-1 flex items-start justify-center pt-3">
+          <NotebookIcon className="w-4 h-4 text-gray-400 dark:text-gray-600" />
         </div>
       )}
 
