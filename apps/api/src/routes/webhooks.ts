@@ -85,6 +85,10 @@ router.post('/', async (req: Request, res: Response) => {
         await handlePush(payload);
         break;
 
+      case 'pull_request':
+        await handlePullRequest(payload);
+        break;
+
       case 'ping':
         // GitHub sends a ping when the webhook is first configured
         logger.info('GitHub webhook ping received');
@@ -163,11 +167,41 @@ async function handlePush(payload: Record<string, unknown>) {
     isDefault: branch === repository.default_branch,
   });
 
-  // Future: notify connected clients via SSE that files may have changed.
-  // For now, just log. The frontend will poll/refresh when it opens a notebook.
-  // We store a "stale" marker in Redis that the frontend can check.
+  // Store a "stale" marker in Redis that the frontend can check
   const staleKey = `github:stale:${repository.full_name}:${branch}`;
   await redis.set(staleKey, Date.now().toString(), 'EX', 3600); // 1 hour TTL
+}
+
+async function handlePullRequest(payload: Record<string, unknown>) {
+  const action = payload.action as string;
+  const pr = payload.pull_request as {
+    number: number;
+    merged: boolean;
+    head: { ref: string };
+    base: { ref: string };
+    title: string;
+    body: string | null;
+  };
+  const repository = payload.repository as { full_name: string };
+
+  // Only process merged PRs that were created by Notebook.md
+  if (action !== 'closed' || !pr.merged) return;
+  if (!pr.body?.includes('Notebook.md')) return;
+
+  logger.info('Notebook.md PR merged', {
+    repo: repository.full_name,
+    pr: pr.number,
+    head: pr.head.ref,
+    base: pr.base.ref,
+  });
+
+  // Mark the base branch as stale so clients refresh their file tree
+  const staleKey = `github:stale:${repository.full_name}:${pr.base.ref}`;
+  await redis.set(staleKey, Date.now().toString(), 'EX', 3600);
+
+  // Store a "merged" marker for the working branch so clients know to clear it
+  const mergedKey = `github:pr-merged:${repository.full_name}:${pr.head.ref}`;
+  await redis.set(mergedKey, JSON.stringify({ pr: pr.number, base: pr.base.ref }), 'EX', 86400); // 24h TTL
 }
 
 export default router;
