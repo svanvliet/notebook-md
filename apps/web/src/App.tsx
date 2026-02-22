@@ -139,8 +139,8 @@ export default function App() {
       if (hasFilePath) {
         // Parse the URL and open the deep-linked file
         const parts = path.split('/');
-        const filePath = parts.slice(3).join('/');
         const notebookName = decodeURIComponent(parts[2]);
+        const filePath = parts.slice(3).join('/');
         const notebook = nb.notebooks.find((n) => n.name === notebookName);
         const notebookId = notebook?.id ?? DEMO_NOTEBOOK_ID;
         nb.handleOpenFile(notebookId, filePath);
