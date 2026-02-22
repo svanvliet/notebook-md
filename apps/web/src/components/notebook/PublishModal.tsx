@@ -101,6 +101,27 @@ export function PublishModal({
                 )}
               </div>
             )}
+            {result.outcome === 'permissions_required' && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                  <span className="text-xl">⚠</span>
+                  <span className="text-sm font-medium">Updated permissions required</span>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  The Notebook.md GitHub App needs updated permissions to create pull requests. Please review and accept the new permissions in your GitHub installation settings.
+                </p>
+                {result.settingsUrl && (
+                  <a
+                    href={result.settingsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline"
+                  >
+                    Update permissions on GitHub →
+                  </a>
+                )}
+              </div>
+            )}
             <div className="flex justify-end mt-4">
               <button
                 onClick={onCancel}

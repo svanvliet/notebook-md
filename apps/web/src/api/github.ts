@@ -70,10 +70,11 @@ export async function createWorkingBranch(owner: string, repo: string, baseBranc
 }
 
 export interface PublishResult {
-  outcome: 'merged' | 'pr_created' | 'conflict';
+  outcome: 'merged' | 'pr_created' | 'conflict' | 'permissions_required';
   sha?: string;
   prNumber?: number;
   prUrl?: string;
+  settingsUrl?: string;
 }
 
 export async function publishBranch(
@@ -85,10 +86,18 @@ export async function publishBranch(
   deleteBranchAfter = true,
   autoMerge = true,
 ): Promise<PublishResult> {
-  return api('/api/github/publish', {
+  const res = await apiFetch('/api/github/publish', {
     method: 'POST',
     body: JSON.stringify({ owner, repo, head, base, commitMessage, deleteBranchAfter, autoMerge }),
   });
+  const body = await res.json();
+  if (res.status === 403 && body.settingsUrl) {
+    return { outcome: 'permissions_required', settingsUrl: body.settingsUrl };
+  }
+  if (!res.ok) {
+    throw new Error(body.error ?? `API error: ${res.status}`);
+  }
+  return body as PublishResult;
 }
 
 export async function deleteWorkingBranch(owner: string, repo: string, branch: string): Promise<void> {

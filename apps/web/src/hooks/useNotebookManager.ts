@@ -874,6 +874,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
             return next;
           });
           toast?.(`Merge conflict — resolve on GitHub`, 'warning');
+        } else if (result.outcome === 'permissions_required') {
+          // Don't toast — let the modal handle the display with a clickable link
         }
 
         return result;
