@@ -79,6 +79,8 @@ export default function App() {
 
   // Track pending demo initialization (needs fresh nb reference after re-render)
   const demoInitPending = useRef(false);
+  // Guard: prevent auto-enter effect from re-entering demo after intentional exit
+  const demoExitingRef = useRef(false);
 
   // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {
@@ -87,8 +89,21 @@ export default function App() {
     demoInitPending.current = true;
   }, [auth]);
 
+  const handleExitDemo = useCallback(() => {
+    demoExitingRef.current = true;
+    auth.exitDemoMode();
+    navigate('/', { replace: true });
+  }, [auth, navigate]);
+
   // Auto-enter demo mode when navigating to /demo
   useEffect(() => {
+    if (demoExitingRef.current) {
+      // Clear the guard once the URL has updated away from /demo
+      if (!location.pathname.startsWith('/demo')) {
+        demoExitingRef.current = false;
+      }
+      return;
+    }
     if (location.pathname.startsWith('/demo') && !auth.isDemoMode && !auth.isSignedIn && !auth.loading) {
       handleEnterDemo();
     }
@@ -393,14 +408,14 @@ export default function App() {
         user={auth.user}
         isDemoMode={auth.isDemoMode}
         onSignOut={auth.signOut}
-        onExitDemo={() => { setWelcomeView(undefined); auth.exitDemoMode(); navigate('/', { replace: true }); }}
-        onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); navigate('/', { replace: true }); }}
+        onExitDemo={() => { setWelcomeView(undefined); handleExitDemo(); }}
+        onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }}
         onOpenAccount={() => setShowAccount(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDevLogin={auth.devSkipAuth}
         onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
-      {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); auth.exitDemoMode(); navigate('/', { replace: true }); }} />}
+      {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }} />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -549,7 +564,7 @@ export default function App() {
           userId={auth.user?.id}
           initialSource={initialSource}
           isDemoMode={auth.isDemoMode}
-          onDemoSignUp={() => { closeAddNotebook(); setWelcomeView('signup'); auth.exitDemoMode(); }}
+          onDemoSignUp={() => { closeAddNotebook(); setWelcomeView('signup'); handleExitDemo(); }}
           existingNames={nb.notebooks.map((n) => n.name)}
         />
       )}
