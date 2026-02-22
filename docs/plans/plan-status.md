@@ -3730,9 +3730,21 @@ Replace with PR-based squash merge:
 - Handle PR pending: keep editing, show indicator
 - Handle webhook-driven merge: auto-refresh notebook state
 
-**Phase 5: Frontend — PR pending indicator**
+**Phase 5: Frontend — PR pending indicator & state management**
 - Visual indicator on notebook tree for open PRs
-- Clear on merge via webhook
+- Purple "PR #N" link button in toolbar next to Publish/Discard
+- Publish button disabled when PR is pending
+- Files from notebooks with pending PRs are read-only (lock icon on tabs)
+- Polling every 15s for PR merge/close status
+- On merge detected: delete working branch (if preference set), refresh files, show toast
+- On PR closed without merge: clear pending state, re-enable editing, keep working branch for re-publish
+- Discard closes the PR on GitHub before deleting the working branch
+
+**Phase 6: Error handling & dev improvements**
+- Graceful 403 handling for missing GitHub App permissions (returns installation settings URL)
+- Fixed apiFetch: only treat `/auth` and `/api/admin` 403s as session expiry
+- Handle duplicate PR (422 "already exists") by finding existing open PR
+- Skip webhook signature verification in development mode (smee breaks HMAC)
 
 ### Implementation Summary
 
@@ -3767,21 +3779,32 @@ All 5 phases completed. Key changes:
 ### Files Modified
 | File | Change |
 |------|--------|
-| `services/sources/github.ts` | PR-based publishBranch + resetBranchToBase |
-| `routes/github.ts` | Updated publish route, added pr-status endpoint, imported redis |
-| `routes/webhooks.ts` | Added pull_request handler |
-| `api/github.ts` (client) | PublishResult type, updated publishBranch, added checkPrStatus |
-| `PublishModal.tsx` | Commit message, auto-merge, outcome display |
-| `useNotebookManager.ts` | PublishResult handling, pendingPrs state |
+| `services/sources/github.ts` | PR-based publishBranch + resetBranchToBase + closePullRequest |
+| `routes/github.ts` | Updated publish route, added pr-status endpoint, graceful 403, close_pr on delete |
+| `routes/webhooks.ts` | PR merged + closed handlers, dev signature bypass |
+| `api/github.ts` (client) | PublishResult type (4 outcomes), publishBranch 403 handling, checkPrStatus |
+| `api/apiFetch.ts` | Fixed 403 dispatch — auth-only paths |
+| `PublishModal.tsx` | Commit message, auto-merge, outcome display (merged/pr/conflict/permissions) |
+| `useNotebookManager.ts` | PublishResult handling, pendingPrs with deleteBranch, polling, discard closes PR |
 | `NotebookTree.tsx` | pendingPrs prop, PR badge |
-| `App.tsx` | Pass pendingPrs to NotebookTree, updated onPublish callback |
+| `DocumentPane.tsx` | Disabled publish, PR link button, lock icon, readOnly tabs |
+| `MarkdownEditor.tsx` | readOnly prop, dynamic editable syncing |
+| `App.tsx` | Pass pendingPrs/pendingPr/readOnly to components |
+| `apiFetch.test.ts` | Updated 403 tests for auth-only paths |
 
 ### Commits
 - `b016357` — docs: plan PR-based squash merge publish workflow (§3.4.1)
 - `1e32a49` — feat: PR-based squash merge for GitHub publish workflow
 - `4f4425f` — feat: webhook handler for PR merge events
 - `fb58c00` — feat: PR pending indicator and webhook-driven merge detection
+- `1180d1b` — fix: graceful error for missing GitHub App PR permissions
+- `1bf29fc` — fix: don't treat non-auth 403 as session expiry
+- `7f403c3` — fix: handle duplicate PR, show PR indicator in toolbar
+- `ddb1aba` — feat: PR pending state — read-only files, disabled publish, discard closes PR, poll for merge
+- `3523fc6` — feat: handle PR closed without merge — re-enable editing with notification
+- `deef987` — fix: skip webhook signature verification in development mode
+- `1bff498` — fix: delete working branch on GitHub after PR merge detected via polling
 
 ### Tests
 - ✅ 224 API tests pass (no regressions)
-- ✅ 185 web unit tests pass (no regressions)
+- ✅ 186 web unit tests pass (no regressions)
