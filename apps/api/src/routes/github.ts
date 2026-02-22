@@ -11,7 +11,7 @@ import { v4 as uuid } from 'uuid';
 import { requireAuth } from '../middleware/auth.js';
 import { query } from '../db/pool.js';
 import { getInstallationToken, listInstallationRepos } from '../lib/github-app.js';
-import { createWorkingBranch, listBranches, publishBranch, deleteBranch } from '../services/sources/github.js';
+import { createWorkingBranch, listBranches, publishBranch, deleteBranch, resetBranchToBase } from '../services/sources/github.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
@@ -249,10 +249,10 @@ router.get('/branches', async (req: Request, res: Response) => {
   }
 });
 
-// ── POST /api/github/publish — Squash-merge working branch → base ────────
+// ── POST /api/github/publish — PR-based squash merge working branch → base ───
 
 router.post('/publish', async (req: Request, res: Response) => {
-  const { owner, repo, head, base, commitMessage, deleteBranchAfter } = req.body;
+  const { owner, repo, head, base, commitMessage, deleteBranchAfter, autoMerge } = req.body;
 
   if (!owner || !repo || !head || !base) {
     res.status(400).json({ error: 'owner, repo, head, and base are required' });
@@ -270,21 +270,31 @@ router.post('/publish', async (req: Request, res: Response) => {
 
   try {
     const token = await getInstallationToken(install.rows[0].installation_id);
-    const result = await publishBranch(token, owner, repo, head, base, commitMessage);
+    const result = await publishBranch(token, owner, repo, head, base, commitMessage, autoMerge !== false);
 
-    if (deleteBranchAfter) {
-      try {
-        await deleteBranch(token, owner, repo, head);
-        logger.info('Working branch deleted after publish', { owner, repo, branch: head });
-      } catch (delErr) {
-        logger.warn('Failed to delete branch after publish', { error: (delErr as Error).message });
+    if (result.outcome === 'merged') {
+      if (deleteBranchAfter) {
+        try {
+          await deleteBranch(token, owner, repo, head);
+          logger.info('Working branch deleted after publish', { owner, repo, branch: head });
+        } catch (delErr) {
+          logger.warn('Failed to delete branch after publish', { error: (delErr as Error).message });
+        }
+      } else {
+        // Reset working branch to base HEAD so it's not diverged for future saves
+        try {
+          await resetBranchToBase(token, owner, repo, head, base);
+          logger.info('Working branch reset to base HEAD', { owner, repo, branch: head, base });
+        } catch (resetErr) {
+          logger.warn('Failed to reset working branch', { error: (resetErr as Error).message });
+        }
       }
     }
 
     res.json(result);
   } catch (err) {
     logger.error('Publish failed', { owner, repo, head, base, error: (err as Error).message });
-    res.status(502).json({ error: 'Failed to merge branch on GitHub' });
+    res.status(502).json({ error: 'Failed to publish changes on GitHub' });
   }
 });
 

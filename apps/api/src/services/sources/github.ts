@@ -336,8 +336,21 @@ export async function listBranches(
 }
 
 /**
- * Squash-merge a working branch into the base branch.
- * Uses the GitHub Merge API with merge_method=squash.
+ * Publish outcome from PR-based squash merge.
+ */
+export interface PublishResult {
+  outcome: 'merged' | 'pr_created' | 'conflict';
+  sha?: string;
+  prNumber?: number;
+  prUrl?: string;
+}
+
+/**
+ * Publish a working branch to the base branch via PR-based squash merge.
+ *
+ * 1. Creates a pull request (head → base)
+ * 2. Attempts to squash-merge immediately if autoMerge is true
+ * 3. Returns structured outcome: merged, pr_created (needs review), or conflict
  */
 export async function publishBranch(
   accessToken: string,
@@ -346,27 +359,114 @@ export async function publishBranch(
   head: string,
   base: string,
   commitMessage?: string,
-): Promise<{ sha: string; merged: boolean }> {
-  const res = await fetch(
-    `${API_BASE}/repos/${owner}/${repo}/merges`,
+  autoMerge = true,
+): Promise<PublishResult> {
+  const message = commitMessage ?? `Notebook.md: publish from ${head}`;
+
+  // Step 1: Create a pull request
+  const prRes = await fetch(
+    `${API_BASE}/repos/${owner}/${repo}/pulls`,
     {
       method: 'POST',
       headers: headers(accessToken),
       body: JSON.stringify({
-        base,
+        title: message,
         head,
-        commit_message: commitMessage ?? `Publish notebook changes from ${head}`,
+        base,
+        body: `Published via [Notebook.md](https://www.notebookmd.io)`,
       }),
     },
   );
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`GitHub: merge failed (${res.status}): ${body}`);
+  // 422 with "No commits" means the branches are identical — nothing to publish
+  if (prRes.status === 422) {
+    const body = await prRes.json().catch(() => ({})) as Record<string, unknown>;
+    const errors = (body.errors ?? []) as Array<{ message?: string }>;
+    const noCommits = errors.some((e) => e.message?.includes('No commits'));
+    if (noCommits) {
+      return { outcome: 'merged', sha: undefined };
+    }
+    throw new Error(`GitHub: failed to create PR (422): ${JSON.stringify(body)}`);
   }
 
-  const data = (await res.json()) as { sha: string };
-  return { sha: data.sha, merged: true };
+  if (!prRes.ok) {
+    const body = await prRes.text();
+    throw new Error(`GitHub: failed to create PR (${prRes.status}): ${body}`);
+  }
+
+  const prData = (await prRes.json()) as { number: number; html_url: string; mergeable: boolean | null };
+
+  if (!autoMerge) {
+    return { outcome: 'pr_created', prNumber: prData.number, prUrl: prData.html_url };
+  }
+
+  // Step 2: Attempt squash merge
+  const mergeRes = await fetch(
+    `${API_BASE}/repos/${owner}/${repo}/pulls/${prData.number}/merge`,
+    {
+      method: 'PUT',
+      headers: headers(accessToken),
+      body: JSON.stringify({
+        commit_title: message,
+        merge_method: 'squash',
+      }),
+    },
+  );
+
+  if (mergeRes.ok) {
+    const mergeData = (await mergeRes.json()) as { sha: string };
+    return { outcome: 'merged', sha: mergeData.sha, prNumber: prData.number, prUrl: prData.html_url };
+  }
+
+  // 405 = merge blocked (branch protection, required reviews, status checks)
+  // 409 = merge conflict
+  if (mergeRes.status === 409) {
+    return { outcome: 'conflict', prNumber: prData.number, prUrl: prData.html_url };
+  }
+
+  if (mergeRes.status === 405) {
+    logger.info('Auto-merge blocked by branch protection', { owner, repo, pr: prData.number });
+    return { outcome: 'pr_created', prNumber: prData.number, prUrl: prData.html_url };
+  }
+
+  // Unexpected error — still return the PR so user can handle manually
+  const mergeBody = await mergeRes.text();
+  logger.error('Unexpected merge response', { status: mergeRes.status, body: mergeBody });
+  return { outcome: 'pr_created', prNumber: prData.number, prUrl: prData.html_url };
+}
+
+/**
+ * Reset a working branch to point at the same commit as the base branch.
+ * Used after a successful squash merge when keeping the working branch.
+ */
+export async function resetBranchToBase(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string,
+  baseBranch: string,
+): Promise<void> {
+  // Get the base branch HEAD SHA
+  const baseRes = await fetch(
+    `${API_BASE}/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(baseBranch)}`,
+    { headers: headers(accessToken) },
+  );
+  if (!baseRes.ok) throw new Error(`GitHub: failed to get base branch ref (${baseRes.status})`);
+  const baseData = (await baseRes.json()) as { object: { sha: string } };
+
+  // Force-update the working branch to point at base HEAD
+  const updateRes = await fetch(
+    `${API_BASE}/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,
+    {
+      method: 'PATCH',
+      headers: headers(accessToken),
+      body: JSON.stringify({ sha: baseData.object.sha, force: true }),
+    },
+  );
+  if (!updateRes.ok) {
+    const body = await updateRes.text();
+    throw new Error(`GitHub: failed to reset branch (${updateRes.status}): ${body}`);
+  }
 }
 
 /**

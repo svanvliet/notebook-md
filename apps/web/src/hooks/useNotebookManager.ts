@@ -28,6 +28,7 @@ import {
   deleteGitHubFile,
   createWorkingBranch,
   publishBranch,
+  type PublishResult,
   deleteWorkingBranch,
   listBranches,
 } from '../api/github';
@@ -814,9 +815,9 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     [notebooks, ensureWorkingBranch],
   );
 
-  /** Publish (merge) a notebook's working branch to a target branch */
+  /** Publish (merge) a notebook's working branch to a target branch via PR-based squash merge */
   const handlePublish = useCallback(
-    async (notebookId: string, targetBranch?: string, shouldDeleteBranch = true) => {
+    async (notebookId: string, targetBranch?: string, shouldDeleteBranch = true, commitMessage?: string, autoMerge = true): Promise<PublishResult | undefined> => {
       const nb = notebooks.find((n) => n.id === notebookId);
       if (!nb || nb.sourceType !== 'github') return;
 
@@ -831,21 +832,33 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const baseBranch = targetBranch ?? defaultBranches.current[notebookId] ?? 'main';
 
       try {
-        await publishBranch(owner, repo, branch, baseBranch, `Notebook.md: update from ${branch}`, shouldDeleteBranch);
-        delete workingBranches.current[notebookId];
-        delete defaultBranches.current[notebookId];
-        persistBranches(workingBranches.current, defaultBranches.current);
-        setPublishableNotebooks((prev) => {
-          const next = new Set(prev);
-          next.delete(notebookId);
-          return next;
-        });
-        // Refresh files from the base branch to get updated SHAs
-        await refreshFiles(notebookId);
-        setTabs((prev) =>
-          prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
-        );
-        toast?.(`Changes published to ${baseBranch}`, 'success');
+        const result = await publishBranch(owner, repo, branch, baseBranch, commitMessage, shouldDeleteBranch, autoMerge);
+
+        if (result.outcome === 'merged') {
+          if (shouldDeleteBranch) {
+            // Branch was deleted — clear working branch state
+            delete workingBranches.current[notebookId];
+            delete defaultBranches.current[notebookId];
+            persistBranches(workingBranches.current, defaultBranches.current);
+            setPublishableNotebooks((prev) => {
+              const next = new Set(prev);
+              next.delete(notebookId);
+              return next;
+            });
+          }
+          // Refresh files from base branch to get updated SHAs
+          await refreshFiles(notebookId);
+          setTabs((prev) =>
+            prev.map((t) => (t.notebookId === notebookId ? { ...t, sha: undefined } : t)),
+          );
+          toast?.(`Changes published to ${baseBranch}`, 'success');
+        } else if (result.outcome === 'pr_created') {
+          toast?.(`PR #${result.prNumber} created — awaiting approval`, 'info');
+        } else if (result.outcome === 'conflict') {
+          toast?.(`Merge conflict — resolve on GitHub`, 'warning');
+        }
+
+        return result;
       } catch (err) {
         toast?.(`Publish failed: ${(err as Error).message}`, 'error');
       }
