@@ -1,11 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import type { Location } from 'react-router-dom';
-import App from './App';
-import { TermsPage } from './components/legal/TermsPage';
-import { PrivacyPage } from './components/legal/PrivacyPage';
-import { FeaturesPage } from './components/marketing/FeaturesPage';
-import { AboutPage } from './components/marketing/AboutPage';
-import { ContactPage } from './components/marketing/ContactPage';
+
+const App = lazy(() => import('./App'));
+const FeaturesPage = lazy(() => import('./components/marketing/FeaturesPage'));
+const AboutPage = lazy(() => import('./components/marketing/AboutPage'));
+const ContactPage = lazy(() => import('./components/marketing/ContactPage'));
+const TermsPage = lazy(() => import('./components/legal/TermsPage'));
+const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage'));
 
 function AppRoutes() {
   const location = useLocation();
@@ -14,6 +16,7 @@ function AppRoutes() {
   return (
     <>
       {/* When a background location exists, render main routes there (keeps App mounted) */}
+      <Suspense fallback={null}>
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<App />} />
         <Route path="/features" element={<FeaturesPage />} />
@@ -34,9 +37,11 @@ function AppRoutes() {
         {/* Catch-all: redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
 
       {/* Overlay routes — render on top of the preserved App */}
       {backgroundLocation && (
+        <Suspense fallback={null}>
         <Routes>
           <Route
             path="/terms"
@@ -55,6 +60,7 @@ function AppRoutes() {
             }
           />
         </Routes>
+        </Suspense>
       )}
     </>
   );

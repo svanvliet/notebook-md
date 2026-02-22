@@ -111,3 +111,5 @@ export function ContactPage() {
     </MarketingLayout>
   );
 }
+
+export default ContactPage;

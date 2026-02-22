@@ -72,3 +72,5 @@ export function AboutPage() {
     </MarketingLayout>
   );
 }
+
+export default AboutPage;

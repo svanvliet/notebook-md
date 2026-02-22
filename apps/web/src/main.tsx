@@ -5,6 +5,7 @@ import './lib/sentry';
 import './i18n';
 import './index.css';
 import { Router } from './Router';
+import { reportWebVitals } from './lib/webVitals';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -14,3 +15,4 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
+reportWebVitals();

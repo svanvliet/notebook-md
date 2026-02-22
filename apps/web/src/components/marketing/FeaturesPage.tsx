@@ -118,3 +118,5 @@ export function FeaturesPage() {
     </MarketingLayout>
   );
 }
+
+export default FeaturesPage;
