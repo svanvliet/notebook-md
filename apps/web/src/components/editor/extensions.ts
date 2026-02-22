@@ -91,12 +91,13 @@ export function getEditorExtensions(placeholder?: string) {
         rel: 'noopener noreferrer nofollow',
       },
     }).extend({
-      // Only set target="_blank" for absolute URLs; relative .md links stay in-app
+      // Only set target="_blank" for absolute URLs; relative/.md/app links stay in-app
       renderHTML({ HTMLAttributes }) {
         const href = HTMLAttributes.href || '';
         const isAbsolute = /^[a-z]+:/i.test(href);
+        const { target: _existingTarget, ...rest } = HTMLAttributes;
         return ['a', {
-          ...HTMLAttributes,
+          ...rest,
           ...(isAbsolute ? { target: '_blank' } : {}),
         }, 0];
       },
