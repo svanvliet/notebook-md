@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type { NotebookMeta } from '../stores/localNotebookStore';
 
@@ -90,8 +90,8 @@ export function useDocumentRoute({
   const lastUrlRef = useRef<string>('');
   // When true, the next State→URL update uses replace instead of push (e.g. after tab close)
   const replaceNextRef = useRef(false);
-  // Track whether initial tab restoration has had a chance to run
-  const initialLoadRef = useRef(true);
+  // Initial load gate: URL→State is blocked until restoration completes
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   // Refs for callbacks/state used in URL→State effect (avoids stale closures without adding deps)
   const handleOpenFileRef = useRef(handleOpenFile);
   handleOpenFileRef.current = handleOpenFile;
@@ -101,16 +101,17 @@ export function useDocumentRoute({
   activeTabIdRef.current = activeTabId;
 
   // --- URL → State ---
-  // When the URL changes (navigation, back/forward), open the document
+  // When the URL changes (navigation, back/forward), open the document.
+  // Blocked during initial load — restoreTabs handles initial tab opening.
   useEffect(() => {
+    if (!initialLoadComplete) return; // restoreTabs handles initial restoration
     if (syncingRef.current) return;
     if (!notebookName || !filePath) return;
-    if (notebooks.length === 0) return; // Not loaded yet
+    if (notebooks.length === 0) return;
 
     const notebookId = resolveNotebookId(notebookName, notebooks);
-    if (!notebookId) return; // Notebook not found
+    if (!notebookId) return;
 
-    // Check if active tab already matches
     const currentTabId = activeTabIdRef.current;
     if (currentTabId) {
       const parsed = parseTabId(currentTabId);
@@ -125,21 +126,20 @@ export function useDocumentRoute({
     requestAnimationFrame(() => {
       syncingRef.current = false;
     });
-  }, [notebookName, filePath, notebooks]);
-  // activeTabId, handleOpenFile, expandToFile accessed via refs to avoid triggering on tab switches
+  }, [notebookName, filePath, notebooks, initialLoadComplete]);
 
   // --- State → URL ---
   // When the active tab changes, update the URL
   useEffect(() => {
     if (syncingRef.current) return;
-    if (!isSignedIn && !isDemoMode) return; // Don't update URL on welcome screen
+    if (!isSignedIn && !isDemoMode) return;
 
     const prefix = isDemoMode ? '/demo' : '/app';
 
     if (!activeTabId) {
       // No active tab — navigate to base app URL if we're on a document URL.
       // But skip during initial load (tabs haven't been restored yet).
-      if (initialLoadRef.current) return;
+      if (!initialLoadComplete) return;
       if (location.pathname.startsWith(prefix + '/')) {
         syncingRef.current = true;
         navigate(prefix === '/demo' ? '/demo' : '/app', { replace: true });
@@ -148,19 +148,15 @@ export function useDocumentRoute({
       return;
     }
 
-    // Once we have an active tab, initial load is complete
-    initialLoadRef.current = false;
-
     const parsed = parseTabId(activeTabId);
     if (!parsed) return;
 
     const newPath = buildDocumentPath(parsed.notebookId, parsed.filePath, notebooks, isDemoMode);
     if (newPath === location.pathname) {
       lastUrlRef.current = newPath;
-      return; // Already at the right URL
+      return;
     }
 
-    // Use replace for tab closes (replaceNextRef) or deduplication
     const shouldReplace = replaceNextRef.current || newPath === lastUrlRef.current;
     replaceNextRef.current = false;
 
@@ -168,7 +164,7 @@ export function useDocumentRoute({
     lastUrlRef.current = newPath;
     navigate(newPath, { replace: shouldReplace });
     requestAnimationFrame(() => { syncingRef.current = false; });
-  }, [activeTabId, notebooks, isDemoMode, isSignedIn, location.pathname, navigate]);
+  }, [activeTabId, notebooks, isDemoMode, isSignedIn, location.pathname, navigate, initialLoadComplete]);
 
   // --- navigateToFile: programmatic navigation for tree clicks, link clicks, etc. ---
   const navigateToFile = useCallback(
@@ -185,9 +181,15 @@ export function useDocumentRoute({
     replaceNextRef.current = true;
   }, []);
 
+  // --- completeInitialLoad: called after restoreTabs finishes ---
+  const completeInitialLoad = useCallback(() => {
+    setInitialLoadComplete(true);
+  }, []);
+
   return {
     navigateToFile,
     markReplaceNext,
+    completeInitialLoad,
     /** The notebook name from the current URL (decoded) */
     urlNotebookName: notebookName ? decodeURIComponent(notebookName) : null,
     /** The file path from the current URL */
