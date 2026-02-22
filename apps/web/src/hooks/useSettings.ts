@@ -18,7 +18,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   fontSize: 16,
-  margins: 'regular',
+  margins: 'narrow',
   autoSave: true,
   spellCheck: true,
   lineNumbers: false,
