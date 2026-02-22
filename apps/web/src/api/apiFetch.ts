@@ -16,7 +16,12 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<Res
     },
   });
 
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
+    window.dispatchEvent(new Event('auth:session-invalid'));
+  }
+
+  // Only treat 403 as session-invalid for auth endpoints, not upstream permission errors
+  if (res.status === 403 && (path.startsWith('/auth') || path.startsWith('/api/admin'))) {
     window.dispatchEvent(new Event('auth:session-invalid'));
   }
 
