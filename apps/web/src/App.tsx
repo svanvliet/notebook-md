@@ -327,6 +327,7 @@ export default function App() {
     name: t.name,
     hasUnsavedChanges: t.hasUnsavedChanges,
     content: t.content,
+    loading: t.loading,
   }));
 
   const lastSaved = nb.activeTab?.lastSaved

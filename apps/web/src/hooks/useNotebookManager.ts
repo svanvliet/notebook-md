@@ -59,6 +59,8 @@ export interface OpenTab {
   lastSaved: number | null;
   /** Git blob SHA — needed for GitHub file updates */
   sha?: string;
+  /** True while remote file content is being fetched */
+  loading?: boolean;
 }
 
 export interface ModalRequest {
@@ -673,7 +675,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const nb = notebooks.find((n) => n.id === notebookId);
 
       if (nb && nb.sourceType === 'github') {
-        // Fetch from GitHub API (use working branch if one exists)
+        // Show tab immediately with loading state, then fetch content
+        const fileName = path.split('/').pop() || path;
+        const loadingTab: OpenTab = {
+          id: tabId, notebookId, path, name: fileName,
+          content: '', savedContent: '', hasUnsavedChanges: false, lastSaved: null, loading: true,
+        };
+        setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, loadingTab]);
+        setActiveTabId(tabId);
         try {
           const rootPath = nb.sourceConfig.rootPath as string;
           const branch = workingBranches.current[notebookId] || (nb.sourceConfig.branch as string) || undefined;
@@ -682,28 +691,25 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           if (isMarkdownContent(content)) {
             content = markdownToHtml(content);
           }
-
-          const tab: OpenTab = {
-            id: tabId,
-            notebookId,
-            path,
-            name: file.name,
-            content,
-            savedContent: content,
-            hasUnsavedChanges: false,
-            lastSaved: Date.now(),
-            sha: file.sha,
-          };
-          setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
-          setActiveTabId(tabId);
+          setTabs((prev) => prev.map((t) => t.id === tabId
+            ? { ...t, name: file.name, content, savedContent: content, sha: file.sha, loading: false }
+            : t
+          ));
         } catch (err) {
+          setTabs((prev) => prev.filter((t) => t.id !== tabId));
           toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
         }
         return;
       }
 
       if (nb && nb.sourceType === 'onedrive') {
-        // Fetch from OneDrive API
+        const fileName = path.split('/').pop() || path;
+        const loadingTab: OpenTab = {
+          id: tabId, notebookId, path, name: fileName,
+          content: '', savedContent: '', hasUnsavedChanges: false, lastSaved: null, loading: true,
+        };
+        setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, loadingTab]);
+        setActiveTabId(tabId);
         try {
           const rootPath = nb.sourceConfig.rootPath as string;
           const file = await readOneDriveFile(rootPath, path);
@@ -711,28 +717,25 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           if (isMarkdownContent(content)) {
             content = markdownToHtml(content);
           }
-
-          const tab: OpenTab = {
-            id: tabId,
-            notebookId,
-            path,
-            name: file.name,
-            content,
-            savedContent: content,
-            hasUnsavedChanges: false,
-            lastSaved: Date.now(),
-            sha: file.sha,
-          };
-          setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
-          setActiveTabId(tabId);
+          setTabs((prev) => prev.map((t) => t.id === tabId
+            ? { ...t, name: file.name, content, savedContent: content, sha: file.sha, loading: false }
+            : t
+          ));
         } catch (err) {
+          setTabs((prev) => prev.filter((t) => t.id !== tabId));
           toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
         }
         return;
       }
 
       if (nb && nb.sourceType === 'google-drive') {
-        // Fetch from Google Drive API
+        const fileName = path.split('/').pop() || path;
+        const loadingTab: OpenTab = {
+          id: tabId, notebookId, path, name: fileName,
+          content: '', savedContent: '', hasUnsavedChanges: false, lastSaved: null, loading: true,
+        };
+        setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, loadingTab]);
+        setActiveTabId(tabId);
         try {
           const rootFolderId = nb.sourceConfig.rootPath as string;
           const file = await readGoogleDriveFile(rootFolderId, path);
@@ -740,21 +743,12 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           if (isMarkdownContent(content)) {
             content = markdownToHtml(content);
           }
-
-          const tab: OpenTab = {
-            id: tabId,
-            notebookId,
-            path,
-            name: file.name,
-            content,
-            savedContent: content,
-            hasUnsavedChanges: false,
-            lastSaved: Date.now(),
-            sha: file.sha,
-          };
-          setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, tab]);
-          setActiveTabId(tabId);
+          setTabs((prev) => prev.map((t) => t.id === tabId
+            ? { ...t, name: file.name, content, savedContent: content, sha: file.sha, loading: false }
+            : t
+          ));
         } catch (err) {
+          setTabs((prev) => prev.filter((t) => t.id !== tabId));
           toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
         }
         return;
