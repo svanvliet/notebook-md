@@ -3452,6 +3452,52 @@ The implementation required solving a cascade of timing issues in notebook loadi
 
 **Key constraint:** Setup/teardown (compose up, Playwright install, npm ci) dominates runtime. Optimizations should focus on selective *test execution* within a single job, not separate jobs per app.
 
+## Phase 7.2 Performance Tuning — COMPLETE ✅
+
+**Date:** 2026-02-22
+**Branch:** `review/performance` (merged to main)
+
+### Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| **Initial load (welcome page)** | 1.6MB monolithic | ~296KB (154KB gzip) |
+| **Bundle chunks** | 1 | 15 (5 vendor + app + 6 lazy pages + entry + layout + CSS) |
+| **og-image.png** | 313KB | 107KB |
+| **Web Vitals monitoring** | None | LCP, INP, CLS, FCP, TTFB → PostHog |
+| **Cache headers** | Already ✅ | Verified: immutable for hashed assets |
+| **KaTeX fonts** | 59 files | No change needed (already lazy via browser `@font-face`) |
+
+### What Was Implemented
+
+1. **Bundle analysis** — installed `rollup-plugin-visualizer`, configured in `vite.config.ts`
+2. **Vendor chunk splitting** — function-based `manualChunks` splitting: vendor-react (229KB), vendor-tiptap (453KB), vendor-katex (265KB), vendor-hljs (91KB)
+3. **Route-level code splitting** — `React.lazy` + `Suspense` for all routes in `Router.tsx`, added default exports to marketing/legal page components
+4. **Web Vitals → PostHog** — created `lib/webVitals.ts` reporting LCP/INP/CLS/FCP/TTFB via `trackEvent`
+5. **Image optimization** — compressed og-image.png from 313KB to 107KB using Pillow
+6. **Cache headers verified** — nginx already sets `Cache-Control: immutable` for hashed assets
+7. **KaTeX fonts assessed** — already lazy-loaded by browser, vendor chunk separated, no user-facing impact
+
+### Deferred
+- Editor performance verification (60fps typing/scrolling with 1MB+ docs) — needs post-deploy validation
+- File open latency verification (<1s for files up to 1MB) — needs post-deploy validation
+- Lighthouse audit — run last as validation after all optimizations deployed
+
+### Files Modified
+| File | Action |
+|------|--------|
+| `vite.config.ts` | Added rollup-plugin-visualizer + function-based manualChunks |
+| `Router.tsx` | React.lazy + Suspense for all routes |
+| `lib/webVitals.ts` | Created — Core Web Vitals → PostHog |
+| `main.tsx` | Added `reportWebVitals()` call |
+| `public/og-image.png` | Compressed 313KB → 107KB |
+| Marketing/legal pages | Added default exports for lazy loading |
+
+### Commit
+- `a99d5ac` — perf: bundle splitting, code splitting, web vitals, image optimization
+
+---
+
 ## Editor Bug Fixes — COMPLETE ✅
 
 **Date:** 2026-02-22

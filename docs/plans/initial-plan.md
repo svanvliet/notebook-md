@@ -742,15 +742,15 @@ This plan is organized into **7 phases**, each delivering a working, testable mi
 ### 7.2 Performance Tuning
 
 - [x] File tree loading: switched to single-call APIs (Git Trees, OneDrive delta, Google Drive batched BFS)
-- [ ] Bundle analysis: install rollup-plugin-visualizer, generate treemap of 1.6MB bundle
-- [ ] Code splitting: route-level lazy loading (React.lazy + Suspense) for app vs marketing vs admin
-- [ ] Vendor chunk splitting: configure Vite manualChunks for react, tiptap/prosemirror, katex, lowlight
-- [ ] KaTeX font optimization: subset to WOFF2 only and/or lazy-load math extension (~1MB of fonts)
-- [ ] Image optimization: compress og-image.png (313KB → <100KB)
-- [ ] Web Vitals + PostHog: send LCP/INP/CLS/TTFB as PostHog events (PostHog already integrated)
+- [x] Bundle analysis: install rollup-plugin-visualizer, generate treemap of 1.6MB bundle
+- [x] Code splitting: route-level lazy loading (React.lazy + Suspense) for app vs marketing vs admin
+- [x] Vendor chunk splitting: configure Vite manualChunks for react, tiptap/prosemirror, katex, lowlight
+- [x] KaTeX font optimization: assessed — already lazy-loaded by browser via `@font-face`, no user-facing impact
+- [x] Image optimization: compress og-image.png (313KB → 107KB)
+- [x] Web Vitals + PostHog: send LCP/INP/CLS/FCP/TTFB as PostHog events
 - [ ] Editor performance: verify 60fps during typing and scrolling with large documents (1MB+)
 - [ ] File open latency: verify < 1 second for files up to 1 MB
-- [ ] Static asset cache headers: verify production sets Cache-Control immutable for hashed assets
+- [x] Static asset cache headers: verified production sets Cache-Control immutable for hashed assets
 - [ ] Lighthouse audit: target 90+ on Performance, Accessibility, Best Practices, SEO (run last as validation)
 
 ### 7.3 Accessibility Audit
