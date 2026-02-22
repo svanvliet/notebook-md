@@ -92,6 +92,13 @@ export function useDocumentRoute({
   const replaceNextRef = useRef(false);
   // Track whether initial tab restoration has had a chance to run
   const initialLoadRef = useRef(true);
+  // Refs for callbacks/state used in URL→State effect (avoids stale closures without adding deps)
+  const handleOpenFileRef = useRef(handleOpenFile);
+  handleOpenFileRef.current = handleOpenFile;
+  const expandToFileRef = useRef(expandToFile);
+  expandToFileRef.current = expandToFile;
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
 
   // --- URL → State ---
   // When the URL changes (navigation, back/forward), open the document
@@ -103,8 +110,8 @@ export function useDocumentRoute({
     const notebookId = resolveNotebookId(notebookName, notebooks);
     if (!notebookId) return; // Notebook not found
 
-    // Check if active tab already matches (use ref to avoid stale closure)
-    const currentTabId = activeTabId;
+    // Check if active tab already matches
+    const currentTabId = activeTabIdRef.current;
     if (currentTabId) {
       const parsed = parseTabId(currentTabId);
       if (parsed && parsed.notebookId === notebookId && parsed.filePath === filePath) {
@@ -113,13 +120,13 @@ export function useDocumentRoute({
     }
 
     syncingRef.current = true;
-    handleOpenFile(notebookId, filePath);
-    expandToFile(notebookId, filePath);
+    handleOpenFileRef.current(notebookId, filePath);
+    expandToFileRef.current(notebookId, filePath);
     requestAnimationFrame(() => {
       syncingRef.current = false;
     });
-  }, [notebookName, filePath, notebooks]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Note: activeTabId intentionally excluded — this effect reacts to URL changes only
+  }, [notebookName, filePath, notebooks]);
+  // activeTabId, handleOpenFile, expandToFile accessed via refs to avoid triggering on tab switches
 
   // --- State → URL ---
   // When the active tab changes, update the URL

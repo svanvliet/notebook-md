@@ -183,6 +183,22 @@ export function NotebookTree({
       sessionStorage.setItem('nb:tree:folders', JSON.stringify([...expandedFolders]));
     } catch { /* ignore */ }
   }, [expandedNotebooks, expandedFolders]);
+
+  // After notebooks load, trigger file loading for restored expanded remote notebooks
+  const restoredRemotesRef = useRef(false);
+  useEffect(() => {
+    if (restoredRemotesRef.current || notebooks.length === 0) return;
+    restoredRemotesRef.current = true;
+    for (const id of expandedNotebooks) {
+      const nb = notebooks.find((n) => n.id === id);
+      if (nb && nb.sourceType && nb.sourceType !== 'local') {
+        if (!files[id] || files[id].length === 0) {
+          onExpandNotebook?.(id);
+        }
+      }
+    }
+  }, [notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   // Drag state for tree items
