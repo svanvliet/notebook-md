@@ -662,9 +662,9 @@ export default function App() {
             defaultBranch={info.defaultBranch}
             owner={info.owner}
             repo={info.repo}
-            onPublish={(targetBranch, deleteBranch) => {
-              setShowPublishModal(false);
-              nb.handlePublish(nb.activeTab!.notebookId, targetBranch, deleteBranch);
+            onPublish={async (targetBranch, deleteBranch, commitMessage, autoMerge) => {
+              const result = await nb.handlePublish(nb.activeTab!.notebookId, targetBranch, deleteBranch, commitMessage, autoMerge);
+              return result;
             }}
             onCancel={() => setShowPublishModal(false)}
           />

@@ -69,6 +69,13 @@ export async function createWorkingBranch(owner: string, repo: string, baseBranc
   });
 }
 
+export interface PublishResult {
+  outcome: 'merged' | 'pr_created' | 'conflict';
+  sha?: string;
+  prNumber?: number;
+  prUrl?: string;
+}
+
 export async function publishBranch(
   owner: string,
   repo: string,
@@ -76,10 +83,11 @@ export async function publishBranch(
   base: string,
   commitMessage?: string,
   deleteBranchAfter = true,
-): Promise<{ sha: string; merged: boolean }> {
+  autoMerge = true,
+): Promise<PublishResult> {
   return api('/api/github/publish', {
     method: 'POST',
-    body: JSON.stringify({ owner, repo, head, base, commitMessage, deleteBranchAfter }),
+    body: JSON.stringify({ owner, repo, head, base, commitMessage, deleteBranchAfter, autoMerge }),
   });
 }
 
