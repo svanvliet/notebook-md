@@ -78,6 +78,9 @@ export function getEditorExtensions(placeholder?: string) {
       // We use CodeBlockLowlight instead of the default code block
       codeBlock: false,
       heading: { levels: [1, 2, 3, 4, 5, 6] },
+      // We configure Link and Underline separately with custom options
+      link: false,
+      underline: false,
     }),
     Placeholder.configure({
       placeholder: placeholder ?? 'Start writing…',
