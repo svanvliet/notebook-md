@@ -115,7 +115,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     // This prevents a race where restoreTabs opens tabs, then the IIFE's setTabs([]) clears them.
     setTabs([]);
     setActiveTabId(null);
-    tabRestorationDone.current = false;
+    // NOTE: tabRestorationDone is reset INSIDE the IIFE after real notebooks load.
+    // Resetting it here would allow a premature restoration with stale notebooks.
     (async () => {
       // Sync remote notebooks from server into IndexedDB (skip in demo mode)
       if (userId && !isDemoMode) {
@@ -159,6 +160,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         // Remote notebooks load their tree on expand (lazy)
       }
       setFiles(fileMap);
+      // Reset AFTER real notebooks are loaded so restoration uses correct data
+      tabRestorationDone.current = false;
     })();
   }, [userId]);
 
