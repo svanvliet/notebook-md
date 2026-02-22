@@ -3452,6 +3452,48 @@ The implementation required solving a cascade of timing issues in notebook loadi
 
 **Key constraint:** Setup/teardown (compose up, Playwright install, npm ci) dominates runtime. Optimizations should focus on selective *test execution* within a single job, not separate jobs per app.
 
+## Document Outline Pane — COMPLETE ✅
+
+**Date:** 2026-02-22
+**Branch:** `feature/document-outline`
+**Requirements:** `docs/requirements/requirements.md` §5.11
+**Design doc:** `docs/plans/document-outline.md`
+
+### What Was Built
+
+Collapsible outline panel between notebook and document panes showing a navigable table of contents extracted from headings in the active document.
+
+### Features
+- **Heading extraction:** `useDocumentOutline` hook walks TipTap editor state for heading nodes (h1–h6), debounced at 100ms, memoized
+- **Click-to-scroll:** Uses ProseMirror `domAtPos` to find heading DOM element, then `scrollIntoView({ behavior: 'smooth', block: 'start' })`
+- **Active heading highlight:** IntersectionObserver on heading elements with `rootMargin: '0px 0px -80% 0px'` — highlights the topmost visible heading with blue accent
+- **Collapse/resize:** `useOutlineResize` hook (mirrors `useSidebarResize`), persisted to `localStorage` (`notebook-md-outline-width`, `notebook-md-outline-collapsed`)
+- **Indentation:** Heading level → Tailwind padding classes (`pl-2` through `pl-14`)
+- **Editor instance bridge:** `onEditorReady` callback prop threaded through `MarkdownEditor` → `DocumentPane` → `App.tsx`
+- **Hidden on mobile:** `hidden md:flex`
+- **Empty state:** "No headings found" message
+
+### Files Created/Modified
+| File | Action |
+|------|--------|
+| `hooks/useDocumentOutline.ts` | Created — heading extraction hook |
+| `hooks/useOutlineResize.ts` | Created — collapse/resize hook |
+| `components/layout/OutlinePane.tsx` | Created — outline pane component |
+| `tests/documentOutline.test.tsx` | Created — 11 unit tests |
+| `App.tsx` | Modified — integrated OutlinePane into layout |
+| `MarkdownEditor.tsx` | Modified — added `onEditorReady` callback |
+| `DocumentPane.tsx` | Modified — pass through `onEditorReady` |
+| `components/icons/Icons.tsx` | Modified — added `ListBulletIcon` |
+
+### Tests
+- 11 new tests: 6 hook tests (extraction, null editor, empty doc, IDs, update event, editor-becomes-null) + 5 component tests (empty state, heading hierarchy, no active doc, collapsed, toggle)
+- **All passing:** 185 web unit tests
+
+### Commits
+- `b8cb4d0` — feat: add document outline pane with heading navigation
+
+---
+
 ## CI Caching — COMPLETE ✅
 
 **Date:** 2026-02-22
