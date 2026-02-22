@@ -3553,6 +3553,92 @@ Moved `plans/`, `requirements/`, and `reviews/` folders into `docs/`. Updated CI
 
 ---
 
+## Document Outline Pane ✅
+
+**Date:** 2026-02-22
+**Branch:** `feature/document-outline`
+
+Added a collapsible document outline pane that shows heading structure for the active document.
+
+### Features
+- Heading extraction from Tiptap editor (H1–H6) via `useDocumentOutline` hook
+- Click-to-scroll navigation with `scrollIntoView({ behavior: 'smooth' })`
+- Collapsible pane with resizable width (150–400px, persisted in localStorage)
+- Indentation by heading level, active heading highlight
+- Empty state for documents with no headings
+- setState-during-render fix in `NotebookTree` `toggleNotebook`
+
+### Commits
+- `25cc38c` — docs: add document outline requirements and implementation plan
+- `3806891` — chore: move document-outline.md to docs/plans/
+- `b8cb4d0` — feat: add document outline pane with heading navigation
+- `dd6e709` — docs: update plan-status with document outline completion
+- `2f78e52` — fix: setState-during-render in NotebookTree toggleNotebook
+
+---
+
+## Editor Bug Fixes — COMPLETE ✅
+
+**Date:** 2026-02-22
+**Branch:** `feature/document-outline`
+
+### Code Block Styling
+- Plain text code blocks were incorrectly showing syntax highlighting colors (auto-detection by lowlight)
+- Fixed by setting `defaultLanguage: null` on `CodeBlockLowlight` extension
+- Added explicit text colors for code blocks: `#1f2328` (light), `#e6edf3` (dark)
+- Scoped `.hljs-*` syntax color selectors to `pre[data-language]` so plain text blocks get no syntax colors
+- Added `data-language` attribute to `<pre>` in `CodeBlockView.tsx` (only when language is set)
+
+### Slash Command in Code Blocks
+- Slash command menu was triggering when typing `/` inside code blocks and inline code
+- Added guard in `SlashCommands.ts` plugin: checks `$from.parent.type.name === 'codeBlock'` and `$from.marks().some(m => m.type.name === 'code')` before activating
+
+### Commits
+- `f1a0598` — fix: plain text code blocks show syntax highlighting and poor contrast
+- `3ab8606` — fix: suppress slash command menu inside code blocks and inline code
+
+---
+
+## Demo Mode E2E Fixes ✅
+
+**Date:** 2026-02-22
+
+Two race condition bugs in demo mode caused E2E navigation tests to fail in CI:
+
+### Bug 1: IndexedDB Storage Scope Race
+`createDemoNotebook()` wrote to `anonymous` IndexedDB scope because `setStorageScope('demo-user')` hadn't run yet (it runs in a `useEffect` after render, but `createDemoNotebook` ran before that render).
+
+**Fix:** Call `setStorageScope('demo-user')` early in `handleEnterDemo` before creating the notebook.
+
+### Bug 2: demoInitPending Ref Never Triggered Re-render
+`demoInitPending` was a `useRef` — setting it to `true` after `createDemoNotebook()` completed didn't trigger a re-render, so the effect that calls `reloadNotebooks()` never fired.
+
+**Fix:** Converted `demoInitPending` from `useRef` to `useState`. Also fixed stale closure in deep link branch by using `DEMO_NOTEBOOK_ID` directly instead of `nb.notebooks.find()`.
+
+### Bug 3: Playwright Strict Mode Violation
+`getByText('Demo Notebook')` matched two elements — the tree label and text inside the Getting Started document content.
+
+**Fix:** Added `{ exact: true }` to disambiguate.
+
+### Commits
+- `860dad1` — fix: demo mode storage scope race + stale closure in deep links
+- `52be3cd` — fix: use exact match for 'Demo Notebook' in E2E test
+
+---
+
+## CI/CD: Emergency Deploy Gate Bypass ✅
+
+**Date:** 2026-02-22
+
+Added `skip_ci_gate` boolean input to the Deploy to Production workflow (`workflow_dispatch` only). Tag-triggered deploys still require CI to pass.
+
+### Commit
+- `559802c` — ci: add skip_ci_gate option for emergency deploys
+
+### Deployed as `v0.1.12` ✅
+
+---
+
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
