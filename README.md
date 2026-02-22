@@ -1,4 +1,4 @@
-# Notebook.md
+# [Notebook.md](http://Notebook.md)
 
 A web application for creating, editing, and organizing Markdown notebooks through an intuitive WYSIWYG canvas interface. Notebooks are stored in your existing cloud storage and version control systems — OneDrive, Google Drive, and GitHub — so your content stays where you control it.
 
@@ -133,3 +133,7 @@ GitHub can't deliver webhooks to `localhost`. We use [smee.io](https://smee.io) 
 ## License
 
 Copyright © Van Vliet Ventures, LLC. All rights reserved.
+
+## Todo
+
+This file needs to be updated with all that's been implemented.
