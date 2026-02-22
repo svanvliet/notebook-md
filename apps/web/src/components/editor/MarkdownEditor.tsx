@@ -446,6 +446,8 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       if (appUrlMatch) {
         e.preventDefault();
         e.stopPropagation();
+        // Also remove target="_blank" to prevent browser from opening a new tab
+        target.removeAttribute('target');
         window.dispatchEvent(
           new CustomEvent('app-link-click', { detail: { href } }),
         );
