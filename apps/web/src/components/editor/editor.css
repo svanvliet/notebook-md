@@ -62,6 +62,7 @@
 /* Code blocks — GitHub style */
 .tiptap pre {
   background: #f6f8fa;
+  color: #1f2328;
   border: none;
   border-radius: 6px;
   padding: 16px;
@@ -75,6 +76,7 @@
 
 .dark .tiptap pre {
   background: #161b22;
+  color: #e6edf3;
 }
 
 /* Code block language selector */
@@ -111,48 +113,48 @@
   padding: 0;
 }
 
-/* Syntax highlighting tokens */
-.tiptap pre .hljs-comment,
-.tiptap pre .hljs-quote {
+/* Syntax highlighting tokens — only when a language is set */
+.tiptap pre[data-language] .hljs-comment,
+.tiptap pre[data-language] .hljs-quote {
   color: #6b7280;
 }
-.tiptap pre .hljs-keyword,
-.tiptap pre .hljs-selector-tag,
-.tiptap pre .hljs-type {
+.tiptap pre[data-language] .hljs-keyword,
+.tiptap pre[data-language] .hljs-selector-tag,
+.tiptap pre[data-language] .hljs-type {
   color: #8b5cf6;
 }
-.tiptap pre .hljs-string,
-.tiptap pre .hljs-attr {
+.tiptap pre[data-language] .hljs-string,
+.tiptap pre[data-language] .hljs-attr {
   color: #059669;
 }
-.tiptap pre .hljs-number,
-.tiptap pre .hljs-literal {
+.tiptap pre[data-language] .hljs-number,
+.tiptap pre[data-language] .hljs-literal {
   color: #d97706;
 }
-.tiptap pre .hljs-built_in,
-.tiptap pre .hljs-title {
+.tiptap pre[data-language] .hljs-built_in,
+.tiptap pre[data-language] .hljs-title {
   color: #2563eb;
 }
 
-.dark .tiptap pre .hljs-comment,
-.dark .tiptap pre .hljs-quote {
+.dark .tiptap pre[data-language] .hljs-comment,
+.dark .tiptap pre[data-language] .hljs-quote {
   color: #9ca3af;
 }
-.dark .tiptap pre .hljs-keyword,
-.dark .tiptap pre .hljs-selector-tag,
-.dark .tiptap pre .hljs-type {
+.dark .tiptap pre[data-language] .hljs-keyword,
+.dark .tiptap pre[data-language] .hljs-selector-tag,
+.dark .tiptap pre[data-language] .hljs-type {
   color: #a78bfa;
 }
-.dark .tiptap pre .hljs-string,
-.dark .tiptap pre .hljs-attr {
+.dark .tiptap pre[data-language] .hljs-string,
+.dark .tiptap pre[data-language] .hljs-attr {
   color: #34d399;
 }
-.dark .tiptap pre .hljs-number,
-.dark .tiptap pre .hljs-literal {
+.dark .tiptap pre[data-language] .hljs-number,
+.dark .tiptap pre[data-language] .hljs-literal {
   color: #fbbf24;
 }
-.dark .tiptap pre .hljs-built_in,
-.dark .tiptap pre .hljs-title {
+.dark .tiptap pre[data-language] .hljs-built_in,
+.dark .tiptap pre[data-language] .hljs-title {
   color: #60a5fa;
 }
 

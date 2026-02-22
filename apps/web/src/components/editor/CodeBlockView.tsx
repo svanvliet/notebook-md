@@ -22,12 +22,13 @@ const LANGUAGES = [
 ];
 
 export function CodeBlockView({ node, updateAttributes, extension }: NodeViewProps) {
+  const language = node.attrs.language ?? '';
   return (
     <NodeViewWrapper className="code-block-wrapper relative">
       <select
         className="code-block-lang"
         contentEditable={false}
-        value={node.attrs.language ?? ''}
+        value={language}
         onChange={(e) => updateAttributes({ language: e.target.value })}
       >
         {LANGUAGES.map((lang) => (
@@ -36,7 +37,7 @@ export function CodeBlockView({ node, updateAttributes, extension }: NodeViewPro
           </option>
         ))}
       </select>
-      <pre>
+      <pre data-language={language || undefined}>
         <NodeViewContent className="code-node-content" />
       </pre>
     </NodeViewWrapper>
