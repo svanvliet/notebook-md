@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { getEditorExtensions } from './extensions';
@@ -29,6 +29,7 @@ interface MarkdownEditorProps {
   content: string;
   onChange: (html: string) => void;
   onWordCountChange?: (words: number, chars: number) => void;
+  onEditorReady?: (editor: Editor | null) => void;
   fontFamily?: string;
   fontSize?: number;
   spellCheck?: boolean;
@@ -104,7 +105,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers }: MarkdownEditorProps) {
   const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
@@ -159,6 +160,12 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       onWordCountChange?.(words, chars);
     },
   });
+
+  // Expose editor instance to parent
+  useEffect(() => {
+    onEditorReady?.(editor);
+    return () => onEditorReady?.(null);
+  }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync content from outside (e.g., when switching tabs)
   useEffect(() => {
