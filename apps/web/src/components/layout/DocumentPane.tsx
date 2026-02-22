@@ -18,6 +18,7 @@ interface DocumentPaneProps {
   onTabClose: (id: string) => void;
   onContentChange: (id: string, html: string) => void;
   onWordCountChange?: (words: number, chars: number) => void;
+  onEditorReady?: (editor: unknown) => void;
   /** Whether the active notebook has unpublished changes on a working branch */
   showPublish?: boolean;
   onPublish?: () => void;
@@ -37,6 +38,7 @@ export function DocumentPane({
   onTabClose,
   onContentChange,
   onWordCountChange,
+  onEditorReady,
   showPublish,
   onPublish,
   onDiscard,
@@ -162,6 +164,7 @@ export function DocumentPane({
               content={activeTab.content}
               onChange={(html) => onContentChange(activeTab.id, html)}
               onWordCountChange={onWordCountChange}
+              onEditorReady={onEditorReady}
               fontFamily={fontFamily}
               fontSize={fontSize}
               spellCheck={spellCheck}

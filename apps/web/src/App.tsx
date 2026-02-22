@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { TitleBar } from './components/layout/TitleBar';
 import { NotebookPane } from './components/layout/NotebookPane';
 import { DocumentPane } from './components/layout/DocumentPane';
+import OutlinePane from './components/layout/OutlinePane';
 import type { Tab } from './components/layout/DocumentPane';
 import { StatusBar } from './components/layout/StatusBar';
 import { WelcomeScreen } from './components/welcome/WelcomeScreen';
@@ -17,6 +18,7 @@ import { DemoBanner } from './components/common/DemoBanner';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
+import { useOutlineResize } from './hooks/useOutlineResize';
 import { useNotebookManager } from './hooks/useNotebookManager';
 import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
@@ -29,12 +31,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { migrateAnonymousNotebooks } from './stores/localNotebookStore';
 import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './stores/demoContent';
 import { useDocumentRoute } from './hooks/useDocumentRoute';
+import { useDocumentOutline } from './hooks/useDocumentOutline';
+import type { Editor } from '@tiptap/react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
+  const outline = useOutlineResize();
+  const [activeEditor, setActiveEditor] = useState<Editor | null>(null);
+  const { headings } = useDocumentOutline(activeEditor);
   const auth = useAuth();
   const { addToast } = useToast();
   const nb = useNotebookManager(auth.user?.id, addToast, auth.isDemoMode);
@@ -523,6 +530,15 @@ export default function App() {
           mobileOpen={mobilePaneOpen}
           onMobileClose={() => setMobilePaneOpen(false)}
         />
+        <OutlinePane
+          headings={headings}
+          editor={activeEditor}
+          width={outline.width}
+          collapsed={outline.collapsed}
+          onToggleCollapse={outline.toggleCollapse}
+          onResizeMouseDown={outline.onMouseDown}
+          hasActiveDocument={!!nb.activeTabId}
+        />
         <DocumentPane
           tabs={docTabs}
           activeTabId={nb.activeTabId}
@@ -533,6 +549,7 @@ export default function App() {
           }}
           onContentChange={nb.handleContentChange}
           onWordCountChange={handleWordCountChange}
+          onEditorReady={(editor) => setActiveEditor(editor as Editor | null)}
           showPublish={!!(nb.activeTab && nb.hasWorkingBranch(nb.activeTab.notebookId))}
           onPublish={() => nb.activeTab && setShowPublishModal(true)}
           onDiscard={() => nb.activeTab && setShowDiscardModal(true)}
