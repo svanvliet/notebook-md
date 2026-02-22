@@ -294,7 +294,19 @@ router.post('/publish', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (err) {
-    logger.error('Publish failed', { owner, repo, head, base, error: (err as Error).message });
+    const msg = (err as Error).message;
+    logger.error('Publish failed', { owner, repo, head, base, error: msg });
+
+    // Detect permission issue — guide user to update their installation
+    if (msg.includes('403') && msg.includes('not accessible')) {
+      const installId = install.rows[0].installation_id;
+      res.status(403).json({
+        error: 'The Notebook.md GitHub App needs updated permissions to create pull requests.',
+        settingsUrl: `https://github.com/settings/installations/${installId}`,
+      });
+      return;
+    }
+
     res.status(502).json({ error: 'Failed to publish changes on GitHub' });
   }
 });
