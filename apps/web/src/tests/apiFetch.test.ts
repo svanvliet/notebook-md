@@ -47,14 +47,25 @@ describe('apiFetch', () => {
     window.removeEventListener('auth:session-invalid', handler);
   });
 
-  it('dispatches auth:session-invalid on 403', async () => {
+  it('dispatches auth:session-invalid on 403 for auth endpoints', async () => {
     mockFetch.mockResolvedValueOnce({ status: 403, ok: false });
     const handler = vi.fn();
     window.addEventListener('auth:session-invalid', handler);
 
-    await apiFetch('/api/test');
+    await apiFetch('/auth/refresh');
 
     expect(handler).toHaveBeenCalledTimes(1);
+    window.removeEventListener('auth:session-invalid', handler);
+  });
+
+  it('does not dispatch auth:session-invalid on 403 for non-auth endpoints', async () => {
+    mockFetch.mockResolvedValueOnce({ status: 403, ok: false });
+    const handler = vi.fn();
+    window.addEventListener('auth:session-invalid', handler);
+
+    await apiFetch('/api/github/publish');
+
+    expect(handler).not.toHaveBeenCalled();
     window.removeEventListener('auth:session-invalid', handler);
   });
 
