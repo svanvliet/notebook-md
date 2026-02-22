@@ -13,6 +13,7 @@ import { query } from '../db/pool.js';
 import { getInstallationToken, listInstallationRepos } from '../lib/github-app.js';
 import { createWorkingBranch, listBranches, publishBranch, deleteBranch, resetBranchToBase } from '../services/sources/github.js';
 import { logger } from '../lib/logger.js';
+import { redis } from '../lib/redis.js';
 
 const router = Router();
 
@@ -326,6 +327,29 @@ router.delete('/branches', async (req: Request, res: Response) => {
   } catch (err) {
     logger.error('Failed to delete branch', { owner, repo, branch, error: (err as Error).message });
     res.status(502).json({ error: 'Failed to delete branch on GitHub' });
+  }
+});
+
+// ── GET /api/github/pr-status — Check if a working branch PR was merged ────
+
+router.get('/pr-status', async (req: Request, res: Response) => {
+  const owner = req.query.owner as string;
+  const repo = req.query.repo as string;
+  const branch = req.query.branch as string;
+
+  if (!owner || !repo || !branch) {
+    res.status(400).json({ error: 'owner, repo, and branch query params are required' });
+    return;
+  }
+
+  const mergedKey = `github:pr-merged:${owner}/${repo}:${branch}`;
+  const merged = await redis.get(mergedKey);
+
+  if (merged) {
+    const data = JSON.parse(merged) as { pr: number; base: string };
+    res.json({ merged: true, prNumber: data.pr, baseBranch: data.base });
+  } else {
+    res.json({ merged: false });
   }
 });
 

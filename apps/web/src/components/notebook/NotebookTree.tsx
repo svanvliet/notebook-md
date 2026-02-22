@@ -116,6 +116,7 @@ interface NotebookTreeProps {
   notebooks: NotebookMeta[];
   files: Record<string, FileEntry[]>;
   loadingNotebooks?: Set<string>;
+  pendingPrs?: Map<string, { prNumber: number; prUrl: string }>;
   onCreateNotebook: () => void;
   onDeleteNotebook: (id: string) => void;
   onRenameNotebook: (id: string, name: string) => void;
@@ -139,6 +140,7 @@ export function NotebookTree({
   notebooks,
   files,
   loadingNotebooks,
+  pendingPrs,
   onCreateNotebook,
   onDeleteNotebook,
   onRenameNotebook,
@@ -633,6 +635,14 @@ export function NotebookTree({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
+              )}
+              {pendingPrs?.has(nb.id) && (
+                <span
+                  title={`PR #${pendingPrs.get(nb.id)!.prNumber} pending — awaiting approval`}
+                  className="ml-auto shrink-0 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded-full"
+                >
+                  PR
+                </span>
               )}
             </div>
             {isExpanded && (
