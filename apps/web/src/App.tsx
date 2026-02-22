@@ -28,7 +28,7 @@ import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { migrateAnonymousNotebooks } from './stores/localNotebookStore';
+import { migrateAnonymousNotebooks, setStorageScope } from './stores/localNotebookStore';
 import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './stores/demoContent';
 import { useDocumentRoute } from './hooks/useDocumentRoute';
 import { useDocumentOutline } from './hooks/useDocumentOutline';
@@ -94,16 +94,18 @@ export default function App() {
   // Mobile notebook pane drawer
   const [mobilePaneOpen, setMobilePaneOpen] = useState(false);
 
-  // Track pending demo initialization (needs fresh nb reference after re-render)
-  const demoInitPending = useRef(false);
+  // Track pending demo initialization (state so it triggers a re-render)
+  const [demoInitPending, setDemoInitPending] = useState(false);
   // Guard: prevent auto-enter effect from re-entering demo after intentional exit
   const demoExitingRef = useRef(false);
 
   // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {
     auth.enterDemoMode();
+    // Set storage scope early so createDemoNotebook writes to the correct IndexedDB
+    setStorageScope('demo-user');
     await createDemoNotebook();
-    demoInitPending.current = true;
+    setDemoInitPending(true);
   }, [auth]);
 
   const handleExitDemo = useCallback(() => {
@@ -128,8 +130,8 @@ export default function App() {
 
   // Complete demo init after re-render provides a fresh nb with correct userId
   useEffect(() => {
-    if (!demoInitPending.current || !auth.isDemoMode) return;
-    demoInitPending.current = false;
+    if (!demoInitPending || !auth.isDemoMode) return;
+    setDemoInitPending(false);
     nb.reloadNotebooks().then(() => {
       // Check current URL for a specific file path — if present, open it directly.
       // Otherwise, open Getting Started by default.
@@ -138,20 +140,17 @@ export default function App() {
       if (hasFilePath) {
         // Parse the URL and open the deep-linked file
         const parts = path.split('/');
-        const notebookName = decodeURIComponent(parts[2]);
         const filePath = parts.slice(3).join('/');
-        const notebook = nb.notebooks.find((n) => n.name === notebookName);
-        if (notebook) {
-          nb.handleOpenFile(notebook.id, filePath);
-          nb.expandToFile(notebook.id, filePath);
-        }
+        // Use DEMO_NOTEBOOK_ID directly — the demo notebook always has a known ID
+        nb.handleOpenFile(DEMO_NOTEBOOK_ID, filePath);
+        nb.expandToFile(DEMO_NOTEBOOK_ID, filePath);
       } else {
         nb.handleOpenFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
         nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
       }
       docRoute.completeInitialLoad();
     });
-  }, [auth.isDemoMode, nb]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [auth.isDemoMode, demoInitPending, nb]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle navigation state from content pages (signIn, enterDemo)
   useEffect(() => {
@@ -170,7 +169,7 @@ export default function App() {
   useEffect(() => {
     if (!auth.isSignedIn || nb.notebooks.length === 0 || nb.tabs.length > 0) return;
     // Skip if demo init is in progress (it handles its own file opening)
-    if (demoInitPending.current) return;
+    if (demoInitPending) return;
 
     if (auth.isDemoMode) {
       // Demo refresh: demo mode was restored from sessionStorage (not fresh enter).
