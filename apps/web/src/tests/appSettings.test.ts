@@ -4,7 +4,7 @@ import type { AppSettings } from '../hooks/useSettings';
 const DEFAULT_SETTINGS: AppSettings = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   fontSize: 16,
-  margins: 'regular',
+  margins: 'narrow',
   autoSave: true,
   spellCheck: true,
   lineNumbers: false,
@@ -24,8 +24,8 @@ describe('AppSettings', () => {
     expect(DEFAULT_SETTINGS.spellCheck).toBe(true);
   });
 
-  it('default margins is regular', () => {
-    expect(DEFAULT_SETTINGS.margins).toBe('regular');
+  it('default margins is narrow', () => {
+    expect(DEFAULT_SETTINGS.margins).toBe('narrow');
   });
 
   it('default lineNumbers is false', () => {
@@ -37,7 +37,7 @@ describe('AppSettings', () => {
     expect(updated.fontFamily).toBe("'Inter', sans-serif");
     expect(updated.fontSize).toBe(20);
     expect(updated.spellCheck).toBe(true);
-    expect(updated.margins).toBe('regular');
+    expect(updated.margins).toBe('narrow');
   });
 
   it('margin values map to expected padding', () => {

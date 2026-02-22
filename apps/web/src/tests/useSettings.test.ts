@@ -36,7 +36,7 @@ describe('useSettings', () => {
     const { result } = renderHook(() => useSettings(false));
     expect(result.current.settings.fontFamily).toContain('-apple-system');
     expect(result.current.settings.fontSize).toBe(16);
-    expect(result.current.settings.margins).toBe('regular');
+    expect(result.current.settings.margins).toBe('narrow');
     expect(result.current.settings.autoSave).toBe(true);
     expect(result.current.settings.spellCheck).toBe(true);
     expect(result.current.settings.lineNumbers).toBe(false);
@@ -78,7 +78,7 @@ describe('useSettings', () => {
     const { result } = renderHook(() => useSettings(false));
 
     await act(async () => {
-      await result.current.updateSettings({ fontSize: 24, margins: 'narrow' });
+      await result.current.updateSettings({ fontSize: 24, margins: 'wide' });
     });
     expect(result.current.settings.fontSize).toBe(24);
 
@@ -87,7 +87,7 @@ describe('useSettings', () => {
     });
 
     expect(result.current.settings.fontSize).toBe(16);
-    expect(result.current.settings.margins).toBe('regular');
+    expect(result.current.settings.margins).toBe('narrow');
     const stored = JSON.parse(localStorage.getItem(LOCAL_KEY)!);
     expect(stored.fontSize).toBe(16);
   });
