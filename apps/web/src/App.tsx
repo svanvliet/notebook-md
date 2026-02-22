@@ -177,6 +177,10 @@ export default function App() {
             nb.expandToFile(DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH);
           }
         }
+        // Expand tree to the URL file so its notebook/folder is visible
+        if (urlFile) {
+          nb.expandToFile(urlFile.notebookId, urlFile.path);
+        }
         docRoute.completeInitialLoad();
       });
     } else {
@@ -189,6 +193,10 @@ export default function App() {
         }
       }
       nb.restoreTabs(urlFile).then(() => {
+        // Expand tree to the URL file so its notebook/folder is visible
+        if (urlFile) {
+          nb.expandToFile(urlFile.notebookId, urlFile.path);
+        }
         docRoute.completeInitialLoad();
       });
     }
