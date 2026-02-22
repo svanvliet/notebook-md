@@ -92,6 +92,8 @@ export function useDocumentRoute({
   const replaceNextRef = useRef(false);
   // Initial load gate: URL→State is blocked until restoration completes
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  // Track whether a tab has ever been active (prevents URL stripping before any tab opens)
+  const hadActiveTabRef = useRef(false);
   // Refs for callbacks/state used in URL→State effect (avoids stale closures without adding deps)
   const handleOpenFileRef = useRef(handleOpenFile);
   handleOpenFileRef.current = handleOpenFile;
@@ -99,6 +101,8 @@ export function useDocumentRoute({
   expandToFileRef.current = expandToFile;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
+
+  if (activeTabId) hadActiveTabRef.current = true;
 
   // --- URL → State ---
   // When the URL changes (navigation, back/forward), open the document.
@@ -138,8 +142,9 @@ export function useDocumentRoute({
 
     if (!activeTabId) {
       // No active tab — navigate to base app URL if we're on a document URL.
-      // But skip during initial load (tabs haven't been restored yet).
-      if (!initialLoadComplete) return;
+      // Only strip URL if a tab was previously active (user closed all tabs).
+      // Never strip if no tab has ever been shown (initial load / restoration).
+      if (!hadActiveTabRef.current) return;
       if (location.pathname.startsWith(prefix + '/')) {
         syncingRef.current = true;
         navigate(prefix === '/demo' ? '/demo' : '/app', { replace: true });
