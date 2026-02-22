@@ -91,8 +91,6 @@ export default function App() {
   const demoInitPending = useRef(false);
   // Guard: prevent auto-enter effect from re-entering demo after intentional exit
   const demoExitingRef = useRef(false);
-  // Track restoration attempts to allow fallback on retry
-  const restorationAttemptRef = useRef(0);
 
   // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {
@@ -167,9 +165,6 @@ export default function App() {
     // Skip if demo init is in progress (it handles its own file opening)
     if (demoInitPending.current) return;
 
-    const attempt = ++restorationAttemptRef.current;
-    const urlExpected = !!(docRoute.urlNotebookName && docRoute.urlFilePath);
-
     if (auth.isDemoMode) {
       // Demo refresh: demo mode was restored from sessionStorage (not fresh enter).
       const urlFile = (docRoute.urlNotebookName && docRoute.urlFilePath)
@@ -193,10 +188,7 @@ export default function App() {
         if (urlFile) {
           nb.expandToFile(urlFile.notebookId, urlFile.path);
         }
-        // Only unlock URL→State when URL resolved, no URL expected, or retry (fallback)
-        if (urlFile || !urlExpected || attempt > 1) {
-          docRoute.completeInitialLoad();
-        }
+        docRoute.completeInitialLoad();
       });
     } else {
       // Normal signed-in user: restore persisted tabs + URL file
@@ -211,10 +203,7 @@ export default function App() {
         if (urlFile) {
           nb.expandToFile(urlFile.notebookId, urlFile.path);
         }
-        // Only unlock URL→State when URL resolved, no URL expected, or retry (fallback)
-        if (urlFile || !urlExpected || attempt > 1) {
-          docRoute.completeInitialLoad();
-        }
+        docRoute.completeInitialLoad();
       });
     }
   }, [auth.isSignedIn, auth.isDemoMode, nb.notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
