@@ -45,8 +45,10 @@ router.post('/', async (req: Request, res: Response) => {
   const event = req.headers['x-github-event'] as string;
   const deliveryId = req.headers['x-github-delivery'] as string;
 
-  // 1. Verify signature
-  if (!verifyWebhookSignature(rawBody, signature)) {
+  // 1. Verify signature (skip in development — smee proxy breaks HMAC)
+  if (process.env.NODE_ENV === 'development') {
+    logger.debug('Skipping webhook signature verification (development mode)');
+  } else if (!verifyWebhookSignature(rawBody, signature)) {
     logger.warn('Webhook signature verification failed', { event, deliveryId });
     res.status(401).json({ error: 'Invalid signature' });
     return;
