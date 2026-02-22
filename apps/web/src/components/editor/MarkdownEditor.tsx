@@ -429,7 +429,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
     }
   }, []);
 
-  // Intercept clicks on relative .md links to open them in-app
+  // Intercept clicks on .md links to open them in-app
   // Uses native capture-phase listener to fire before browser follows target="_blank"
   const editorContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -440,7 +440,20 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       if (!target) return;
       const href = target.getAttribute('href');
       if (!href) return;
-      const isRelative = !href.match(/^[a-z]+:/i) && !href.startsWith('#');
+
+      // App URLs (e.g. /app/Notebook/file.md, /demo/Notebook/file.md)
+      const appUrlMatch = href.match(/^\/(app|demo)\/(.+)/);
+      if (appUrlMatch) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(
+          new CustomEvent('app-link-click', { detail: { href } }),
+        );
+        return;
+      }
+
+      // Relative .md links (e.g. file.md, ../folder/file.md)
+      const isRelative = !href.match(/^[a-z]+:/i) && !href.startsWith('#') && !href.startsWith('/');
       if (isRelative && href.endsWith('.md')) {
         e.preventDefault();
         e.stopPropagation();

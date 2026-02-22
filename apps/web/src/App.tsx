@@ -60,6 +60,16 @@ export default function App() {
     return () => nb.setNavigateToFile(null);
   }, [nb.setNavigateToFile, docRoute.navigateToFile]);
 
+  // Handle app URL link clicks from the editor (e.g. /app/Notebook/file.md)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { href } = (e as CustomEvent<{ href: string }>).detail;
+      navigate(href);
+    };
+    window.addEventListener('app-link-click', handler);
+    return () => window.removeEventListener('app-link-click', handler);
+  }, [navigate]);
+
   // Status bar state
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
