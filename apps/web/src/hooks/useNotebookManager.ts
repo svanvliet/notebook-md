@@ -350,7 +350,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   // Reactive set of notebook IDs that have a working branch (for UI)
   const [publishableNotebooks, setPublishableNotebooks] = useState<Set<string>>(new Set());
   // Track notebooks with pending PRs (not yet merged)
-  const [pendingPrs, setPendingPrs] = useState<Map<string, { prNumber: number; prUrl: string }>>(new Map());
+  const [pendingPrs, setPendingPrs] = useState<Map<string, { prNumber: number; prUrl: string; deleteBranch: boolean }>>(new Map());
 
   // Restore persisted working branches on mount
   useEffect(() => {
@@ -864,14 +864,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         } else if (result.outcome === 'pr_created') {
           setPendingPrs((prev) => {
             const next = new Map(prev);
-            next.set(notebookId, { prNumber: result.prNumber!, prUrl: result.prUrl! });
+            next.set(notebookId, { prNumber: result.prNumber!, prUrl: result.prUrl!, deleteBranch: shouldDeleteBranch });
             return next;
           });
           toast?.(`PR #${result.prNumber} created — awaiting approval`, 'info');
         } else if (result.outcome === 'conflict') {
           setPendingPrs((prev) => {
             const next = new Map(prev);
-            next.set(notebookId, { prNumber: result.prNumber!, prUrl: result.prUrl! });
+            next.set(notebookId, { prNumber: result.prNumber!, prUrl: result.prUrl!, deleteBranch: shouldDeleteBranch });
             return next;
           });
           toast?.(`Merge conflict — resolve on GitHub`, 'warning');
@@ -1000,6 +1000,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           const status = await checkPrStatus(owner, repo, branch);
           if (status.merged) {
             // PR was merged externally — clean up working branch
+            if (pr.deleteBranch) {
+              try {
+                await deleteWorkingBranch(owner, repo, branch);
+              } catch {
+                // Branch may already be deleted by GitHub's auto-delete setting
+              }
+            }
             delete workingBranches.current[notebookId];
             delete defaultBranches.current[notebookId];
             persistBranches(workingBranches.current, defaultBranches.current);
