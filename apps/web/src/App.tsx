@@ -552,6 +552,7 @@ export default function App() {
           onWordCountChange={handleWordCountChange}
           onEditorReady={(editor) => setActiveEditor(editor as Editor | null)}
           showPublish={!!(nb.activeTab && nb.hasWorkingBranch(nb.activeTab.notebookId))}
+          pendingPr={nb.activeTab ? nb.pendingPrs.get(nb.activeTab.notebookId) ?? null : null}
           onPublish={() => nb.activeTab && setShowPublishModal(true)}
           onDiscard={() => nb.activeTab && setShowDiscardModal(true)}
           fontFamily={settings.fontFamily}
