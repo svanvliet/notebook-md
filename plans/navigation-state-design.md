@@ -384,3 +384,55 @@ File paths may contain spaces, unicode, special chars:
 4. **Notebook name uniqueness:** Notebook names must be unique across all sources. Since remote notebooks can be given custom names, this is not restrictive. **Action item:** Add validation in Add Notebook (local + remote) and Rename Notebook flows to enforce uniqueness, with appropriate error messages so users can provide a unique name.
 
 5. **Close all tabs:** Navigates to `/app` — the natural empty state.
+---
+
+## Implementation Status (2026-02-22)
+
+**Status: COMPLETE ✅**
+
+All five design phases have been implemented and tested:
+
+### Phase 1: Routing Foundation ✅
+- Routes: `/app/:notebookName/*`, `/demo/:notebookName/*`, auth callbacks
+- `useDocumentRoute` hook: bidirectional URL↔State sync with refs for stale closure prevention
+- `navigateToFile` for programmatic navigation (tree clicks, link clicks)
+
+### Phase 2: Browser History ✅
+- Document switches push history entries; back/forward navigates between documents
+- Tab close uses `history.replace` via `markReplaceNext`
+- Close all tabs navigates to `/app` or `/demo`
+
+### Phase 3: Session Persistence ✅
+- Tab persistence: `sessionStorage('nb:tabs')` with coordinated `restoreTabs` flow
+- Tree expansion: `sessionStorage('nb:tree:notebooks')` and `nb:tree:folders`
+- Remote notebook auto-reload on expansion restore
+- Demo mode persistence via `sessionStorage('notebookmd:demoMode')`
+
+### Phase 4: Link Integration ✅
+- App URL links (`/app/...`, `/demo/...`): routed via React Router `navigate()`
+- Relative `.md` links: resolved against current document directory
+- External URLs: opened in new tab with `target="_blank"`
+- Fixed duplicate StarterKit Link extension that caused spurious browser tab spawns
+
+### Phase 5: Polish & Edge Cases ✅
+- Deep link in new window: `nb:returnTo` for post-login redirect
+- URL stripping prevention: `hadActiveTabRef` prevents premature URL clearing
+- `initialLoadComplete` gate prevents URL→State during restoration
+- Notebook name uniqueness validation (case-insensitive) in Add/Rename flows
+
+### Key Files Created/Modified
+| File | Role |
+|---|---|
+| `useDocumentRoute.ts` | URL↔State bridge hook |
+| `useSessionPersistence.ts` | sessionStorage utilities |
+| `App.tsx` | Orchestration: restoration, demo init, deep links |
+| `useNotebookManager.ts` | `restoreTabs`, tab persistence, dedup guards |
+| `NotebookTree.tsx` | Tree state persistence, remote notebook reload |
+| `MarkdownEditor.tsx` | Link click interception (app/relative/external) |
+| `extensions.ts` | Disabled duplicate StarterKit Link/Underline |
+| `AddNotebookModal.tsx` | Notebook name uniqueness validation |
+| `Router.tsx` | Document deep link routes |
+
+### Tests
+- 30 unit tests: `documentRoute.test.ts` (12), `sessionPersistence.test.ts` (8), `notebookNameUniqueness.test.ts` (10)
+- 6 E2E tests: `e2e/navigation.spec.ts`

@@ -869,6 +869,29 @@ Required for Google Drive restricted scope (`auth/drive`) verification. Based on
 
 ---
 
+## Cross-Phase Feature: URL Navigation & State Management
+
+**Status: COMPLETE ✅** (2026-02-22)
+
+Implemented as a cross-cutting feature after Phase 7 foundations, adding URL-based document navigation, browser history support, session persistence, and deep linking.
+
+### Implementation Summary
+
+- [x] URL routes: `/app/:notebookName/*`, `/demo/:notebookName/*`
+- [x] Bidirectional URL↔State sync via `useDocumentRoute` hook
+- [x] Browser back/forward navigation between documents
+- [x] Deep linking: paste URL in new window → opens file after auth
+- [x] Session persistence: tabs, tree expansion, active document survive refresh
+- [x] Demo mode: full persistence + deep linking support
+- [x] Remote notebook auto-reload on tree expansion restore
+- [x] In-document link interception: app URLs, relative .md links, external URLs
+- [x] Notebook name uniqueness validation (case-insensitive)
+- [x] 30 unit tests + 6 E2E tests
+
+**Design document:** `plans/navigation-state-design.md`
+
+---
+
 ## Dependency Map
 
 ```
