@@ -99,11 +99,12 @@ export function useDocumentRoute({
     if (notebooks.length === 0) return; // Not loaded yet
 
     const notebookId = resolveNotebookId(notebookName, notebooks);
-    if (!notebookId) return; // Notebook not found — handled below
+    if (!notebookId) return; // Notebook not found
 
-    // Check if active tab already matches
-    if (activeTabId) {
-      const parsed = parseTabId(activeTabId);
+    // Check if active tab already matches (use ref to avoid stale closure)
+    const currentTabId = activeTabId;
+    if (currentTabId) {
+      const parsed = parseTabId(currentTabId);
       if (parsed && parsed.notebookId === notebookId && parsed.filePath === filePath) {
         return; // Already showing the right file
       }
@@ -112,11 +113,11 @@ export function useDocumentRoute({
     syncingRef.current = true;
     handleOpenFile(notebookId, filePath);
     expandToFile(notebookId, filePath);
-    // Allow next tick to settle before re-enabling sync
     requestAnimationFrame(() => {
       syncingRef.current = false;
     });
-  }, [notebookName, filePath, notebooks, activeTabId, handleOpenFile, expandToFile]);
+  }, [notebookName, filePath, notebooks]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Note: activeTabId intentionally excluded — this effect reacts to URL changes only
 
   // --- State → URL ---
   // When the active tab changes, update the URL
