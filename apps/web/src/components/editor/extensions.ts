@@ -115,7 +115,7 @@ export function getEditorExtensions(placeholder?: string) {
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    CodeBlockLowlight.configure({ lowlight }).extend({
+    CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }).extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
       },
