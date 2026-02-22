@@ -3694,7 +3694,7 @@ Added `skip_ci_gate` boolean input to the Deploy to Production workflow (`workfl
 
 ---
 
-## Phase 3.4.1: GitHub PR-based Squash Merge Publish — IN PROGRESS 🚧
+## Phase 3.4.1: GitHub PR-based Squash Merge Publish — COMPLETE ✅
 
 **Date:** 2026-02-22
 **Branch:** `feature/github-integration`
@@ -3733,3 +3733,55 @@ Replace with PR-based squash merge:
 **Phase 5: Frontend — PR pending indicator**
 - Visual indicator on notebook tree for open PRs
 - Clear on merge via webhook
+
+### Implementation Summary
+
+All 5 phases completed. Key changes:
+
+**Backend (`services/sources/github.ts`):**
+- `publishBranch()` rewritten: creates PR via Pull Requests API, squash-merges with `merge_method: "squash"`
+- Returns `PublishResult` with `outcome: 'merged' | 'pr_created' | 'conflict'` + PR URL/number
+- New `resetBranchToBase()`: force-updates working branch ref to base HEAD after merge (prevents divergence)
+- Route handles branch deletion or reset based on user preference
+
+**Backend (`routes/webhooks.ts`):**
+- New `pull_request.closed+merged` handler identifies Notebook.md PRs by body content
+- Stores `pr-merged` marker in Redis (24h TTL) for client polling
+- New `GET /api/github/pr-status` endpoint for clients to check merge status
+
+**Frontend (`PublishModal.tsx`):**
+- Added commit message field (pre-filled, editable)
+- Added "Auto-merge if possible" checkbox (default on)
+- Post-publish outcome display: success ✓, PR pending with link, conflict warning with link
+- Auto-closes on success after 1.5s
+
+**Frontend (`useNotebookManager.ts`):**
+- `handlePublish` returns `PublishResult`, handles all three outcomes
+- `pendingPrs` Map tracks notebooks with open PRs
+- Clears pending PR on successful merge
+
+**Frontend (`NotebookTree.tsx`):**
+- Purple "PR" badge on notebooks with pending PRs
+- Tooltip: "PR #N pending — awaiting approval"
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `services/sources/github.ts` | PR-based publishBranch + resetBranchToBase |
+| `routes/github.ts` | Updated publish route, added pr-status endpoint, imported redis |
+| `routes/webhooks.ts` | Added pull_request handler |
+| `api/github.ts` (client) | PublishResult type, updated publishBranch, added checkPrStatus |
+| `PublishModal.tsx` | Commit message, auto-merge, outcome display |
+| `useNotebookManager.ts` | PublishResult handling, pendingPrs state |
+| `NotebookTree.tsx` | pendingPrs prop, PR badge |
+| `App.tsx` | Pass pendingPrs to NotebookTree, updated onPublish callback |
+
+### Commits
+- `b016357` — docs: plan PR-based squash merge publish workflow (§3.4.1)
+- `1e32a49` — feat: PR-based squash merge for GitHub publish workflow
+- `4f4425f` — feat: webhook handler for PR merge events
+- `fb58c00` — feat: PR pending indicator and webhook-driven merge detection
+
+### Tests
+- ✅ 224 API tests pass (no regressions)
+- ✅ 185 web unit tests pass (no regressions)
