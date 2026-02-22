@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-22
 
 ---
 
@@ -3451,6 +3451,36 @@ The implementation required solving a cascade of timing issues in notebook loadi
    - Consider GitHub Actions matrix strategy for parallelism
 
 **Key constraint:** Setup/teardown (compose up, Playwright install, npm ci) dominates runtime. Optimizations should focus on selective *test execution* within a single job, not separate jobs per app.
+
+## CI Caching — COMPLETE ✅
+
+**Date:** 2026-02-22
+
+Added three layers of caching to the E2E Smoke Tests job to reduce setup time from ~3.5 min to ~1 min on cache-hit runs:
+
+| Cache | Key | What's cached | Savings |
+|-------|-----|---------------|---------|
+| node_modules | `node-modules-${{ hashFiles('package-lock.json') }}` | Reuses install job's cached `node_modules` | ~43s (skip `npm ci`) |
+| Playwright browsers | `playwright-${{ hashFiles('package-lock.json') }}` | `~/.cache/ms-playwright` chromium binaries | ~25s (only install system deps) |
+| Docker BuildKit layers | `docker-e2e-${{ hashFiles('docker/**', 'package-lock.json') }}` | Per-service layer cache in `/tmp/.buildx-cache` | ~80-90s |
+
+**Docker build change:** Replaced `docker compose up --build` with explicit `docker buildx build` per service (api, web, admin) using `--cache-from`/`--cache-to` local cache, then `docker compose up --wait`. This enables BuildKit layer caching across CI runs.
+
+**E2E timeout fix:** Increased demo mode init timeout from 10s to 15s — IndexedDB + React render can exceed 10s in CI.
+
+### Commits
+- `72e2996` — fix: increase E2E timeout for demo mode initialization in CI
+- `8f044be` — perf: cache node_modules and Playwright browsers in E2E job
+- `a20c081` — chore: trigger CI to prime caches
+
+## Documentation Reorganization
+
+**Date:** 2026-02-22
+
+Moved `plans/`, `requirements/`, and `reviews/` folders into `docs/`. Updated CI `paths-ignore` to use single `docs/**` glob instead of three separate entries.
+
+### Commit
+- `3ee0e75` — refactor: move plans, requirements, reviews into docs/ folder
 
 ---
 
