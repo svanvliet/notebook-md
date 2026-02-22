@@ -266,12 +266,14 @@ export function NotebookTree({
         next.delete(id);
       } else {
         next.add(id);
-        // Notify parent to load files for remote notebooks
-        onExpandNotebook?.(id);
       }
       return next;
     });
-  }, [onExpandNotebook]);
+    // Notify parent outside the setState updater to avoid setState-during-render
+    if (!expandedNotebooks.has(id)) {
+      onExpandNotebook?.(id);
+    }
+  }, [onExpandNotebook, expandedNotebooks]);
 
   const toggleFolder = useCallback((key: string) => {
     setExpandedFolders((prev) => {
