@@ -378,13 +378,27 @@ export async function publishBranch(
     },
   );
 
-  // 422 with "No commits" means the branches are identical — nothing to publish
+  // 422 can mean "No commits" (identical branches) or "PR already exists"
   if (prRes.status === 422) {
     const body = await prRes.json().catch(() => ({})) as Record<string, unknown>;
     const errors = (body.errors ?? []) as Array<{ message?: string }>;
     const noCommits = errors.some((e) => e.message?.includes('No commits'));
     if (noCommits) {
       return { outcome: 'merged', sha: undefined };
+    }
+    const alreadyExists = errors.some((e) => e.message?.includes('already exists'));
+    if (alreadyExists) {
+      // Find the existing open PR for this head→base
+      const existingRes = await fetch(
+        `${API_BASE}/repos/${owner}/${repo}/pulls?head=${owner}:${head}&base=${base}&state=open`,
+        { headers: headers(accessToken) },
+      );
+      if (existingRes.ok) {
+        const existing = (await existingRes.json()) as Array<{ number: number; html_url: string }>;
+        if (existing.length > 0) {
+          return { outcome: 'pr_created', prNumber: existing[0].number, prUrl: existing[0].html_url };
+        }
+      }
     }
     throw new Error(`GitHub: failed to create PR (422): ${JSON.stringify(body)}`);
   }
