@@ -9,6 +9,7 @@ export interface Tab {
   name: string;
   hasUnsavedChanges: boolean;
   content: string;
+  loading?: boolean;
 }
 
 interface DocumentPaneProps {
@@ -159,6 +160,23 @@ export function DocumentPane({
       {/* Editor area */}
       <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
         {activeTab ? (
+          activeTab.loading ? (
+            <div className="max-w-3xl mx-auto px-8 py-10 animate-pulse">
+              <div className="h-7 bg-gray-200 dark:bg-gray-800 rounded w-2/5 mb-6" />
+              <div className="space-y-3">
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-5/6" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-4/6" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
+              </div>
+              <div className="mt-8 space-y-3">
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-5/6" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
+              </div>
+            </div>
+          ) : (
           <EditorErrorBoundary key={activeTab.id}>
             <MarkdownEditor
               content={activeTab.content}
@@ -172,6 +190,7 @@ export function DocumentPane({
               lineNumbers={lineNumbers}
             />
           </EditorErrorBoundary>
+          )
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-600">
             <p className="text-sm">Open a file from the notebook pane to start editing</p>
