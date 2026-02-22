@@ -13,6 +13,10 @@ on:
         description: 'Rebuild all images regardless of changes'
         type: boolean
         default: false
+      skip_ci_gate:
+        description: 'Skip CI gate check (emergency deploys only)'
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-production
@@ -134,7 +138,7 @@ jobs:
           echo "| Admin | $ADMIN |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify CI passed
-        if: steps.flags.outputs.any == 'true'
+        if: steps.flags.outputs.any == 'true' && inputs.skip_ci_gate != true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
