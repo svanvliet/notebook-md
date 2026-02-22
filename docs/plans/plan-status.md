@@ -3452,6 +3452,33 @@ The implementation required solving a cascade of timing issues in notebook loadi
 
 **Key constraint:** Setup/teardown (compose up, Playwright install, npm ci) dominates runtime. Optimizations should focus on selective *test execution* within a single job, not separate jobs per app.
 
+## Editor Bug Fixes — COMPLETE ✅
+
+**Date:** 2026-02-22
+**Branch:** `feature/document-outline`
+
+### Code Block Styling
+- Plain text code blocks were incorrectly showing syntax highlighting colors (auto-detection by lowlight)
+- Fixed by setting `defaultLanguage: null` on `CodeBlockLowlight` extension
+- Added explicit text colors for code blocks: `#1f2328` (light), `#e6edf3` (dark)
+- Scoped `.hljs-*` syntax color selectors to `pre[data-language]` so plain text blocks get no syntax colors
+- Added `data-language` attribute to `<pre>` in `CodeBlockView.tsx` (only when language is set)
+
+### Slash Command in Code Blocks
+- Slash command menu was triggering when typing `/` inside code blocks and inline code
+- Added guard in `SlashCommands.ts` plugin: checks `$from.parent.type.name === 'codeBlock'` and `$from.marks().some(m => m.type.name === 'code')` before activating
+
+### setState-during-render Fix
+- `NotebookTree.tsx` was calling `onExpandNotebook` inside a `setExpandedNotebooks` updater function, causing React warning
+- Moved callback outside the updater to fix
+
+### Commits
+- `f1a0598` — fix: plain text code blocks show syntax highlighting and poor contrast
+- `3ab8606` — fix: suppress slash command menu inside code blocks and inline code
+- `2f78e52` — fix: setState-during-render in NotebookTree toggleNotebook
+
+---
+
 ## Document Outline Pane — COMPLETE ✅
 
 **Date:** 2026-02-22
