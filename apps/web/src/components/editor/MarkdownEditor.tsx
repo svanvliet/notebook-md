@@ -430,29 +430,12 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
   }, []);
 
   // Intercept clicks on .md links to open them in-app
-  // Uses mousedown (capture phase) to fire before browser follows target="_blank" links.
-  // Some browsers open target="_blank" on mouseup, before the click event fires.
   const editorContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const container = editorContainerRef.current;
     if (!container) return;
 
-    // Strip target="_blank" from app/relative links on mousedown (before browser acts)
-    const mousedownHandler = (e: MouseEvent) => {
-      if (e.button !== 0) return; // only left click
-      const target = (e.target as HTMLElement).closest('a');
-      if (!target) return;
-      const href = target.getAttribute('href');
-      if (!href) return;
-      // App URLs or relative .md links should not open in new tabs
-      const isAppUrl = /^\/(app|demo)\//.test(href);
-      const isRelativeMd = !href.match(/^[a-z]+:/i) && !href.startsWith('#') && !href.startsWith('/') && href.endsWith('.md');
-      if (isAppUrl || isRelativeMd) {
-        target.removeAttribute('target');
-      }
-    };
-
-    const clickHandler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent) => {
       const target = (e.target as HTMLElement).closest('a');
       if (!target) return;
       const href = target.getAttribute('href');
@@ -462,7 +445,6 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       if (/^\/(app|demo)\//.test(href)) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         window.dispatchEvent(
           new CustomEvent('app-link-click', { detail: { href } }),
         );
@@ -474,19 +456,14 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, fontFamil
       if (isRelative && href.endsWith('.md')) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         window.dispatchEvent(
           new CustomEvent('notebook-link-click', { detail: { href } }),
         );
       }
     };
 
-    container.addEventListener('mousedown', mousedownHandler, true);
-    container.addEventListener('click', clickHandler, true);
-    return () => {
-      container.removeEventListener('mousedown', mousedownHandler, true);
-      container.removeEventListener('click', clickHandler, true);
-    };
+    container.addEventListener('click', handler, true); // capture phase
+    return () => container.removeEventListener('click', handler, true);
   }, []);
 
   const editorStyle = {
