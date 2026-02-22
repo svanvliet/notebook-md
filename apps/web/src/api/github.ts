@@ -100,8 +100,10 @@ export async function publishBranch(
   return body as PublishResult;
 }
 
-export async function deleteWorkingBranch(owner: string, repo: string, branch: string): Promise<void> {
-  await api(`/api/github/branches?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`, {
+export async function deleteWorkingBranch(owner: string, repo: string, branch: string, closePrNumber?: number): Promise<void> {
+  const params = new URLSearchParams({ owner, repo, branch });
+  if (closePrNumber) params.set('close_pr', closePrNumber.toString());
+  await api(`/api/github/branches?${params}`, {
     method: 'DELETE',
   });
 }

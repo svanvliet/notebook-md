@@ -35,6 +35,7 @@ interface MarkdownEditorProps {
   spellCheck?: boolean;
   margins?: 'narrow' | 'regular' | 'wide';
   lineNumbers?: boolean;
+  readOnly?: boolean;
 }
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -105,7 +106,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly }: MarkdownEditorProps) {
   const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
@@ -132,6 +133,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
   const editor = useEditor({
     extensions,
     content: sanitize(content),
+    editable: !readOnly,
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -166,6 +168,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
     onEditorReady?.(editor);
     return () => onEditorReady?.(null);
   }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync editable state when readOnly prop changes
+  useEffect(() => {
+    if (editor) editor.setEditable(!readOnly);
+  }, [editor, readOnly]);
 
   // Sync content from outside (e.g., when switching tabs)
   useEffect(() => {

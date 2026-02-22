@@ -501,6 +501,28 @@ export async function deleteBranch(
   }
 }
 
+/**
+ * Close an open pull request without merging.
+ */
+export async function closePullRequest(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/repos/${owner}/${repo}/pulls/${prNumber}`,
+    {
+      method: 'PATCH',
+      headers: headers(accessToken),
+      body: JSON.stringify({ state: 'closed' }),
+    },
+  );
+  if (!res.ok) {
+    logger.warn('Failed to close PR', { owner, repo, pr: prNumber, status: res.status });
+  }
+}
+
 // Register the adapter
 const githubAdapter = new GitHubAdapter();
 registerSourceAdapter(githubAdapter);
