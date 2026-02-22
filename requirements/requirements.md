@@ -542,13 +542,46 @@ The web app is fully responsive and optimized for mobile browsers (phones and ta
 The web app uses **React Router** (`react-router-dom`) with `BrowserRouter` for SPA navigation:
 
 - All client-side routes are defined in a central `Router.tsx` component
-- Routes: `/` (main app), `/terms` (Terms of Service), `/privacy` (Privacy Policy), `/app/*` (auth callbacks)
+- Routes: `/` (main app), `/terms` (Terms of Service), `/privacy` (Privacy Policy), `/features`, `/about`, `/contact`
 - Unknown routes redirect to `/` via a catch-all route
 - **Background location pattern:** When navigating to legal pages from within the app, the main App component stays mounted (preserving all state — open tabs, expanded notebooks, editor content). The legal page renders as a full-screen overlay. Direct URL access renders the legal page standalone.
 - **Modal history integration:** Opening modals (Settings, Account, Add Notebook) pushes a browser history entry. Pressing the back button closes the modal naturally. Uses `useModalHistory` hook.
 - Legal pages and other standalone pages support browser back/forward navigation, direct URL access, and bookmarking
 - Auth callback routes (`/app/magic-link`, `/app/verify-email`, `/app/auth-error`) are handled by the main App component and cleaned up via `navigate(replace)`
 - Production deployment requires the web server to serve `index.html` for all non-API routes (SPA fallback)
+
+### 5.8 URL-Based Navigation & Deep Linking
+
+Documents are addressable via URL, enabling deep linking, browser history navigation, and shareable links:
+
+- **URL structure:** `/app/:notebookName/*` for signed-in users, `/demo/:notebookName/*` for demo mode
+  - Notebook name is URL-encoded (e.g., `/app/Local%20Notebook/Folder/file.md`)
+  - File path supports arbitrary nesting (catch-all `*` parameter)
+- **Browser back/forward:** Switching between documents pushes history entries; back/forward navigates between previously viewed documents
+- **Deep linking:** Pasting an app URL into a new browser window opens the specified file directly after authentication completes
+  - If not signed in, the URL is stored in `sessionStorage` (`nb:returnTo`) and restored after login
+  - Demo mode deep links (`/demo/...`) auto-enter demo mode and open the specified file
+- **Tab close behavior:** Closing a tab uses `history.replace` (not push) to avoid polluting history with intermediate states
+- **Close all tabs:** Navigates to `/app` or `/demo` base URL
+
+### 5.9 Session Persistence
+
+The app preserves workspace state across page refreshes using `sessionStorage` (per-tab, cleared on tab close):
+
+- **Open tabs:** Persisted as `nb:tabs` — array of `{id, notebookId, path, name}`. Restored on refresh via a coordinated `restoreTabs` flow that also handles the URL file.
+- **Tree expansion state:** `nb:tree:notebooks` and `nb:tree:folders` — sets of expanded notebook/folder IDs, restored in `NotebookTree` component initialization.
+- **Active document:** Determined by the URL (not stored separately). On refresh, the URL file is included in tab restoration and set as active.
+- **Remote notebook files:** When expanded remote notebooks are restored from sessionStorage, their file trees are re-fetched automatically.
+- **Demo mode:** Persisted via `sessionStorage('notebookmd:demoMode')` flag, restored on mount.
+
+### 5.10 In-Document Link Handling
+
+Links within rendered Markdown documents are intercepted and handled in-app:
+
+- **App URLs** (`/app/Notebook/file.md`, `/demo/Notebook/file.md`): Routed through React Router `navigate()` — opens the file in a new tab within the app without page reload
+- **Relative .md links** (`file.md`, `../folder/file.md`): Resolved relative to the current document's directory, then navigated via the URL routing system
+- **External URLs** (`https://...`): Opened in a new browser tab with `target="_blank"` and `rel="noopener noreferrer nofollow"`
+- **Anchor links** (`#section`): Handled by the browser's default scroll behavior
 
 ---
 
@@ -1499,6 +1532,7 @@ A Privacy Policy is required at launch, especially for GDPR compliance (EU users
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0 | 2026-02-22 | Added §5.8 URL-Based Navigation & Deep Linking, §5.9 Session Persistence, §5.10 In-Document Link Handling — URL-addressable documents, browser history, deep links, tab/tree restoration, link interception |
 | 1.9 | 2026-02-21 | Expanded §5.6 Responsive Design into full mobile web section (§5.6.1–5.6.9): hamburger nav, drawer pane, compact toolbar, scrollable tabs, responsive modals, condensed status bar, iOS compatibility, split view, internal links |
 | 1.8 | 2026-02-21 | Security hardening (CASA), OG tags, demo mode phase 2 |
 | 1.6 | 2026-02-19 | Added §5.7 Client-Side Routing — React Router for SPA navigation |

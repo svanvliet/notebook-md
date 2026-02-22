@@ -3355,6 +3355,76 @@ Comprehensive mobile web optimization across 8 phases (Phase 5 deferred). See `p
 
 ---
 
+## URL Navigation & State Management — COMPLETE ✅
+
+**Date:** 2026-02-22
+**Branch:** `feature/navigation-state`
+**Design doc:** `plans/navigation-state-design.md`
+
+### What Was Built
+
+URL-based document navigation with deep linking, browser history, and session persistence. Documents are addressable at `/app/:notebookName/*` and `/demo/:notebookName/*`.
+
+### Core Features
+
+1. **Bidirectional URL↔State sync** — `useDocumentRoute` hook bridges React Router and notebook manager state with `syncingRef` to prevent infinite loops
+2. **Browser back/forward** — document switches push history entries; tab close uses `replace` to avoid history pollution
+3. **Deep linking** — paste URL in new window → authenticates → opens exact file. Pre-auth URL stored in `sessionStorage('nb:returnTo')`
+4. **Session persistence** — open tabs, tree expansion state, and active document survive page refresh via `sessionStorage`
+5. **In-document link handling** — app URLs routed via React Router; relative `.md` links resolved against current file; external URLs open in new tab
+6. **Demo mode** — full support for `/demo/...` deep links, tab persistence, auto-enter demo mode
+
+### Critical Bugs Fixed (Race Conditions)
+
+The implementation required solving a cascade of timing issues in notebook loading:
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Tabs not restoring on refresh | Stale closures in URL→State effect captured initial render callbacks | Used `.current` refs for `handleOpenFile`, `expandToFile`, `activeTabId` |
+| Tabs appearing then disappearing | Two competing restoration paths (`restoreTabs` + URL→State) running concurrently | Unified into single coordinated flow gated by `initialLoadComplete` |
+| Restored tabs wiped on refresh | `setTabs([])` in async IIFE ran after React flushed `setNotebooks` → triggered restoration → cleared | Moved `setTabs([])` to synchronous code before the async IIFE |
+| Demo mode tabs not restoring | Restoration effect excluded demo mode | Added demo branch with sessionStorage fallback to Getting Started |
+| Deep link fails in new window | `tabRestorationDone` reset too early (consumed by stale anonymous scope) | Moved reset to inside IIFE, right before `setNotebooks` |
+| File selection freezes after refresh | `initialLoadComplete` never set (conditional guard missed edge case) | Always call `completeInitialLoad`; added `hadActiveTabRef` for URL stripping prevention |
+| In-doc links spawn browser tabs | StarterKit includes its own Link extension with `openOnClick: true` → duplicate | `StarterKit.configure({ link: false, underline: false })` |
+
+### Files Changed
+
+| File | Changes |
+|---|---|
+| `useDocumentRoute.ts` | New hook — URL↔State sync, refs, `initialLoadComplete`, `hadActiveTabRef` |
+| `App.tsx` | Orchestration: restoration effect, `app-link-click` handler, demo init |
+| `useNotebookManager.ts` | `restoreTabs(urlFile)`, tab persistence, dedup guards, timing fixes |
+| `NotebookTree.tsx` | Tree persistence, remote notebook auto-reload |
+| `MarkdownEditor.tsx` | Link click interception (app/relative/external URLs) |
+| `extensions.ts` | Disabled StarterKit's Link/Underline duplicates |
+| `Router.tsx` | Document deep link routes |
+| `AddNotebookModal.tsx` | Notebook name uniqueness validation |
+
+### Tests
+- **Unit:** 30 tests — `documentRoute.test.ts` (12), `sessionPersistence.test.ts` (8), `notebookNameUniqueness.test.ts` (10)
+- **E2E:** 6 tests — `e2e/navigation.spec.ts`
+- **All passing:** 174 web unit tests, 224 API tests
+
+### Commits (feature/navigation-state)
+- `3d1b381` — fix: restore tabs and remote notebook files on page refresh
+- `5613f8c` — fix: unify tab restoration into single coordinated flow
+- `6dc6c89` — fix: race condition — async setTabs([]) cleared restored tabs
+- `9fd9a31` — fix: demo mode tab restore and remote notebook file loading
+- `affc100` — fix: move tabRestorationDone reset before setNotebooks
+- `c6dc163` — fix: premature completeInitialLoad strips deep link URL
+- `19b91dc` — fix: expand tree to URL file on deep link navigation
+- `7366498` — fix: initialLoadComplete never set — freezes file selection
+- `90111f4` — fix: app URL links in editor open duplicate tabs
+- `c862e44` — fix: strip target=_blank on mousedown before browser opens new tab
+- `a76c53f` — fix: duplicate Link extension from StarterKit opens new browser tab
+- `0dba100` — refactor: remove mousedown/stopImmediate workarounds
+
+### Requirements Updated
+- `requirements/requirements.md` §5.8–5.10 added (version 2.0)
+
+---
+
 ## Open Questions
 
 - **Microsoft secret rotation:** Entra ID client secrets expire (6 months). Consider Azure Key Vault + terraform data source for automatic rotation.
