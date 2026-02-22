@@ -111,6 +111,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   // Load notebooks and their files when scope changes
   useEffect(() => {
     setStorageScope(userId ?? null);
+    // Clear tabs synchronously when user scope changes (before async notebook load).
+    // This prevents a race where restoreTabs opens tabs, then the IIFE's setTabs([]) clears them.
+    setTabs([]);
+    setActiveTabId(null);
+    tabRestorationDone.current = false;
     (async () => {
       // Sync remote notebooks from server into IndexedDB (skip in demo mode)
       if (userId && !isDemoMode) {
@@ -154,9 +159,6 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         // Remote notebooks load their tree on expand (lazy)
       }
       setFiles(fileMap);
-      // Clear tabs when switching users
-      setTabs([]);
-      setActiveTabId(null);
     })();
   }, [userId]);
 
