@@ -145,7 +145,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         try {
           const res = await apiFetch('/api/notebooks');
           if (res.ok) {
-            const { notebooks: serverNbs } = await res.json();
+            const { notebooks: serverNbs, sharedNotebooks: sharedNbs } = await res.json();
             const serverIds = new Set<string>();
             for (const snb of serverNbs) {
               serverIds.add(snb.id);
@@ -157,6 +157,21 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
                 sortOrder: new Date(snb.createdAt).getTime(),
                 createdAt: new Date(snb.createdAt).getTime(),
                 updatedAt: new Date(snb.updatedAt).getTime(),
+              });
+            }
+            // Also sync shared notebooks
+            for (const snb of (sharedNbs ?? [])) {
+              serverIds.add(snb.id);
+              await upsertNotebook({
+                id: snb.id,
+                name: snb.name,
+                sourceType: snb.sourceType,
+                sourceConfig: snb.sourceConfig ?? {},
+                sortOrder: new Date(snb.createdAt).getTime(),
+                createdAt: new Date(snb.createdAt).getTime(),
+                updatedAt: new Date(snb.updatedAt).getTime(),
+                sharedBy: snb.ownerName,
+                sharedPermission: snb.permission,
               });
             }
             // Remove orphan remote notebooks from IndexedDB (stale local copies)

@@ -502,9 +502,12 @@ export function NotebookTree({
     );
   }
 
+  const ownNotebooks = notebooks.filter(nb => !nb.sharedBy);
+  const sharedNotebooks = notebooks.filter(nb => !!nb.sharedBy);
+
   return (
     <div className="flex-1 overflow-y-auto py-1">
-      {notebooks.map((nb) => {
+      {ownNotebooks.map((nb) => {
         const isExpanded = expandedNotebooks.has(nb.id);
         const isRenaming = renamingItem?.type === 'notebook' && renamingItem.key === nb.id;
         const allFiles = files[nb.id] ?? [];
@@ -680,6 +683,67 @@ export function NotebookTree({
           </div>
         );
       })}
+
+      {/* Shared with me */}
+      {sharedNotebooks.length > 0 && (
+        <>
+          <div className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            Shared with me
+          </div>
+          {sharedNotebooks.map((nb) => {
+            const isExpanded = expandedNotebooks.has(nb.id);
+            const allFiles = files[nb.id] ?? [];
+            const rootFiles = allFiles
+              .filter((f) => f.parentPath === '')
+              .sort((a, b) => {
+                if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+                return a.name.localeCompare(b.name);
+              });
+
+            return (
+              <div key={nb.id}>
+                <div
+                  className="flex items-center gap-1.5 px-2 py-1 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded mx-1 select-none transition-colors"
+                  onClick={() => toggleNotebook(nb.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ x: e.clientX, y: e.clientY, target: { kind: 'notebook', id: nb.id } });
+                  }}
+                >
+                  <ChevronRightIcon className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                  <SourceIcon sourceType={nb.sourceType ?? 'local'} className="w-4 h-4 shrink-0" />
+                  <span className="truncate flex-1">{nb.name}</span>
+                  <span className="ml-auto shrink-0 text-[10px] text-gray-400 dark:text-gray-500" title={`Shared by ${nb.sharedBy}`}>
+                    {nb.sharedBy}
+                  </span>
+                  <span className="shrink-0 text-[10px] font-medium text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1 py-0.5 rounded">
+                    {nb.sharedPermission === 'viewer' ? 'View' : 'Edit'}
+                  </span>
+                </div>
+                {isExpanded && (
+                  <div>
+                    {rootFiles.length === 0 ? (
+                      loadingNotebooks?.has(nb.id) ? (
+                        <div className="flex items-center gap-2 px-6 py-2">
+                          <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Loading…</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-400 dark:text-gray-500 px-6 py-2 italic">Empty notebook</div>
+                      )
+                    ) : (
+                      rootFiles.map((file) => renderFileItem(file, 1))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
 
       {/* Context menu */}
       {contextMenu && (

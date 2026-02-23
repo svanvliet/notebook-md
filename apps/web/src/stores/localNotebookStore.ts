@@ -3,13 +3,17 @@ import { openDB, deleteDB, type IDBPDatabase } from 'idb';
 export interface NotebookMeta {
   id: string;
   name: string;
-  sourceType: 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud';
+  sourceType: 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
   /** Source-specific config (e.g., { owner, repo, branch, rootPath } for GitHub) */
   sourceConfig: Record<string, unknown>;
   /** Display order in the notebook pane (lower = higher) */
   sortOrder: number;
   createdAt: number;
   updatedAt: number;
+  /** Set when this notebook is shared with the user (not owned by them) */
+  sharedBy?: string;
+  /** User's permission on a shared notebook */
+  sharedPermission?: string;
 }
 
 export interface FileEntry {
