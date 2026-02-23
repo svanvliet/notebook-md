@@ -4145,3 +4145,31 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 - **Mobile read-only banner** — "Co-editing is available on desktop" message for mobile cloud docs
 - **Markdown round-trip fidelity tests** — Automated tests for HTML↔Markdown conversion quality
 - **WebSocket auth for collab** — HocusPocus requires token but refresh_token cookie is HttpOnly; needs a session endpoint that returns a short-lived WS token
+
+---
+
+## Share Invite Flow Fix (2026-02-23)
+
+### Fix: Share invite acceptance not working
+
+**Problem:** Clicking the invite link in the email (`/app/invite?token=...`) just loaded the app — no acceptance happened, and the shared notebook never appeared.
+
+**Root causes:**
+1. No frontend handler for `/app/invite` — the route existed but App.tsx had no logic to detect the invite URL and call the accept endpoint
+2. `GET /api/notebooks` shared notebooks query used `owner_user_id IS NULL` which never matches (column is `NOT NULL`), so shared notebooks were silently filtered out
+
+**Fix:**
+- Added `/app/invite` route to Router.tsx
+- App.tsx detects `/app/invite?token=...`, calls `POST /api/cloud/invites/:token/accept`, shows success toast, reloads notebooks
+- If user isn't signed in, token is stored in `sessionStorage` and accepted automatically after login
+- Fixed query to use `n.user_id != $1` instead of `ns.owner_user_id IS NULL`
+
+| File | Change |
+|------|--------|
+| `apps/web/src/Router.tsx` | Added `/app/invite` route |
+| `apps/web/src/App.tsx` | Invite detection + accept call + pending invite on login |
+| `apps/api/src/routes/notebooks.ts` | Fixed shared notebooks query filter |
+
+**Commit:** `1dc2009`
+
+**Tests:** ✅ 43 cloud tests pass (no regressions)
