@@ -300,4 +300,214 @@ Current copy repeatedly says “we never store your content”; this must be rep
 
 Proceed with **Notebook Cloud** as an additive storage mode and implement co-authoring using **TipTap + Yjs/Hocuspocus** on top of the current stack.  
 
-This gives the fastest credible path to real-time collaboration while preserving the existing BYO-storage identity for users who prioritize provider-native storage.
+This gives the fastest credible path to real-time collaboration while preserving the 
+existing BYO-storage identity for users who prioritize provider-native storage.
+
+## Answers to first round of questions
+
+I'm aligned with your recommendations. See my answers below and ask any follow-ups, appended to this document for me to answer.
+
+1. Yes, free for now. We can introduce some premium features later, like joining Teams vs. having anyone share (creates a Pro/Enterprise type offering).
+
+2. Keep them single-author for now. If we allow for invite with link for view only, we'd have to provides proxied access to content technically stored on the other services.
+
+3. For initial launch, can we just have Owner, Editor, and Viewer?
+
+4. I think sharing via link is a critical feature for adoption, so let's include it. We can have nice calls to action when a user clicks the link for them to sign up to edit, etc. Also, we should make sure the user, when sharing, has the ability to make the link public or private.
+
+5. Right now we're all US-based. Let's make note of the requirements for data residency in a future release. This will be important for the entire app, not only for this feature.
+
+6. Platform managed keys are good for now, but document what BYOK would look like in the future (and as a paid feature for Teams/Enterprises).
+
+7. Yes, but we should limit the file size of a .md file to a reasonable max size. We can look at gzip compression of the text when stored at rest as well to keep size down, perhaps?
+
+8. Thinking on this. How difficult would it be to have our current GitHub remote notebooks support co-authoring based on the design choices you've made?
+
+9. What is a reasonable # of concurrent users that our current tech stack can support without causing significant load/stress on the system as designed?
+
+10. "Cloud" is fine.
+
+---
+
+## 14) Decisions Captured from Your Answers (Round 1)
+
+These decisions are now treated as requirements unless superseded:
+
+1. **Pricing/packaging at launch:** Cloud collaboration is available on free tier initially.  
+   - Future monetization path: Teams/Enterprise controls and advanced sharing/governance.
+
+2. **BYO notebooks:** Remain **single-author** for now.
+
+3. **Initial roles:** `Owner`, `Editor`, `Viewer` only.
+
+4. **Link sharing:** In scope for initial launch, with user controls for link visibility (`private` vs `public`).
+
+5. **Data residency:** US-first now; data residency roadmap required for later release.
+
+6. **Encryption keys:** Platform-managed keys in initial release; BYOK documented as future Teams/Enterprise capability.
+
+7. **Content limits/storage efficiency:** Support Markdown documents with explicit size limits and evaluate compression at rest.
+
+8. **Naming:** Source type name is **Cloud**.
+
+---
+
+## 15) Responses to Your Follow-Ups
+
+### 15.1 How difficult is GitHub-backed co-authoring (without Cloud storage)?
+
+Short answer: **meaningfully harder** than Cloud-backed collaboration and not recommended for initial release.
+
+Why:
+- GitHub APIs and git commits are optimized for file/version operations, not sub-second collaborative sync.
+- Real-time editing would still require Notebook.md to host ephemeral shared state (CRDT session + presence), then reconcile/commit to GitHub asynchronously.
+- You would need to solve cross-user authorization and permission semantics on top of GitHub ownership/installations.
+- External repo changes during active sessions introduce conflict/rebase complexity and confusing UX.
+
+Recommended stance:
+- Keep GitHub notebooks single-author in v1 collaboration launch.
+- Introduce optional **“Cloud notebook -> sync/publish to GitHub”** later, rather than direct multi-user GitHub-native co-authoring first.
+
+### 15.2 Reasonable concurrent-user target for current stack
+
+For initial design targets (before load testing), a practical envelope is:
+- **Per document (active editors):** target 20, stretch to 50.
+- **Per document (viewers):** 100+ is reasonable with lightweight presence updates.
+- **Platform launch target:** design for a few hundred concurrently editing users across the cluster, then scale horizontally.
+
+Recommended launch guardrails:
+- Set a configurable cap per document (e.g., 25 active editors at launch).
+- Keep WebSocket/presence state in Redis-backed coordination.
+- Run explicit load tests before GA and tune caps based on observed p95 latency and error rates.
+
+### 15.3 Markdown file size and compression guidance
+
+Recommendation for v1:
+- Enforce **max 5 MB uncompressed markdown per document** (configurable server-side).
+- Store canonical markdown + compressed snapshot/object representation for storage efficiency.
+- Reject oversized writes with clear UX messaging and guidance.
+- Keep large binary assets out of markdown body storage (handle as separate asset objects/URLs).
+
+---
+
+## 16) Second-Round Clarification Questions
+
+Please answer these so I can refine the spec further:
+
+1. For **public links**, should anonymous users be allowed to **view only**, or must all viewers authenticate?
+2. For link sharing, should default be **private (recommended)** when creating a new link?
+3. Should public links be revocable with a single “rotate link” action (new token invalidates old URL)?
+4. Do you want link-level expiration in v1 (e.g., never / 7 days / 30 days), or defer to later?
+5. For free tier limits, do you want an initial cap on Cloud collaboration usage (e.g., number of cloud notebooks or collaborators per notebook)?
+6. For the 5 MB markdown cap, do you prefer this as a hard global default, or role/plan-based in the future?
+
+## Answers to second round of questions
+
+I'm aligned to your recommendations. Answers to your questions below.
+
+1. Yes, anonymous users can view-only.
+
+2. Yes, default is private but it should be easy for the user to select the public option.
+
+3. Yes, a user should easlily be able to "un-share" a link. Whould also have a menu option on the account menu called Sharing, where users can review what they've shared and manage those details.
+
+4. Let's defer this to a future version.
+
+5. Let's limit free tier users to 3 cloud notebooks, with a total storage limit of 500 MB for their total cloud assets. We'll not introduce the premium offering or language yet in the app, but we should build the backend needed to capture these limits, introduce the database tables for purchased plans/tiers, and include a freemium tier that all users are entitled to by default. This will set up the scaffolding for future paid users. Feel free to design as you see fit here.
+
+6. We can make this enforced by the entitlements check I started to outline in my answer above. Feel free to make decisions on the approach as you see fit.
+
+---
+
+## 17) Decisions Captured from Your Answers (Round 2)
+
+These are now requirements unless superseded:
+
+1. **Public links:** Anonymous access is allowed as **view-only**.
+2. **Default link visibility:** New share links default to **private**, with easy user control to switch to public.
+3. **Unshare/manageability:** Users must be able to quickly unshare/revoke links, and account settings must include a **Sharing** management area.
+4. **Link expiration:** Deferred to future version.
+5. **Free-tier limits (Cloud):**
+   - Max **3 Cloud notebooks** per user.
+   - Max **500 MB total Cloud storage assets** per user.
+6. **Limits architecture:** Govern file-size and quota policy through a centralized entitlements system, with feature-flagged rollout of hard enforcement.
+
+---
+
+## 18) Additional Requirements Added from Round 2
+
+### 18.1 Sharing management requirements
+- Add an account-level **Sharing** page/menu where users can:
+  - list active shares,
+  - see current visibility (private/public),
+  - revoke (“unshare”) links,
+  - review collaborators and access level for Cloud notebooks.
+
+### 18.2 Entitlements and plans scaffolding (backend-first)
+- Build backend scaffolding now for freemium-to-paid evolution, without paid UI language at launch.
+- Required backend concepts:
+  - `plans` (e.g., `free`, future `pro`, `team`, `enterprise`)
+  - `user_plan_subscriptions` (all users default to free)
+  - `plan_entitlements` (limits/feature flags by plan)
+  - `user_usage_counters` (authoritative usage for quota checks)
+- Entitlements service must be the single policy gate for:
+  - cloud notebook count limits,
+  - aggregate cloud storage limits,
+  - per-document size limits.
+
+### 18.3 Limit enforcement behavior requirements
+- On notebook-count limit reached:
+  - block creation of additional Cloud notebooks,
+  - return structured limit error for UI.
+- On storage usage thresholds (v1 soft-quota mode):
+  - show warning banner at >= 90% of quota,
+  - show exceeded-quota banner at >= 100% of quota,
+  - do not block edits/writes in v1.
+- Future (flagged) hard-quota mode:
+  - block writes/uploads that increase storage usage,
+  - allow read/export/delete operations to recover.
+- All limit denials should include user-facing reason + current usage + limit values.
+
+### 18.4 Quota accounting requirements
+- Track total Cloud storage usage per user in near real-time.
+- Keep periodic reconciliation job to repair counter drift.
+- Define storage accounting source of truth in backend (not client-calculated).
+
+### 18.5 Document-size policy requirement
+- Keep v1 default markdown size cap (5 MB) and enforce via entitlements gate.
+- Future plans may raise/lower cap through entitlement config, not hard-coded logic.
+
+---
+
+## 19) Third-Round Clarification Questions
+
+1. For the **500 MB** quota, should usage be measured from **uncompressed document size** (recommended for predictability) or compressed-at-rest size?
+2. Should historical snapshots/versions count toward the 500 MB user quota in v1, or only current document state?
+3. For anonymous public links, should access be “secret URL only” (not indexable/listed) in v1?
+4. For users who hit quota limits, should we surface a usage dashboard immediately in v1, or just limit messages first and dashboard in a follow-up?
+
+## Answers to third round of questions
+
+1. Uncompressed.
+
+2. Total size, including snapshots. We can always increase the free tier cap if this proves limiting.
+
+3. Yes, we want the URLs to be non-indexable.
+
+4. We should warn users in a banner of the app then they are within 10% of their storage usage (simliar to the demo mode banner). In the future, we'll have a link for them the upgrade to premium. But for now, the warning will suffice. Once a user reaches or surpasses their quota, for now, update the banner to explain the user has exceeded their quota. We won't enforce for now, but in future versions, we'll add the enforcement, such as disabling editing until they upgrade or delete files.
+
+---
+
+## 20) Decisions Captured from Your Answers (Round 3)
+
+These are now requirements unless superseded:
+
+1. **Quota accounting basis:** Use **uncompressed** size for quota accounting.
+2. **Quota scope:** User quota includes **current document state + snapshots/versions**.
+3. **Public link discoverability:** Anonymous public links must be **non-indexable/secret URL style** in v1.
+4. **Storage quota behavior in v1:** Soft-quota warnings only (90% warning, 100% exceeded banner); no write-block enforcement yet.
+5. **Enforcement roadmap:** Keep hard-quota enforcement implementation path behind entitlement/feature flags for future release.
+
+### 20.1 Additional implementation notes from Round 3 decisions
+- Public link responses/pages should include non-indexing controls (e.g., `noindex` directives) and never expose link targets via public listings/sitemaps.
+- Quota meter UI can start as banner-only in v1; richer usage dashboard can follow.
