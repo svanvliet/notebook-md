@@ -45,6 +45,11 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/collab': {
+        target: 'ws://localhost:3002',
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -1,0 +1,24 @@
+{
+  "name": "@notebook-md/collab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.15.0",
+    "@hocuspocus/extension-database": "^2.15.0",
+    "yjs": "^13.6.22",
+    "pg": "^8.18.0",
+    "ioredis": "^5.9.3",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "~5.9.3",
+    "@types/pg": "^8.16.0"
+  }
+}

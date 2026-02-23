@@ -146,6 +146,8 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 });
 
+import { isFeatureEnabled } from './services/featureFlags.js';
+
 app.use('/auth', authRoutes);
 app.use('/auth/2fa', twoFactorRoutes);
 app.use('/auth/oauth', oauthRoutes);
@@ -156,6 +158,13 @@ app.use('/api/github', githubRoutes);
 app.use('/api/onedrive', onedriveRoutes);
 app.use('/api/googledrive', googledriveRoutes);
 app.use('/admin', adminRoutes);
+
+// Feature flag check (public — used by web client to gate UI)
+app.get('/api/feature-flags/:key', async (req, res) => {
+  const key = req.params.key as string;
+  const enabled = await isFeatureEnabled(key);
+  res.json({ key, enabled });
+});
 
 // Error handler (must be last)
 app.use(errorHandler);
