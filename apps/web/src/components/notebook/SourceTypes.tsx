@@ -16,6 +16,12 @@ export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
     color: 'text-gray-500',
     available: true,
   },
+  cloud: {
+    label: 'Cloud',
+    icon: CloudIcon,
+    color: 'text-blue-500',
+    available: true,
+  },
   github: {
     label: 'GitHub',
     icon: GitHubIcon,
@@ -39,12 +45,6 @@ export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
     icon: AppleIcon,
     color: 'text-gray-600 dark:text-gray-300',
     available: false,
-  },
-  cloud: {
-    label: 'Cloud',
-    icon: CloudIcon,
-    color: 'text-blue-500',
-    available: true,
   },
 };
 
