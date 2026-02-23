@@ -4173,3 +4173,47 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 **Commit:** `1dc2009`
 
 **Tests:** ✅ 43 cloud tests pass (no regressions)
+
+---
+
+### Session 8: WebSocket Collab Token Auth Bridge (2026-02-23)
+
+**Problem:** Real-time collaboration not working. HocusPocus WebSocket server requires a token for auth, but the user's `refresh_token` is in an HttpOnly cookie that JavaScript can't read. The collab server's `onAuthenticate` only validated session tokens by hashing and looking up `refresh_token_hash` — but the browser had no way to get that token.
+
+**Root Cause:** Auth bridge gap — the cookie-based session auth model doesn't extend to WebSocket connections which need an explicit token parameter.
+
+**Solution:** Short-lived collab token endpoint approach:
+
+1. **`GET /auth/collab-token`** (new endpoint in `apps/api/src/routes/auth.ts`):
+   - Requires `requireAuth` middleware (validates cookie session)
+   - Generates a random token via `generateToken()`
+   - Stores `collab:{token}` in Redis with 5-minute TTL, containing `{ userId, displayName }`
+   - Returns `{ token }` to client
+
+2. **HocusPocus server updated** (`apps/collab/src/server.ts`):
+   - Added Redis connection (`ioredis` with `lazyConnect`)
+   - `onAuthenticate` now tries Redis collab token first (`collab:{token}` key)
+   - Falls back to session-based auth (hash + DB lookup) if Redis miss
+   - Refactored to use `userId`/`displayName` variables instead of `user.user_id`
+
+3. **`useCollaboration` hook updated** (`apps/web/src/hooks/useCollaboration.ts`):
+   - Removed `token` parameter — hook now fetches token internally
+   - `connect()` async function: fetches `GET /auth/collab-token` with credentials, then creates `HocuspocusProvider`
+   - Proper cleanup with `cancelled` flag for race condition safety
+
+4. **`DocumentPane` cleaned up** (`apps/web/src/components/layout/DocumentPane.tsx`):
+   - Removed `collabToken` prop from interface and destructuring
+   - `useCollaboration` now called with only 3 args: `notebookId`, `path`, `currentUser`
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/auth.ts` | Added `GET /auth/collab-token` endpoint |
+| `apps/collab/src/server.ts` | Redis collab token validation + dual auth path |
+| `apps/web/src/hooks/useCollaboration.ts` | Auto-fetch token, removed token param |
+| `apps/web/src/components/layout/DocumentPane.tsx` | Removed collabToken prop |
+
+**Commit:** `4bb3cc4`
+
+**Tests:** ✅ 43 cloud tests pass, collab server type-checks clean
+
+**Remaining:** Manual validation needed — verify WebSocket connects (green dot), avatars appear, real-time sync works between two browser sessions.
