@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 import { ChevronRightIcon, FolderIcon } from '../icons/Icons';
 import { SourceIcon } from './SourceTypes';
+
+const ShareNotebookModal = lazy(() => import('./ShareNotebookModal'));
 
 // --- Small SVG icons for context menu items ---
 const ic = 'w-4 h-4 shrink-0';
@@ -27,6 +29,9 @@ function ImportIcon() {
 }
 function RefreshIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>;
+}
+function ShareIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>;
 }
 
 function BlockedBadge() {
@@ -160,6 +165,7 @@ export function NotebookTree({
   activeFilePath,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
   // Restore tree expansion state from sessionStorage
   const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(() => {
     try {
@@ -690,6 +696,9 @@ export function NotebookTree({
               {onRefreshNotebook && (
                 <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { if (contextMenu.target.kind === 'notebook') onRefreshNotebook(contextMenu.target.id); setContextMenu(null); }} />
               )}
+              {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sourceType === 'cloud' ? (
+                <CtxItem icon={<ShareIcon />} label="Share…" onClick={() => { if (nb) { setShareTarget({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
+              ) : null; })()}
               <CtxDivider />
               <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />
               <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
@@ -718,6 +727,16 @@ export function NotebookTree({
             </>
           )}
         </div>
+      )}
+
+      {shareTarget && (
+        <Suspense fallback={null}>
+          <ShareNotebookModal
+            notebookId={shareTarget.id}
+            notebookName={shareTarget.name}
+            onClose={() => setShareTarget(null)}
+          />
+        </Suspense>
       )}
     </div>
   );
