@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { auditLog } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 import { canCreateCloudNotebook } from '../services/entitlements.js';
 import { incrementNotebookCount, decrementNotebookCount, updateStorageUsage } from '../services/usageAccounting.js';
 import type { Request, Response } from 'express';
@@ -45,9 +46,15 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
 
   // Cloud notebook entitlement check
   if (sourceType === 'cloud') {
-    const check = await canCreateCloudNotebook(req.userId!);
-    if (!check.allowed) {
-      res.status(403).json({ error: check.reason });
+    try {
+      const check = await canCreateCloudNotebook(req.userId!);
+      if (!check.allowed) {
+        res.status(403).json({ error: check.reason });
+        return;
+      }
+    } catch (err) {
+      logger.error('Entitlement check failed', { error: (err as Error).message });
+      res.status(500).json({ error: 'Failed to verify entitlements — please ensure migrations are up to date' });
       return;
     }
   }
