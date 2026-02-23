@@ -40,6 +40,17 @@ router.use(sourceRateLimit);
 async function resolveProvider(req: Request, res: Response): Promise<{ adapter: ReturnType<typeof getSourceAdapter>; accessToken: string } | null> {
   const provider = req.params.provider as string;
 
+  // Cloud provider doesn't use circuit breakers or external tokens
+  if (provider === 'cloud') {
+    const adapter = getSourceAdapter(provider);
+    if (!adapter) {
+      res.status(404).json({ error: `Unknown source provider: ${provider}` });
+      return null;
+    }
+    // For cloud, accessToken is unused; rootPath (notebook ID) is passed via query param
+    return { adapter, accessToken: '' };
+  }
+
   // Check circuit breaker
   const cb = getCircuitBreaker(provider);
   if (cb.isOpen()) {

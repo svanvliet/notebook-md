@@ -12,6 +12,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       DB_NAME: 'notebookmd_test',
+      ENCRYPTION_KEY: 'test-encryption-key-32bytes!!!!!',
     },
   },
 });

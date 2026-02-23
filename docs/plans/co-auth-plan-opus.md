@@ -235,14 +235,14 @@ COLLAB_PORT=3002
 
 ### Phase 0 — Exit Criteria
 
-- [ ] `packages/shared` exports `'cloud'` as a valid source type
-- [ ] Feature flag service works and all 6 flags are seeded (disabled by default; auto-enabled in dev)
-- [ ] `apps/collab` workspace exists, `npm install` succeeds at root
-- [ ] `./dev.sh` starts collab server on port 3002 alongside all other services
-- [ ] `./dev.sh status` shows collab server status
-- [ ] Vite proxies `/collab` WebSocket connections to `localhost:3002`
-- [ ] Cloud source appears in notebook creation modal (behind flag)
-- [ ] All existing tests pass (no regressions)
+- [x] `packages/shared` exports `'cloud'` as a valid source type
+- [x] Feature flag service works and all 6 flags are seeded (disabled by default; auto-enabled in dev)
+- [x] `apps/collab` workspace exists, `npm install` succeeds at root
+- [x] `./dev.sh` starts collab server on port 3002 alongside all other services
+- [x] `./dev.sh status` shows collab server status
+- [x] Vite proxies `/collab` WebSocket connections to `localhost:3002`
+- [x] Cloud source appears in notebook creation modal (behind flag)
+- [x] All existing tests pass (no regressions)
 
 ---
 

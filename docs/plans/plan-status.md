@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-23
 
 ---
 
@@ -3808,3 +3808,53 @@ All 5 phases completed. Key changes:
 ### Tests
 - ✅ 224 API tests pass (no regressions)
 - ✅ 186 web unit tests pass (no regressions)
+
+---
+
+## Co-Authoring Feature (Phases 0–5)
+
+**Plan:** `docs/plans/co-auth-plan-opus.md`
+**Requirements:** `docs/requirements/co-auth-requirements-opus.md`
+**Started:** 2026-02-23
+
+### Phase 0 — Foundation Wiring ✅
+
+**Completed:** 2026-02-23
+
+Added the foundational plumbing for cloud notebooks and real-time collaboration.
+
+**Changes:**
+- Added `'cloud'` to shared `SourceType` union + `CLOUD_SOURCE_TYPE` constant (`packages/shared`)
+- Created migration `004_feature-flags-cloud.sql` seeding 6 feature flags (all disabled by default)
+- Created `featureFlags.ts` service with `isFeatureEnabled()` and `requireFeature()` middleware
+- Added `GET /api/feature-flags/:key` endpoint for client-side flag checking
+- Created `apps/collab` workspace with HocusPocus stub server on port 3002
+- Updated `dev.sh` to start collab server as step 4/7, including status and stop support
+- Added Vite WebSocket proxy: `/collab` → `ws://localhost:3002`
+- Added `COLLAB_PORT=3002` to `.env` and `.env.example`
+- Added `CloudIcon` SVG component and Cloud source type to `SourceTypes.tsx`
+- Gated Cloud option in `AddNotebookModal` behind `cloud_notebooks` feature flag
+- Created `useFeatureFlag` hook with 1-minute client-side caching
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `packages/shared/src/index.ts` | Added `'cloud'` to SourceType, exported CLOUD_SOURCE_TYPE |
+| `apps/api/migrations/004_feature-flags-cloud.sql` | New — seeds 6 cloud feature flags |
+| `apps/api/src/services/featureFlags.ts` | New — feature flag service |
+| `apps/api/src/app.ts` | Added feature-flags endpoint |
+| `apps/api/src/tests/feature-flags.test.ts` | New — 3 tests |
+| `apps/collab/package.json` | New — @notebook-md/collab workspace |
+| `apps/collab/src/server.ts` | New — HocusPocus stub server |
+| `apps/collab/tsconfig.json` | New — TypeScript config |
+| `apps/web/src/hooks/useFeatureFlag.ts` | New — client-side feature flag hook |
+| `apps/web/src/components/icons/Icons.tsx` | Added CloudIcon |
+| `apps/web/src/components/notebook/SourceTypes.tsx` | Added Cloud source type |
+| `apps/web/src/components/notebook/AddNotebookModal.tsx` | Cloud source gated behind flag |
+| `apps/web/vite.config.ts` | Added /collab WebSocket proxy |
+| `dev.sh` | Added collab server (step 4/7), status, stop |
+| `.env.example`, `.env` | Added COLLAB_PORT |
+
+**Commit:** `a1bc75c` — feat: Phase 0 — foundation wiring for co-authoring
+
+**Tests:** ✅ 227 API tests pass (224 existing + 3 new)
