@@ -830,4 +830,22 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// GET /auth/collab-token — Issue a short-lived token for WebSocket collaboration
+router.get('/collab-token', requireAuth, async (req: Request, res: Response) => {
+  const userResult = await query<{ display_name: string }>(
+    'SELECT display_name FROM users WHERE id = $1',
+    [req.userId!],
+  );
+  const displayName = userResult.rows[0]?.display_name ?? 'User';
+  const token = generateToken();
+  // Store in Redis with 5-minute TTL, mapping token → user info
+  await redis.set(
+    `collab:${token}`,
+    JSON.stringify({ userId: req.userId!, displayName }),
+    'EX',
+    300,
+  );
+  res.json({ token });
+});
+
 export default router;

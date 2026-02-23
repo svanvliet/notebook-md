@@ -44,8 +44,6 @@ interface DocumentPaneProps {
   lineNumbers?: boolean;
   /** Current user info for collaboration presence */
   currentUser?: { name: string; color?: string };
-  /** Session token for collab auth */
-  collabToken?: string | null;
 }
 
 export function DocumentPane({
@@ -66,7 +64,6 @@ export function DocumentPane({
   margins,
   lineNumbers,
   currentUser,
-  collabToken,
 }: DocumentPaneProps) {
   const { t } = useTranslation();
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -80,7 +77,6 @@ export function DocumentPane({
   const collab = useCollaboration(
     cloudDoc?.notebookId ?? null,
     cloudDoc?.path ?? null,
-    cloudDoc ? (collabToken ?? null) : null,
     currentUser,
   );
 
