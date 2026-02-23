@@ -1,4 +1,4 @@
-# Notebook.md
+# [Notebook.md](http://Notebook.md)
 
 A web application for creating, editing, and organizing Markdown notebooks through an intuitive WYSIWYG canvas interface. Notebooks are stored in your existing cloud storage and version control systems — OneDrive, Google Drive, and GitHub — so your content stays where you control it.
 
