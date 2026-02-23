@@ -218,8 +218,12 @@ router.post('/:provider/files/{*filePath}', validatePath, async (req: Request, r
 
   const { adapter, accessToken } = resolved;
   const rootPath = (req.query.root as string) ?? '';
-  const filePath = (req as any).cleanPath;
-  const { content, branch } = req.body;
+  let filePath = (req as any).cleanPath;
+  const { content, branch, type } = req.body;
+  // For Cloud folders, restore the trailing / sentinel that validatePath strips
+  if (req.params.provider === 'cloud' && type === 'folder') {
+    filePath = `${filePath}/`;
+  }
   const cb = getCircuitBreaker(req.params.provider as string);
 
   try {

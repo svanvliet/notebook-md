@@ -17,11 +17,9 @@ export async function listCloudTree(notebookId: string): Promise<CloudFileEntry[
 }
 
 export async function createCloudFile(notebookId: string, filePath: string, content: string = '', type: 'file' | 'folder' = 'file'): Promise<void> {
-  // Folders are stored with a trailing / sentinel
-  const apiPath = type === 'folder' ? `${filePath}/` : filePath;
-  const res = await apiFetch(`/api/sources/cloud/files/${encodeURIComponent(apiPath)}?root=${notebookId}`, {
+  const res = await apiFetch(`/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`, {
     method: 'POST',
-    body: JSON.stringify({ content: type === 'folder' ? '' : content }),
+    body: JSON.stringify({ content: type === 'folder' ? '' : content, type }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

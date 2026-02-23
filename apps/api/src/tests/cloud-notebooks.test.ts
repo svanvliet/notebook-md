@@ -288,6 +288,67 @@ describe('Cloud Notebooks & Entitlements', () => {
     });
   });
 
+  describe('Cloud folder creation', () => {
+    it('creates folders, lists them, and folders survive child deletion', async () => {
+      // Create notebook
+      const createRes = await request
+        .post('/api/notebooks')
+        .set('Cookie', cookies)
+        .send({ name: 'Folder Test NB', sourceType: 'cloud' });
+      expect(createRes.status).toBe(201);
+      const notebookId = createRes.body.notebook.id;
+      expect(notebookId).toBeDefined();
+
+      // Create folder via type=folder in body
+      const folderRes = await request
+        .post(`/api/sources/cloud/files/my-folder?root=${notebookId}`)
+        .set('Cookie', cookies)
+        .send({ content: '', type: 'folder' });
+      expect(folderRes.status).toBe(201);
+
+      // Verify sentinel row with trailing /
+      const dbResult = await query(
+        "SELECT path FROM cloud_documents WHERE notebook_id = $1 AND path = 'my-folder/'",
+        [notebookId],
+      );
+      expect(dbResult.rows).toHaveLength(1);
+
+      // List folders in the tree
+      const treeRes = await request
+        .get(`/api/sources/cloud/tree?root=${notebookId}`)
+        .set('Cookie', cookies);
+      expect(treeRes.status).toBe(200);
+      const folder = treeRes.body.entries.find((e: any) => e.name === 'my-folder');
+      expect(folder).toBeDefined();
+      expect(folder.type).toBe('folder');
+
+      // Create a file inside the folder
+      const fileRes = await request
+        .post(`/api/sources/cloud/files/my-folder%2Fnote.md?root=${notebookId}`)
+        .set('Cookie', cookies)
+        .send({ content: '# Hello' });
+      expect(fileRes.status).toBe(201);
+
+      const readRes = await request
+        .get(`/api/sources/cloud/files/my-folder%2Fnote.md?root=${notebookId}`)
+        .set('Cookie', cookies);
+      expect(readRes.status).toBe(200);
+      expect(readRes.body.content).toBe('# Hello');
+
+      // Delete the file — folder should survive
+      await request
+        .delete(`/api/sources/cloud/files/my-folder%2Fnote.md?root=${notebookId}`)
+        .set('Cookie', cookies);
+
+      const treeAfter = await request
+        .get(`/api/sources/cloud/tree?root=${notebookId}`)
+        .set('Cookie', cookies);
+      const folderAfter = treeAfter.body.entries.find((e: any) => e.name === 'my-folder');
+      expect(folderAfter).toBeDefined();
+      expect(folderAfter.type).toBe('folder');
+    });
+  });
+
   describe('User signup assigns free plan', () => {
     it('new users get free plan and zero usage counters', async () => {
       const { res: signupRes, cookies: newCookies } = await signUp('newuser@example.com', 'Password1!', 'New User');
