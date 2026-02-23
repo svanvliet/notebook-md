@@ -1,7 +1,9 @@
 // Shared types and utilities for Notebook.md
 // This package is consumed by apps/web, apps/api, and apps/admin
 
-export type SourceType = 'local' | 'onedrive' | 'google_drive' | 'github';
+export type SourceType = 'local' | 'onedrive' | 'google_drive' | 'github' | 'cloud';
+
+export const CLOUD_SOURCE_TYPE = 'cloud' as const;
 
 export type DisplayMode = 'light' | 'dark' | 'system';
 
