@@ -293,6 +293,28 @@ export default function App() {
       }).then(() => {
         navigate('/', { replace: true });
       });
+    } else if (path === '/app/invite' && magicToken) {
+      // Share invite acceptance — requires auth
+      if (auth.isSignedIn) {
+        fetch(`${API_BASE}/api/cloud/invites/${encodeURIComponent(magicToken)}/accept`, {
+          method: 'POST',
+          credentials: 'include',
+        }).then(async (res) => {
+          if (res.ok) {
+            const data = await res.json();
+            addToast('Invite accepted! The shared notebook is now in your sidebar.', 'success');
+            nb.reloadNotebooks();
+            navigate('/', { replace: true });
+          } else {
+            const data = await res.json().catch(() => ({}));
+            addToast(data.error ?? 'Failed to accept invite', 'error');
+            navigate('/', { replace: true });
+          }
+        });
+      } else {
+        // Store invite token and show login — will re-run after auth
+        sessionStorage.setItem('pendingInviteToken', magicToken);
+      }
     }
 
     // Clean up auth=success from OAuth callback
@@ -316,6 +338,27 @@ export default function App() {
       navigate(newUrl, { replace: true });
     }
   }, []);
+
+  // Accept pending invite after sign-in
+  useEffect(() => {
+    if (!auth.isSignedIn) return;
+    const pendingToken = sessionStorage.getItem('pendingInviteToken');
+    if (!pendingToken) return;
+    sessionStorage.removeItem('pendingInviteToken');
+    fetch(`${API_BASE}/api/cloud/invites/${encodeURIComponent(pendingToken)}/accept`, {
+      method: 'POST',
+      credentials: 'include',
+    }).then(async (res) => {
+      if (res.ok) {
+        addToast('Invite accepted! The shared notebook is now in your sidebar.', 'success');
+        nb.reloadNotebooks();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast(data.error ?? 'Failed to accept invite', 'error');
+      }
+      navigate('/', { replace: true });
+    });
+  }, [auth.isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleWordCountChange = useCallback((words: number, chars: number) => {
     setWordCount(words);
