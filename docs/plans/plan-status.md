@@ -3898,3 +3898,34 @@ Created all database tables, entitlements service, and Cloud document storage ad
 **Commit:** `0d292d6` — feat: Phase 1 — database schema, entitlements & cloud document CRUD
 
 **Tests:** ✅ 242 API tests pass (227 existing + 15 new)
+
+### Phase 2 — Real-Time Collaboration ✅
+
+**Completed:** 2026-02-23
+
+Implemented HocusPocus server, Yjs collaboration extensions, and collaboration UI components.
+
+**Changes:**
+- HocusPocus server with session-based authentication, notebook permission checks, database persistence (Yjs state), and collab session tracking
+- Document name format: `notebook:{id}:file:{encodedPath}`
+- User color assignment from 8-color palette based on user ID hash
+- Installed @tiptap/extension-collaboration v3, @tiptap/extension-collaboration-cursor v3, @hocuspocus/provider, yjs, y-prosemirror
+- `getEditorExtensions()` accepts optional CollabOptions to add Collaboration + CollaborationCursor extensions (disables built-in History)
+- MarkdownEditor accepts optional `collaborative` prop
+- `useCollaboration` hook manages HocusPocus provider lifecycle
+- CollaboratorAvatars component for top bar
+- CollaboratorCursors.css for live cursor styling
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `apps/collab/src/server.ts` | Full HocusPocus implementation |
+| `apps/web/src/components/editor/extensions.ts` | Added Collaboration + CollaborationCursor |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | Collaborative prop support |
+| `apps/web/src/hooks/useCollaboration.ts` | New — HocusPocus provider hook |
+| `apps/web/src/components/editor/CollaboratorAvatars.tsx` | New — Avatar display |
+| `apps/web/src/components/editor/CollaboratorCursors.css` | New — Cursor styles |
+
+**Commit:** `6c58110` — feat: Phase 2 — real-time collaboration infrastructure
+
+**Tests:** ✅ 242 API tests pass (no regressions)

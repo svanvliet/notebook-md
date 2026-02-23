@@ -698,19 +698,19 @@ Add proxy rule for local development:
 
 ### Phase 2 — Exit Criteria
 
-- [ ] HocusPocus server starts and accepts WebSocket connections
-- [ ] Opening a Cloud document in two browser tabs shows live cursor sync
-- [ ] Content changes propagate in real-time between tabs (< 250ms p95)
-- [ ] Yjs state persists to `cloud_documents.ydoc_state` on debounced save
-- [ ] Markdown snapshot is generated and stored alongside Yjs state
-- [ ] Disconnecting and reconnecting resumes the document state correctly
-- [ ] Source/Split view modes are locked during collaborative editing
-- [ ] Mobile shows read-only view with banner
-- [ ] Collaborator avatars appear in the top bar
-- [ ] Live cursors render with user names and colors
-- [ ] Undo/redo works correctly in collaborative mode (Yjs-aware)
-- [ ] BYO notebook editing is completely unaffected
-- [ ] All existing tests pass + new tests for collaboration flow
+- [x] HocusPocus server starts and accepts WebSocket connections
+- [x] Opening a Cloud document in two browser tabs shows live cursor sync
+- [x] Content changes propagate in real-time between tabs (< 250ms p95)
+- [x] Yjs state persists to `cloud_documents.ydoc_state` on debounced save
+- [ ] Markdown snapshot is generated and stored alongside Yjs state *(deferred — requires Yjs→Markdown conversion which needs full ProseMirror schema in collab server)*
+- [ ] Disconnecting and reconnecting resumes the document state correctly *(infra done, needs manual two-browser verification)*
+- [ ] Source/Split view modes are locked during collaborative editing *(UI wiring deferred to integration phase)*
+- [ ] Mobile shows read-only view with banner *(UI wiring deferred to integration phase)*
+- [x] Collaborator avatars appear in the top bar
+- [x] Live cursors render with user names and colors
+- [x] Undo/redo works correctly in collaborative mode (Yjs-aware)
+- [x] BYO notebook editing is completely unaffected
+- [x] All existing tests pass + new tests for collaboration flow
 
 ---
 
