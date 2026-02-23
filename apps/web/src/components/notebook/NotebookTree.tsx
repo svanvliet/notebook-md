@@ -241,7 +241,9 @@ export function NotebookTree({
     const tgtNb = notebooks.find((n) => n.id === targetNotebookId);
     const srcLocal = (srcNb?.sourceType ?? 'local') === 'local';
     const tgtLocal = (tgtNb?.sourceType ?? 'local') === 'local';
-    return srcLocal && tgtLocal ? 'copy' : 'blocked';
+    const tgtCloud = tgtNb?.sourceType === 'cloud';
+    // Allow copy: local-to-local OR any-to-cloud
+    return (srcLocal && tgtLocal) || tgtCloud ? 'copy' : 'blocked';
   }, [dragSourceNotebookId, notebooks]);
 
   useEffect(() => {
@@ -414,7 +416,10 @@ export function NotebookTree({
               } else {
                 if (!onCopyFile) return;
                 const targetNb = notebooks.find((n) => n.id === file.notebookId);
-                if (data.sourceType !== 'local' || (targetNb?.sourceType ?? 'local') !== 'local') return;
+                const tgtLocal = (targetNb?.sourceType ?? 'local') === 'local';
+                const tgtCloud = targetNb?.sourceType === 'cloud';
+                // Allow: local-to-local or any-to-cloud
+                if (!((data.sourceType === 'local' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
                 onCopyFile(data.notebookId, data.path, file.notebookId, file.path);
               }
             } catch { /* ignore */ }
@@ -593,9 +598,11 @@ export function NotebookTree({
                       if (!data.path.includes('/')) return; // Already at root
                       onMoveFile(data.notebookId, data.path, '');
                     } else {
-                      // Cross-notebook → copy to root (local-to-local only)
+                      // Cross-notebook → copy to root (local-to-local or any-to-cloud)
                       if (!onCopyFile) return;
-                      if (data.sourceType !== 'local' || (nb.sourceType ?? 'local') !== 'local') return;
+                      const tgtLocal = (nb.sourceType ?? 'local') === 'local';
+                      const tgtCloud = nb.sourceType === 'cloud';
+                      if (!((data.sourceType === 'local' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
                       onCopyFile(data.notebookId, data.path, nb.id, '');
                     }
                   } catch { /* ignore */ }

@@ -1247,8 +1247,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const sourceNb = notebooks.find((n) => n.id === sourceNotebookId);
       const targetNb = notebooks.find((n) => n.id === targetNotebookId);
       if (!sourceNb || !targetNb) return;
-      if ((sourceNb.sourceType ?? 'local') !== 'local' || (targetNb.sourceType ?? 'local') !== 'local') {
-        toast?.('Cross-notebook copy is only supported between local notebooks', 'warning');
+
+      const srcLocal = (sourceNb.sourceType ?? 'local') === 'local';
+      const tgtLocal = (targetNb.sourceType ?? 'local') === 'local';
+      const tgtCloud = targetNb.sourceType === 'cloud';
+
+      // Allow: local-to-local or any-to-cloud
+      if (!(srcLocal && tgtLocal) && !tgtCloud) {
+        toast?.('Cross-notebook copy is only supported to local or Cloud notebooks', 'warning');
         return;
       }
 
@@ -1271,6 +1277,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           await createFile(targetNotebookId, childParent, childName, child.type, child.content ?? '');
         }
       }
+
+      toast?.(tgtCloud ? 'File copied to Cloud notebook' : 'File copied', 'success');
 
       // Reload target notebook files
       const updatedFiles = await listFiles(targetNotebookId);
