@@ -349,7 +349,7 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.prod.yml down
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         continue-on-error: true
         with:
