@@ -445,16 +445,16 @@ GET /api/usage/me          → { cloudNotebooks: 2, storageBytesUsed: 420000000,
 
 ### Phase 1 — Exit Criteria
 
-- [ ] Migrations run cleanly (`npm run migrate:up`)
-- [ ] Cloud notebooks can be created via POST `/api/notebooks` with `source_type: 'cloud'`
-- [ ] Cloud documents can be CRUD'd via existing `/api/sources/cloud/files/*` routes
-- [ ] Content is encrypted at rest in `cloud_documents.content_enc`
-- [ ] Entitlements service returns correct limits for free plan
-- [ ] Usage counters increment/decrement on document create/update/delete
-- [ ] Notebook creation is blocked at 3 Cloud notebooks
-- [ ] `GET /api/usage/me` returns correct banner state
-- [ ] New users auto-assigned to free plan
-- [ ] All existing tests pass + new integration tests for Cloud CRUD and entitlements
+- [x] Migrations run cleanly (`npm run migrate:up`)
+- [x] Cloud notebooks can be created via POST `/api/notebooks` with `source_type: 'cloud'`
+- [x] Cloud documents can be CRUD'd via existing `/api/sources/cloud/files/*` routes
+- [x] Content is encrypted at rest in `cloud_documents.content_enc`
+- [x] Entitlements service returns correct limits for free plan
+- [x] Usage counters increment/decrement on document create/update/delete
+- [x] Notebook creation is blocked at 3 Cloud notebooks
+- [x] `GET /api/usage/me` returns correct banner state
+- [x] New users auto-assigned to free plan
+- [x] All existing tests pass + new integration tests for Cloud CRUD and entitlements
 
 ---
 

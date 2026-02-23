@@ -3858,3 +3858,43 @@ Added the foundational plumbing for cloud notebooks and real-time collaboration.
 **Commit:** `a1bc75c` — feat: Phase 0 — foundation wiring for co-authoring
 
 **Tests:** ✅ 227 API tests pass (224 existing + 3 new)
+
+### Phase 1 — Database Schema & Entitlements ✅
+
+**Completed:** 2026-02-23
+
+Created all database tables, entitlements service, and Cloud document storage adapter. Cloud notebooks can now be created and documents CRUD'd via REST.
+
+**Changes:**
+- Migration `005_cloud-collab.sql`: cloud_documents, notebook_shares, notebook_public_links, collab_sessions, document_versions
+- Migration `006_plans-entitlements.sql`: plans, plan_entitlements, user_plan_subscriptions, user_usage_counters + free plan seed
+- Entitlements service with plan checks, usage queries, and banner state calculation
+- Usage accounting service for transactional counter management + reconciliation
+- Cloud source adapter implementing SourceAdapter interface with encrypted content storage
+- Sources router updated to handle Cloud provider (no external OAuth token needed)
+- Notebook creation/deletion updated for Cloud (entitlement check, owner share, usage tracking)
+- GET /api/entitlements/me and GET /api/usage/me endpoints
+- Free plan auto-assigned on user signup (email + magic link paths)
+- 15 new integration tests for cloud CRUD, entitlements, and usage tracking
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `apps/api/migrations/005_cloud-collab.sql` | New — Cloud collab tables |
+| `apps/api/migrations/006_plans-entitlements.sql` | New — Plans & entitlements tables + seed |
+| `apps/api/src/services/entitlements.ts` | New — Entitlements service |
+| `apps/api/src/services/usageAccounting.ts` | New — Usage counter management |
+| `apps/api/src/services/sources/cloud.ts` | New — Cloud source adapter |
+| `apps/api/src/routes/entitlements.ts` | New — GET /api/entitlements/me |
+| `apps/api/src/routes/usage.ts` | New — GET /api/usage/me |
+| `apps/api/src/routes/notebooks.ts` | Cloud creation/deletion logic |
+| `apps/api/src/routes/sources.ts` | Cloud provider bypass for OAuth |
+| `apps/api/src/routes/auth.ts` | Free plan + usage counters on signup |
+| `apps/api/src/app.ts` | Registered cloud adapter + new routes |
+| `apps/api/src/tests/helpers.ts` | Clean new tables |
+| `apps/api/src/tests/cloud-notebooks.test.ts` | New — 15 integration tests |
+| `apps/api/vitest.config.ts` | Added ENCRYPTION_KEY for test env |
+
+**Commit:** `0d292d6` — feat: Phase 1 — database schema, entitlements & cloud document CRUD
+
+**Tests:** ✅ 242 API tests pass (227 existing + 15 new)
