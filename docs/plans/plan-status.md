@@ -3929,3 +3929,97 @@ Implemented HocusPocus server, Yjs collaboration extensions, and collaboration U
 **Commit:** `6c58110` — feat: Phase 2 — real-time collaboration infrastructure
 
 **Tests:** ✅ 242 API tests pass (no regressions)
+
+---
+
+### 2026-02-23 — Phase 3: Sharing & Permissions
+
+**What was done:**
+- Created sharing service (`apps/api/src/services/sharing.ts`) with full invite workflow: sendInvite (hashed tokens), acceptInvite, revokeAccess, getMembers, updateMemberRole
+- Created share links service (`apps/api/src/services/shareLinks.ts`) with create, revoke, toggle visibility, resolve public links
+- Created sharing API routes (`apps/api/src/routes/sharing.ts`) — mounted at `/api/cloud` — with invites, members, and share-link management endpoints
+- Public share link resolution at `/api/public/shares/:token` (no auth required) — mounted directly in app.ts
+- Added share invite email template in `apps/api/src/lib/email.ts`
+- Created ShareNotebookModal UI (`apps/web/src/components/notebook/ShareNotebookModal.tsx`) with invite/members/links tabs
+- Created PublicDocumentViewer component at `/s/:token` route
+- 14 new integration tests covering invites, accept, members, share links, public document access
+
+**Key decisions:**
+- Invite tokens are hashed (SHA-256) before storage; raw token sent via email only
+- Share link tokens are stored raw (they're public URLs)
+- Public routes separated from authenticated routes via distinct mount points
+- Express 5 wildcard `{*filePath}` returns arrays — joined with `/` for path resolution
+
+| File | Change |
+|------|--------|
+| `apps/api/src/services/sharing.ts` | New — invite/member management |
+| `apps/api/src/services/shareLinks.ts` | New — share link CRUD |
+| `apps/api/src/routes/sharing.ts` | New — sharing API routes |
+| `apps/api/src/lib/email.ts` | Added sendShareInviteEmail |
+| `apps/api/src/app.ts` | Mounted sharing + public routes |
+| `apps/api/src/tests/sharing.test.ts` | New — 14 integration tests |
+| `apps/web/src/components/notebook/ShareNotebookModal.tsx` | New — sharing modal |
+| `apps/web/src/components/public/PublicDocumentViewer.tsx` | New — public viewer |
+| `apps/web/src/Router.tsx` | Added `/s/:token` route |
+
+**Commit:** `7872bfd` — Phase 3: Sharing & permissions
+
+**Tests:** ✅ 256 API tests pass (no regressions)
+
+---
+
+### 2026-02-23 — Phase 4: Cross-Source Drag-to-Copy & Export
+
+**What was done:**
+- Created cloud export endpoint (`GET /api/cloud/notebooks/:id/export`) — streams .zip of all decrypted Markdown files
+- Extended cross-notebook drag-and-drop to allow any source → Cloud copies
+- Updated `crossDropStyle` in NotebookTree to allow Cloud as drop target
+- Updated `handleCopyFile` in useNotebookManager to support cross-source copies with toast
+- 2 new integration tests (export as zip, access denial)
+
+**Dependencies added:** archiver (server), jszip (test)
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/cloud.ts` | New — export endpoint |
+| `apps/api/src/tests/cloud-export.test.ts` | New — 2 export tests |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Updated drop logic |
+| `apps/web/src/hooks/useNotebookManager.ts` | Updated copy logic |
+
+**Commit:** `d9ac9cf` — Phase 4: Cross-source drag-to-copy & export
+
+**Tests:** ✅ 258 API tests pass (no regressions)
+
+---
+
+### 2026-02-23 — Phase 5: Quota Banners, Version History & Polish
+
+**What was done:**
+- Created QuotaBanner component (90%/100% storage warnings, dismissible per session)
+- Added version history API: list versions, get version content, restore with pre-restore snapshot
+- Created VersionHistoryPanel UI (slide-out panel with preview and restore)
+- Created version cleanup job (90-day retention, 100 per doc cap)
+- Created usage reconciliation job (nightly counter drift correction)
+- Added account deletion Cloud notebook warning with explicit checkbox requirement
+- 8 new integration tests (version CRUD, cleanup job, reconciliation, usage endpoint)
+
+**Key decisions:**
+- Version restore saves current content as a new version before overwriting
+- Cleanup jobs use correct column names: `counter_key` and `counter_value` (not counter_type/current_value)
+- PostgreSQL BIGINT returned as string by pg — must use `Number()` for comparisons
+- Usage endpoint returns both `cloudNotebooks` and `cloudNotebookCount` for compatibility
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/cloud.ts` | Added version history endpoints |
+| `apps/api/src/routes/usage.ts` | Added cloudNotebookCount alias |
+| `apps/api/src/jobs/versionCleanup.ts` | New — retention cleanup |
+| `apps/api/src/jobs/usageReconciliation.ts` | New — counter reconciliation |
+| `apps/api/src/tests/version-history.test.ts` | New — 8 tests |
+| `apps/web/src/components/layout/QuotaBanner.tsx` | New — quota warnings |
+| `apps/web/src/components/notebook/VersionHistoryPanel.tsx` | New — version UI |
+| `apps/web/src/components/account/AccountModal.tsx` | Cloud deletion warning |
+
+**Commit:** `92ca96a` — Phase 5: Quota banners, version history, cleanup jobs & polish
+
+**Tests:** ✅ 266 API tests pass (no regressions)

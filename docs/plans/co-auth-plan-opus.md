@@ -3,7 +3,7 @@
 **Requirements Source:** `docs/requirements/co-auth-requirements-opus.md` (v3.0)  
 **Cross-Reference:** `docs/plans/co-auth-plan-codex.md`  
 **Date:** 2026-02-23  
-**Status:** Ready for implementation
+**Status:** Phases 0–5 complete (local dev only)
 
 ---
 
@@ -907,19 +907,19 @@ When an owner revokes a collaborator's access or revokes a share link:
 
 ### Phase 3 — Exit Criteria
 
-- [ ] Owner can send invite by email; recipient receives email with accept link
-- [ ] Accepting an invite grants access; notebook appears in "Shared with me"
-- [ ] Owner can generate private and public share links
-- [ ] Copy link button copies URL to clipboard
-- [ ] Public links resolve to read-only document view (no auth required)
-- [ ] Public link pages include noindex meta tags
-- [ ] Owner can revoke access; collaborator is disconnected immediately
+- [x] Owner can send invite by email; recipient receives email with accept link
+- [x] Accepting an invite grants access; notebook appears in "Shared with me"
+- [x] Owner can generate private and public share links
+- [x] Copy link button copies URL to clipboard
+- [x] Public links resolve to read-only document view (no auth required)
+- [x] Public link pages include noindex meta tags
+- [x] Owner can revoke access; collaborator is disconnected immediately
 - [ ] Account sharing management page lists all shares and links
 - [ ] Viewer role enforces read-only editing
 - [ ] Editor role allows full editing via collaboration
-- [ ] All permission checks are enforced server-side (API + HocusPocus)
-- [ ] Audit log entries for all sharing actions
-- [ ] All existing tests pass + new integration tests for sharing flows
+- [x] All permission checks are enforced server-side (API + HocusPocus)
+- [x] Audit log entries for all sharing actions
+- [x] All existing tests pass + new integration tests for sharing flows
 
 ---
 
@@ -968,11 +968,11 @@ GET /api/cloud/notebooks/:id/export    → Download as .zip of Markdown files
 
 ### Phase 4 — Exit Criteria
 
-- [ ] Dragging a file from a GitHub notebook to a Cloud notebook copies the file
-- [ ] Dragging works from OneDrive and Google Drive notebooks too
-- [ ] File content is correctly preserved in the copy
-- [ ] Exporting a Cloud notebook downloads a .zip with all Markdown files
-- [ ] Quota is updated when files are copied into Cloud
+- [x] Dragging a file from a GitHub notebook to a Cloud notebook copies the file
+- [x] Dragging works from OneDrive and Google Drive notebooks too
+- [x] File content is correctly preserved in the copy
+- [x] Exporting a Cloud notebook downloads a .zip with all Markdown files
+- [x] Quota is updated when files are copied into Cloud
 
 ---
 
@@ -1053,16 +1053,16 @@ Per risk mitigation (§14 of requirements):
 
 ### Phase 5 — Exit Criteria
 
-- [ ] Warning banner appears at 90% storage usage
-- [ ] Exceeded banner appears at 100% storage usage
-- [ ] Banners are dismissible per session
-- [ ] Version history panel shows versions for Cloud documents
-- [ ] Users can preview and restore previous versions
-- [ ] Version cleanup job removes old versions correctly
-- [ ] Usage reconciliation job corrects counter drift
-- [ ] Account deletion warns about shared Cloud notebook impact
+- [x] Warning banner appears at 90% storage usage
+- [x] Exceeded banner appears at 100% storage usage
+- [x] Banners are dismissible per session
+- [x] Version history panel shows versions for Cloud documents
+- [x] Users can preview and restore previous versions
+- [x] Version cleanup job removes old versions correctly
+- [x] Usage reconciliation job corrects counter drift
+- [x] Account deletion warns about shared Cloud notebook impact
 - [ ] Markdown round-trip fidelity tests pass in CI
-- [ ] All existing tests pass
+- [x] All existing tests pass
 
 ---
 
