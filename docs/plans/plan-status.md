@@ -4023,3 +4023,17 @@ Implemented HocusPocus server, Yjs collaboration extensions, and collaboration U
 **Commit:** `92ca96a` — Phase 5: Quota banners, version history, cleanup jobs & polish
 
 **Tests:** ✅ 266 API tests pass (no regressions)
+
+---
+
+## Follow-Up Items
+
+### 2FA: Skip local setup for OAuth-authenticated users
+
+**Date noted:** 2026-02-23  
+**Context:** Users who sign in via a 3rd-party provider (Microsoft, Google, GitHub) already have 2FA enforced by that provider. Requiring them to set up a separate local 2FA in Notebook.md is redundant — their identity is already strongly verified at the provider level. The local 2FA prompt/setup should only apply to users who sign in with email+password, where Notebook.md is the sole authentication boundary.
+
+**Action needed:**
+- Update `TwoFactorSetup` / Account settings UI to hide the 2FA setup section for OAuth-only users (users without a password)
+- Consider showing an informational note instead: "Your account is secured by [Provider]'s authentication, including any 2FA you have enabled there."
+- Review backend: `onEnable2fa` / `onDisable2fa` should be no-ops or gated for OAuth-only users
