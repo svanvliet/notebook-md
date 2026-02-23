@@ -30,11 +30,13 @@ class CloudAdapter implements SourceAdapter {
     );
 
     return result.rows.map(row => {
-      const name = row.path.split('/').pop() || row.path;
+      const isFolder = row.path.endsWith('/');
+      const displayPath = isFolder ? row.path.slice(0, -1) : row.path;
+      const name = displayPath.split('/').pop() || displayPath;
       return {
-        path: row.path,
+        path: displayPath,
         name,
-        type: 'file' as const,
+        type: (isFolder ? 'folder' : 'file') as 'file' | 'folder',
         size: row.size_bytes,
         lastModified: row.updated_at.toISOString(),
       };
@@ -107,9 +109,6 @@ class CloudAdapter implements SourceAdapter {
 
   async createFile(_accessToken: string, rootPath: string, filePath: string, content: string): Promise<WriteResult> {
     const notebookId = rootPath;
-    const encrypted = encrypt(content);
-    const contentHash = hashContent(content);
-    const sizeBytes = Buffer.byteLength(content, 'utf-8');
 
     // Look up notebook owner for usage tracking
     const ownerResult = await query<{ user_id: string }>(
@@ -117,6 +116,21 @@ class CloudAdapter implements SourceAdapter {
       [notebookId],
     );
     const userId = ownerResult.rows[0]?.user_id;
+
+    // Folder creation: path ends with /
+    if (filePath.endsWith('/')) {
+      await query(
+        `INSERT INTO cloud_documents (notebook_id, path, content_enc, size_bytes, created_by, updated_by)
+         VALUES ($1, $2, NULL, 0, $3, $3)
+         ON CONFLICT (notebook_id, path) DO NOTHING`,
+        [notebookId, filePath, userId],
+      );
+      return { path: filePath.slice(0, -1), sha: '' };
+    }
+
+    const encrypted = encrypt(content);
+    const contentHash = hashContent(content);
+    const sizeBytes = Buffer.byteLength(content, 'utf-8');
 
     await query(
       `INSERT INTO cloud_documents (notebook_id, path, content_enc, content_hash, size_bytes, created_by, updated_by)
@@ -135,16 +149,17 @@ class CloudAdapter implements SourceAdapter {
   async deleteFile(_accessToken: string, rootPath: string, filePath: string): Promise<void> {
     const notebookId = rootPath;
 
-    // Get size for usage tracking
-    const sizeResult = await query<{ size_bytes: number }>(
-      'SELECT size_bytes FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
-      [notebookId, filePath],
+    // Delete the file itself AND any children (if folder sentinel or prefix)
+    const sizeResult = await query<{ total: string }>(
+      `SELECT COALESCE(SUM(size_bytes), 0) as total FROM cloud_documents
+       WHERE notebook_id = $1 AND (path = $2 OR path = $3 OR path LIKE $4)`,
+      [notebookId, filePath, `${filePath}/`, `${filePath}/%`],
     );
-    const sizeBytes = sizeResult.rows[0]?.size_bytes ?? 0;
+    const totalBytes = parseInt(sizeResult.rows[0].total, 10);
 
     await query(
-      'DELETE FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
-      [notebookId, filePath],
+      `DELETE FROM cloud_documents WHERE notebook_id = $1 AND (path = $2 OR path = $3 OR path LIKE $4)`,
+      [notebookId, filePath, `${filePath}/`, `${filePath}/%`],
     );
 
     // Decrement storage usage
@@ -152,8 +167,8 @@ class CloudAdapter implements SourceAdapter {
       'SELECT user_id FROM notebooks WHERE id = $1',
       [notebookId],
     );
-    if (ownerResult.rows[0] && sizeBytes > 0) {
-      await updateStorageUsage(ownerResult.rows[0].user_id, -sizeBytes);
+    if (ownerResult.rows[0] && totalBytes > 0) {
+      await updateStorageUsage(ownerResult.rows[0].user_id, -totalBytes);
     }
   }
 

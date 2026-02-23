@@ -47,6 +47,24 @@ import {
   createGoogleDriveFile,
   deleteGoogleDriveFile,
 } from '../api/googledrive';
+import { listCloudTree, createCloudFile, deleteCloudFile } from '../api/cloud';
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+async function readCloudFile(notebookId: string, filePath: string) {
+  const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`);
+  if (!res.ok) throw new Error('Failed to read cloud file');
+  return res.json() as Promise<{ path: string; name: string; content: string; sha?: string }>;
+}
+
+async function writeCloudFile(notebookId: string, filePath: string, content: string) {
+  const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error('Failed to save cloud file');
+  return res.json() as Promise<{ path: string; sha?: string }>;
+}
 
 const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
 
@@ -221,6 +239,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           rawEntries = await listOneDriveTree(rootPath);
         } else if (nb.sourceType === 'google-drive') {
           rawEntries = await listGoogleDriveTree(rootPath);
+        } else if (nb.sourceType === 'cloud') {
+          rawEntries = await listCloudTree(notebookId);
         } else {
           rawEntries = [];
         }
@@ -441,6 +461,15 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
               toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
               return;
             }
+          } else if (nb?.sourceType === 'cloud') {
+            try {
+              await createCloudFile(notebookId, filePath, '', type);
+              await refreshFiles(notebookId);
+              toast?.(`Created ${type} "${name}"`, 'success');
+            } catch (err) {
+              toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
+              return;
+            }
           } else {
             await createFile(notebookId, parentPath, name, type);
             await refreshFiles(notebookId);
@@ -631,6 +660,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         } else if (nb?.sourceType === 'google-drive') {
           const rootFolderId = nb.sourceConfig.rootPath as string;
           await deleteGoogleDriveFile(rootFolderId, path);
+        } else if (nb?.sourceType === 'cloud') {
+          await deleteCloudFile(notebookId, path);
         } else {
           await deleteF(notebookId, path);
         }
@@ -758,6 +789,31 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         return;
       }
 
+      if (nb && nb.sourceType === 'cloud') {
+        const fileName = path.split('/').pop() || path;
+        const loadingTab: OpenTab = {
+          id: tabId, notebookId, path, name: fileName,
+          content: '', savedContent: '', hasUnsavedChanges: false, lastSaved: null, loading: true,
+        };
+        setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, loadingTab]);
+        setActiveTabId(tabId);
+        try {
+          const file = await readCloudFile(notebookId, path);
+          let content = file.content;
+          if (isMarkdownContent(content)) {
+            content = markdownToHtml(content);
+          }
+          setTabs((prev) => prev.map((t) => t.id === tabId
+            ? { ...t, name: file.name, content, savedContent: content, sha: file.sha, loading: false }
+            : t
+          ));
+        } catch (err) {
+          setTabs((prev) => prev.filter((t) => t.id !== tabId));
+          toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
+        }
+        return;
+      }
+
       // Local file
       const entry = await getFile(notebookId, path);
       if (!entry || entry.type === 'folder') return;
@@ -809,6 +865,10 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       if (nb && nb.sourceType === 'google-drive') {
         const rootFolderId = nb.sourceConfig.rootPath as string;
         const result = await writeGoogleDriveFile(rootFolderId, tab.path, markdown, tab.sha);
+        return result.sha ?? undefined;
+      }
+      if (nb && nb.sourceType === 'cloud') {
+        const result = await writeCloudFile(tab.notebookId, tab.path, markdown);
         return result.sha ?? undefined;
       }
       // Local save
