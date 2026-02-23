@@ -142,17 +142,22 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
     [collaborative?.provider],
   );
 
+  // Memoize editorProps — TipTap's compareOptions checks all keys by reference.
+  // A new editorProps object on each render triggers setOptions → view.updateState →
+  // CollaborationCursor awareness update → setConnectedUsers → re-render → infinite loop.
+  const editorProps = useMemo(() => ({
+    attributes: {
+      class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] py-6',
+      spellcheck: spellCheckProp === false ? 'false' : 'true',
+    },
+  }), [spellCheckProp]);
+
   const editor = useEditor({
     extensions,
     content: collaborative ? undefined : sanitize(content),
     editable: !readOnly,
     immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] py-6',
-        spellcheck: spellCheckProp === false ? 'false' : 'true',
-      },
-    },
+    editorProps,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       // Skip the initial onUpdate fired when Tiptap parses the content on mount
