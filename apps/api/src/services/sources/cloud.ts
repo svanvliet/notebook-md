@@ -51,11 +51,12 @@ class CloudAdapter implements SourceAdapter {
     const notebookId = rootPath;
 
     const result = await query<{
+      id: string;
       content_enc: string | null;
       content_hash: string | null;
       updated_at: Date;
     }>(
-      'SELECT content_enc, content_hash, updated_at FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
+      'SELECT id, content_enc, content_hash, updated_at FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
       [notebookId, filePath],
     );
 
@@ -73,6 +74,7 @@ class CloudAdapter implements SourceAdapter {
       encoding: 'utf-8',
       sha: row.content_hash ?? undefined,
       lastModified: row.updated_at.toISOString(),
+      documentId: row.id,
     };
   }
 

@@ -12,18 +12,34 @@ interface Version {
 }
 
 interface VersionHistoryPanelProps {
-  documentId: string;
+  documentId?: string;
+  notebookId?: string;
+  documentPath?: string;
   onClose: () => void;
   onPreview?: (content: string, versionNumber: number) => void;
 }
 
-export default function VersionHistoryPanel({ documentId, onClose, onPreview }: VersionHistoryPanelProps) {
+export default function VersionHistoryPanel({ documentId: propDocId, notebookId, documentPath, onClose, onPreview }: VersionHistoryPanelProps) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [resolvedDocId, setResolvedDocId] = useState<string | null>(propDocId ?? null);
+
+  // Resolve document ID from notebook + path if not provided directly
+  useEffect(() => {
+    if (propDocId) { setResolvedDocId(propDocId); return; }
+    if (!notebookId || !documentPath) return;
+    fetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(documentPath)}?root=${notebookId}&meta=true`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (data.documentId) setResolvedDocId(data.documentId); })
+      .catch(() => {});
+  }, [propDocId, notebookId, documentPath]);
+
+  const documentId = resolvedDocId;
 
   const loadVersions = useCallback(async () => {
+    if (!documentId) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/cloud/documents/${documentId}/versions`, { credentials: 'include' });

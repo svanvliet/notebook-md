@@ -1,8 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { XIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons/Icons';
 import { MarkdownEditor } from '../editor/MarkdownEditor';
 import { EditorErrorBoundary } from '../editor/EditorErrorBoundary';
+import { CollaboratorAvatars } from '../editor/CollaboratorAvatars';
+import { useCollaboration } from '../../hooks/useCollaboration';
+
+const VersionHistoryPanel = lazy(() => import('../notebook/VersionHistoryPanel'));
 
 export interface Tab {
   id: string;
@@ -11,6 +15,11 @@ export interface Tab {
   content: string;
   loading?: boolean;
   readOnly?: boolean;
+  /** Cloud document info — when set, enables collaboration features */
+  cloudDoc?: {
+    notebookId: string;
+    path: string;
+  };
 }
 
 interface DocumentPaneProps {
@@ -33,6 +42,10 @@ interface DocumentPaneProps {
   spellCheck?: boolean;
   margins?: 'narrow' | 'regular' | 'wide';
   lineNumbers?: boolean;
+  /** Current user info for collaboration presence */
+  currentUser?: { name: string; color?: string };
+  /** Session token for collab auth */
+  collabToken?: string | null;
 }
 
 export function DocumentPane({
@@ -52,12 +65,24 @@ export function DocumentPane({
   spellCheck,
   margins,
   lineNumbers,
+  currentUser,
+  collabToken,
 }: DocumentPaneProps) {
   const { t } = useTranslation();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+
+  // Collaboration hook — only active for cloud docs
+  const cloudDoc = activeTab?.cloudDoc ?? null;
+  const collab = useCollaboration(
+    cloudDoc?.notebookId ?? null,
+    cloudDoc?.path ?? null,
+    cloudDoc ? (collabToken ?? null) : null,
+    currentUser,
+  );
 
   const updateScrollButtons = useCallback(() => {
     const el = tabsContainerRef.current;
@@ -182,6 +207,24 @@ export function DocumentPane({
               </button>
             </div>
           )}
+          {/* Cloud collaboration UI */}
+          {cloudDoc && (
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
+              {/* Connection status */}
+              <span className={`w-2 h-2 rounded-full shrink-0 ${collab.isConnected ? 'bg-green-500' : collab.error ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} title={collab.isConnected ? 'Connected' : collab.error ?? 'Reconnecting…'} />
+              <CollaboratorAvatars users={collab.connectedUsers} />
+              {/* Version history toggle */}
+              <button
+                onClick={() => setShowVersionHistory(v => !v)}
+                className="flex items-center gap-1 px-2 h-7 mb-0.5 text-xs rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title="Version history"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -221,6 +264,7 @@ export function DocumentPane({
               margins={margins}
               lineNumbers={lineNumbers}
               readOnly={activeTab.readOnly}
+              collaborative={collab.provider && currentUser ? { provider: collab.provider, user: { name: currentUser.name, color: currentUser.color ?? '#3B82F6' } } : undefined}
             />
           </EditorErrorBoundary>
           )
@@ -230,6 +274,17 @@ export function DocumentPane({
           </div>
         )}
       </div>
+
+      {/* Version History Panel */}
+      {showVersionHistory && cloudDoc && (
+        <Suspense fallback={null}>
+          <VersionHistoryPanel
+            notebookId={cloudDoc.notebookId}
+            documentPath={cloudDoc.path}
+            onClose={() => setShowVersionHistory(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

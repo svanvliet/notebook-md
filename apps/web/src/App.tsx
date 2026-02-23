@@ -15,6 +15,7 @@ import { AddNotebookModal } from './components/notebook/AddNotebookModal';
 import { PublishModal } from './components/notebook/PublishModal';
 import { DiscardModal } from './components/notebook/DiscardModal';
 import { DemoBanner } from './components/common/DemoBanner';
+import QuotaBanner from './components/layout/QuotaBanner';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
@@ -322,14 +323,18 @@ export default function App() {
   }, []);
 
   // Map OpenTab[] to Tab[] for DocumentPane
-  const docTabs: Tab[] = nb.tabs.map((t) => ({
-    id: t.id,
-    name: t.name,
-    hasUnsavedChanges: t.hasUnsavedChanges,
-    content: t.content,
-    loading: t.loading,
-    readOnly: nb.pendingPrs.has(t.notebookId),
-  }));
+  const docTabs: Tab[] = nb.tabs.map((t) => {
+    const notebook = nb.notebooks.find((n) => n.id === t.notebookId);
+    return {
+      id: t.id,
+      name: t.name,
+      hasUnsavedChanges: t.hasUnsavedChanges,
+      content: t.content,
+      loading: t.loading,
+      readOnly: nb.pendingPrs.has(t.notebookId),
+      cloudDoc: notebook?.sourceType === 'cloud' ? { notebookId: t.notebookId, path: t.path } : undefined,
+    };
+  });
 
   const lastSaved = nb.activeTab?.lastSaved
     ? new Date(nb.activeTab.lastSaved).toLocaleTimeString()
@@ -490,6 +495,7 @@ export default function App() {
         onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
       {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }} />}
+      {auth.user && <QuotaBanner />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -561,6 +567,7 @@ export default function App() {
           spellCheck={settings.spellCheck}
           margins={settings.margins}
           lineNumbers={settings.lineNumbers}
+          currentUser={auth.user ? { name: auth.user.displayName } : undefined}
         />
       </div>
       <StatusBar

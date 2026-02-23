@@ -4,12 +4,11 @@ import { useFeatureFlag } from '../../hooks/useFeatureFlag';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface UsageData {
+  cloudNotebooks: number;
   cloudNotebookCount: number;
-  cloudStorageBytes: number;
-  limits: {
-    maxCloudNotebooks: number;
-    maxStorageBytes: number;
-  };
+  storageBytesUsed: number;
+  storageLimit: number;
+  bannerState: 'none' | 'warning' | 'exceeded';
 }
 
 export default function QuotaBanner() {

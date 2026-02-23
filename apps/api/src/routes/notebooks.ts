@@ -9,7 +9,7 @@ import type { Request, Response } from 'express';
 
 const router = Router();
 
-// GET /api/notebooks — List user's notebooks
+// GET /api/notebooks — List user's notebooks (including shared)
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   const result = await query<{
     id: string;
@@ -23,6 +23,29 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     [req.userId!],
   );
 
+  // Also fetch notebooks shared with this user
+  const sharedResult = await query<{
+    id: string;
+    name: string;
+    source_type: string;
+    source_config: Record<string, unknown>;
+    created_at: Date;
+    updated_at: Date;
+    owner_name: string;
+    permission: string;
+  }>(
+    `SELECT n.id, n.name, n.source_type, n.source_config, n.created_at, n.updated_at,
+            u.display_name AS owner_name, ns.permission
+     FROM notebook_shares ns
+     JOIN notebooks n ON ns.notebook_id = n.id
+     JOIN users u ON n.user_id = u.id
+     WHERE ns.shared_with_user_id = $1
+       AND ns.accepted_at IS NOT NULL
+       AND ns.owner_user_id IS NULL
+     ORDER BY n.name`,
+    [req.userId!],
+  );
+
   res.json({
     notebooks: result.rows.map(r => ({
       id: r.id,
@@ -31,6 +54,16 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       sourceConfig: r.source_config,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+    })),
+    sharedNotebooks: sharedResult.rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      sourceType: r.source_type,
+      sourceConfig: r.source_config,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      ownerName: r.owner_name,
+      permission: r.permission,
     })),
   });
 });
