@@ -4280,3 +4280,34 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 | `apps/collab/src/server.ts` | Redis collab token validation + dual auth path; Redis connect on startup |
 
 **Status:** ✅ Real-time collaboration working — green connection dot, user avatars, live editing confirmed by user.
+
+---
+
+### Session Entry — 2026-02-23 (continued): Share UX Polish
+
+**What was done:**
+
+1. **Owner-only Share menu** — Context menu now hides "Share…" for notebooks where `sharedBy` is set (i.e., notebooks shared with you by someone else). Only the original owner sees the share option.
+
+2. **"Manage Sharing" label** — When a notebook already has active shares, the context menu label changes from "Share…" to "Manage Sharing". Fixed `hasShares` not being mapped from the API response in `useNotebookManager.ts`.
+
+3. **Owner in members list** — The GET `/api/cloud/notebooks/:id/members` endpoint now prepends the notebook owner as the first entry with `permission: 'owner'`, ensuring the owner is always visible and non-editable in the share dialog.
+
+4. **"Leave Shared Notebook" flow** — Non-owners can right-click a shared notebook and select "Leave Shared Notebook". This shows a confirmation modal, then calls `POST /api/cloud/notebooks/:id/leave` to revoke their share. The notebook is removed from their tree on success. Shared notebooks no longer show Rename/Delete options.
+
+| Commit | Description |
+|--------|-------------|
+| `1c724d1` | Restrict Share menu to owners + show owner in members list |
+| `475b67a` | Add 'Manage Sharing' label, Leave Shared Notebook flow, hasShares mapping |
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/sharing.ts` | Added `POST /notebooks/:id/leave` endpoint; owner prepended in members list |
+| `apps/api/src/routes/notebooks.ts` | Added `has_shares` subquery to GET /api/notebooks |
+| `apps/web/src/hooks/useNotebookManager.ts` | Map `hasShares` from API response |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Owner-only Share menu, Manage Sharing label, Leave Shared Notebook flow with confirm modal |
+| `apps/web/src/components/layout/NotebookPane.tsx` | Thread `onLeaveNotebook` prop to both NotebookTree instances |
+| `apps/web/src/App.tsx` | Implement `onLeaveNotebook` handler (API call + reload + toast) |
+| `apps/web/src/stores/localNotebookStore.ts` | Added `hasShares?: boolean` to NotebookMeta interface |
+
+**Status:** ✅ Share UX polish complete — owner-only sharing, manage label, leave flow all wired.
