@@ -155,7 +155,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
         isInitialMount.current = false;
         return;
       }
-      onChange(html);
+
+      // In collaborative mode, Yjs handles persistence — don't feed back to parent content state
+      if (!collaborative) {
+        onChange(html);
+      }
 
       // Keep raw content in sync during split view, but skip if update came from source pane
       if (viewMode === 'split' && !syncingFromSource.current) {
@@ -182,13 +186,15 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
   }, [editor, readOnly]);
 
   // Sync content from outside (e.g., when switching tabs)
+  // Skip in collaborative mode — Yjs document is the source of truth
   useEffect(() => {
+    if (collaborative) return;
     if (editor && editor.view?.dom && content !== editor.getHTML()) {
       editor.commands.setContent(sanitize(content));
     }
     // Only trigger when content prop changes, not when editor types
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content]);
+  }, [content, collaborative]);
 
   // Sync spellcheck attribute when setting changes
   useEffect(() => {

@@ -247,8 +247,25 @@ export function DocumentPane({
                 <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
               </div>
             </div>
+          ) : cloudDoc && !collab.provider ? (
+            /* Cloud doc — wait for collab provider to connect before mounting editor */
+            <div
+              className="py-10 animate-pulse"
+              style={{ paddingLeft: margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem',
+                       paddingRight: margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem' }}
+            >
+              <div className="h-7 bg-gray-200 dark:bg-gray-800 rounded w-2/5 mb-6" />
+              <div className="space-y-3">
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-5/6" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-4/6" />
+              </div>
+              {collab.error && (
+                <p className="mt-4 text-sm text-red-500">{collab.error}</p>
+              )}
+            </div>
           ) : (
-          <EditorErrorBoundary key={activeTab.id}>
+          <EditorErrorBoundary key={`${activeTab.id}-${collab.provider ? 'collab' : 'solo'}`}>
             <MarkdownEditor
               content={activeTab.content}
               onChange={(html) => onContentChange(activeTab.id, html)}
