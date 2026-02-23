@@ -50,6 +50,22 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
   const [showDelete, setShowDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [cloudDeleteWarning, setCloudDeleteWarning] = useState<{ notebooks: number; collaborators: number } | null>(null);
+  const [cloudDeleteConfirmed, setCloudDeleteConfirmed] = useState(false);
+
+  // Fetch cloud notebook warning data when delete panel opens
+  useEffect(() => {
+    if (!showDelete) return;
+    apiFetch(`${API_BASE}/api/usage/me`)
+      .then(r => r.json())
+      .then(data => {
+        const nbCount = data.cloudNotebooks ?? 0;
+        if (nbCount > 0) {
+          setCloudDeleteWarning({ notebooks: nbCount, collaborators: 0 });
+        }
+      })
+      .catch(() => {});
+  }, [showDelete]);
 
   // Linked providers
   const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([]);
@@ -323,6 +339,18 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
             ) : (
               <div className="space-y-3 p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
                 <p className="text-sm text-red-700 dark:text-red-300">This action is permanent and cannot be undone. All your data will be deleted.</p>
+                {cloudDeleteWarning && cloudDeleteWarning.notebooks > 0 && (
+                  <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded border border-red-300 dark:border-red-700">
+                    <p className="text-sm text-red-800 dark:text-red-200 font-medium">
+                      ⚠️ Deleting your account will permanently delete {cloudDeleteWarning.notebooks} Cloud notebook{cloudDeleteWarning.notebooks > 1 ? 's' : ''}
+                      {cloudDeleteWarning.collaborators > 0 ? ` shared with ${cloudDeleteWarning.collaborators} collaborator${cloudDeleteWarning.collaborators > 1 ? 's' : ''}` : ''}. This cannot be undone.
+                    </p>
+                    <label className="flex items-center gap-2 mt-2 text-sm text-red-700 dark:text-red-300">
+                      <input type="checkbox" checked={cloudDeleteConfirmed} onChange={e => setCloudDeleteConfirmed(e.target.checked)} />
+                      I understand my Cloud notebooks will be permanently deleted
+                    </label>
+                  </div>
+                )}
                 {user.hasPassword ? (
                   <input
                     type="password"
@@ -346,12 +374,12 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
                 <div className="flex gap-2">
                   <button
                     onClick={handleDeleteAccount}
-                    disabled={user.hasPassword ? !deletePassword : deleteConfirmation !== 'DELETE'}
+                    disabled={(user.hasPassword ? !deletePassword : deleteConfirmation !== 'DELETE') || (cloudDeleteWarning && cloudDeleteWarning.notebooks > 0 && !cloudDeleteConfirmed)}
                     className="px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Delete My Account
                   </button>
-                  <button onClick={() => { setShowDelete(false); setDeletePassword(''); setDeleteConfirmation(''); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:underline">
+                  <button onClick={() => { setShowDelete(false); setDeletePassword(''); setDeleteConfirmation(''); setCloudDeleteWarning(null); setCloudDeleteConfirmed(false); }} className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:underline">
                     Cancel
                   </button>
                 </div>
