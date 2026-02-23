@@ -100,7 +100,13 @@ export function useCollaboration(
               users.push(u);
             }
           });
-          setConnectedUsers(users);
+          // Only update state if the user list actually changed (avoid re-render loops)
+          setConnectedUsers(prev => {
+            if (prev.length === users.length && prev.every((u, i) => u.id === users[i]?.id)) {
+              return prev;
+            }
+            return users;
+          });
         },
       });
 
