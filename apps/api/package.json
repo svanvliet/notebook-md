@@ -14,7 +14,12 @@
     "migrate:create": "node-pg-migrate create --migrations-dir migrations --migration-file-language sql",
     "seed": "tsx src/db/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:cloud": "vitest run cloud- sharing feature-flag version-history",
+    "test:auth": "vitest run auth sessions two-factor oauth dev-login",
+    "test:notebooks": "vitest run notebooks path-validation",
+    "test:providers": "vitest run github- onedrive- googledrive- circuit-breaker webhook",
+    "test:misc": "vitest run admin contact encryption settings provider-revocation"
   },
   "dependencies": {
     "@notebook-md/shared": "*",

@@ -14,6 +14,10 @@
     "typecheck": "npm -w packages/shared run typecheck && npm -w apps/web run typecheck && npm -w apps/api run typecheck",
     "test": "npm -w apps/api run test",
     "test:api": "npm -w apps/api run test",
+    "test:api:cloud": "npm -w apps/api run test:cloud",
+    "test:api:auth": "npm -w apps/api run test:auth",
+    "test:api:notebooks": "npm -w apps/api run test:notebooks",
+    "test:api:providers": "npm -w apps/api run test:providers",
     "test:web": "npm -w apps/web run test",
     "test:e2e": "npx playwright test"
   },
