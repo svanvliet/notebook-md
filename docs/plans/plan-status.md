@@ -4217,3 +4217,31 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 **Tests:** ✅ 43 cloud tests pass, collab server type-checks clean
 
 **Remaining:** Manual validation needed — verify WebSocket connects (green dot), avatars appear, real-time sync works between two browser sessions.
+
+---
+
+### Session 9: Fix Browser Freeze on Collab Connect (2026-02-23)
+
+**Problem:** When a second user connected to the same Cloud document, the first user's browser froze (Chrome "This page isn't responding" dialog). Required force-closing the tab.
+
+**Root Cause — Two issues:**
+
+1. **Infinite loop in content sync:** When Yjs synced content from Client B, the `onUpdate` handler called `onChange(html)` → parent updated tab content state → `content` prop changed → `useEffect` at line 185 called `editor.commands.setContent(sanitize(content))` → this fired `onUpdate` again → infinite loop. The `content !== editor.getHTML()` guard didn't prevent it because `sanitize()` produces slightly different HTML than `editor.getHTML()`.
+
+2. **Collaboration extension never applied:** The `useCollaboration` hook connects asynchronously (fetch collab token → create provider). On first render, `collab.provider` is `null`, so `collaborative` prop is `undefined`, and `useEditor` creates the editor WITHOUT the Collaboration extension. When the provider connects and triggers a re-render, `useEditor` doesn't re-create the editor (TipTap caches it), so the Collaboration/CollaborationCursor extensions are never actually used.
+
+**Fix:**
+
+1. Skip `content` sync useEffect when `collaborative` is set — Yjs document is the source of truth
+2. Skip `onChange` callback in `onUpdate` during collaboration — prevents parent from managing content
+3. Delay editor mount for cloud docs until collab provider connects — show loading skeleton
+4. Use keyed `EditorErrorBoundary` (`${id}-${collab/solo}`) to force remount when collab state changes
+
+| File | Change |
+|------|--------|
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | Guard content sync + onChange in collaborative mode |
+| `apps/web/src/components/layout/DocumentPane.tsx` | Loading state + keyed remount for cloud docs |
+
+**Commit:** `50abc03`
+
+**Next:** User to verify: open Cloud doc in two browsers, confirm no freeze, real-time sync works.
