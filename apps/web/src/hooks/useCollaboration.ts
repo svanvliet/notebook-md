@@ -23,11 +23,11 @@ export interface UseCollaborationResult {
 /**
  * Hook to manage a HocusPocus collaboration connection for a Cloud document.
  * Returns null provider when documentPath or notebookId is null (non-collaborative mode).
+ * Automatically fetches a short-lived collab token from the API.
  */
 export function useCollaboration(
   notebookId: string | null,
   documentPath: string | null,
-  token: string | null,
   currentUser?: { name: string; color?: string },
 ): UseCollaborationResult {
   const [isConnected, setIsConnected] = useState(false);
@@ -38,65 +38,89 @@ export function useCollaboration(
   const ydocRef = useRef<Y.Doc | null>(null);
 
   useEffect(() => {
-    if (!notebookId || !documentPath || !token) {
+    if (!notebookId || !documentPath) {
       return;
     }
 
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+    let cancelled = false;
 
-    const documentName = `notebook:${notebookId}:file:${encodeURIComponent(documentPath)}`;
+    async function connect() {
+      // Fetch a short-lived collab token from the API
+      let token: string;
+      try {
+        const res = await fetch(`${API_BASE}/auth/collab-token`, { credentials: 'include' });
+        if (!res.ok) {
+          setError('Failed to get collaboration token');
+          return;
+        }
+        const data = await res.json();
+        token = data.token;
+      } catch {
+        setError('Failed to connect to collaboration server');
+        return;
+      }
 
-    // Determine WebSocket URL
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = API_BASE
-      ? `${wsProtocol}//${new URL(API_BASE).host}/collab`
-      : `${wsProtocol}//${window.location.host}/collab`;
+      if (cancelled) return;
 
-    const provider = new HocuspocusProvider({
-      url: wsUrl,
-      name: documentName,
-      document: ydoc,
-      token,
-      onConnect() {
-        setIsConnected(true);
-        setError(null);
-      },
-      onDisconnect() {
-        setIsConnected(false);
-      },
-      onSynced() {
-        setIsSynced(true);
-      },
-      onAuthenticationFailed({ reason }) {
-        setError(reason || 'Authentication failed');
-        setIsConnected(false);
-      },
-      onAwarenessUpdate({ states }) {
-        const users: CollabUser[] = [];
-        states.forEach((state: Record<string, unknown>) => {
-          if (state.user) {
-            const u = state.user as CollabUser;
-            users.push(u);
-          }
-        });
-        setConnectedUsers(users);
-      },
-    });
+      const ydoc = new Y.Doc();
+      ydocRef.current = ydoc;
 
-    // Set awareness (current user)
-    if (currentUser) {
-      provider.setAwarenessField('user', {
-        name: currentUser.name,
-        color: currentUser.color || '#3B82F6',
+      const documentName = `notebook:${notebookId}:file:${encodeURIComponent(documentPath!)}`;
+
+      // Determine WebSocket URL
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = API_BASE
+        ? `${wsProtocol}//${new URL(API_BASE).host}/collab`
+        : `${wsProtocol}//${window.location.host}/collab`;
+
+      const provider = new HocuspocusProvider({
+        url: wsUrl,
+        name: documentName,
+        document: ydoc,
+        token,
+        onConnect() {
+          setIsConnected(true);
+          setError(null);
+        },
+        onDisconnect() {
+          setIsConnected(false);
+        },
+        onSynced() {
+          setIsSynced(true);
+        },
+        onAuthenticationFailed({ reason }) {
+          setError(reason || 'Authentication failed');
+          setIsConnected(false);
+        },
+        onAwarenessUpdate({ states }) {
+          const users: CollabUser[] = [];
+          states.forEach((state: Record<string, unknown>) => {
+            if (state.user) {
+              const u = state.user as CollabUser;
+              users.push(u);
+            }
+          });
+          setConnectedUsers(users);
+        },
       });
+
+      // Set awareness (current user)
+      if (currentUser) {
+        provider.setAwarenessField('user', {
+          name: currentUser.name,
+          color: currentUser.color || '#3B82F6',
+        });
+      }
+
+      providerRef.current = provider;
     }
 
-    providerRef.current = provider;
+    connect();
 
     return () => {
-      provider.destroy();
-      ydoc.destroy();
+      cancelled = true;
+      providerRef.current?.destroy();
+      ydocRef.current?.destroy();
       providerRef.current = null;
       ydocRef.current = null;
       setIsConnected(false);
@@ -104,7 +128,7 @@ export function useCollaboration(
       setConnectedUsers([]);
       setError(null);
     };
-  }, [notebookId, documentPath, token]);
+  }, [notebookId, documentPath]);
 
   return {
     provider: providerRef.current,
