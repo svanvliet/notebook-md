@@ -22,6 +22,7 @@ import adminRoutes from './routes/admin.js';
 import entitlementsRoutes from './routes/entitlements.js';
 import usageRoutes from './routes/usage.js';
 import sharingRoutes from './routes/sharing.js';
+import cloudRoutes from './routes/cloud.js';
 
 // Register source adapters (side-effect imports)
 import './services/sources/github.js';
@@ -164,6 +165,7 @@ app.use('/api/googledrive', googledriveRoutes);
 app.use('/api/entitlements', entitlementsRoutes);
 app.use('/api/usage', usageRoutes);
 app.use('/api/cloud', sharingRoutes);
+app.use('/api/cloud', cloudRoutes);
 
 // Public share link routes (no auth, separate mount point)
 import { Router as PublicRouter } from 'express';
