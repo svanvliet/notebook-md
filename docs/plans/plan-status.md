@@ -4244,4 +4244,39 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 
 **Commit:** `50abc03`
 
-**Next:** User to verify: open Cloud doc in two browsers, confirm no freeze, real-time sync works.
+---
+
+### Session 10: Real-Time Collaboration — Full Fix Chain (2026-02-23)
+
+**Problem:** Opening a Cloud document caused the browser to freeze (tab unresponsive). Multiple root causes discovered through iterative debugging.
+
+**Root Causes (4 layered issues):**
+
+1. **`ySyncPluginKey` mismatch (crash loop):** `@tiptap/extension-collaboration@3.20` uses `@tiptap/y-tiptap` (TipTap's fork of y-prosemirror), while `@tiptap/extension-collaboration-cursor@3.0` uses `y-prosemirror` directly. Different packages = different `ySyncPluginKey` instances. The cursor plugin crashed with `Cannot read properties of undefined (reading 'doc')` trying to access sync state. Error caught by `EditorErrorBoundary` → retry → infinite crash loop → browser freeze.
+
+2. **TipTap `setOptions` re-render loop (extensions):** `getEditorExtensions()` created new extension instances on every render. TipTap's `compareOptions` checks extensions by reference → always returned false → called `setOptions` → `CollaborationCursor` re-init fired awareness updates → `setConnectedUsers` → re-render → loop.
+
+3. **TipTap `setOptions` re-render loop (editorProps):** `editorProps` was a new object literal on every render. Same `compareOptions` path → `setOptions` → `view.updateState` → awareness update → re-render → loop.
+
+4. **Content sync feedback loop:** Yjs sync fired `onUpdate` → `onChange(html)` → parent state → `content` prop changed → `useEffect` called `setContent(sanitize(content))` → `onUpdate` again → loop. Also, editor was mounting before collab provider connected, so Collaboration extension was never in the initial extension set.
+
+**Fixes (4 commits):**
+
+| Commit | Fix |
+|--------|-----|
+| `4bb3cc4` | Collab token endpoint (`GET /auth/collab-token`) + Redis auth in HocusPocus server |
+| `50abc03` | Skip content sync + onChange in collaborative mode; loading skeleton until provider connects |
+| `92bf6e4` | `useMemo` for extensions array (dep: `collaborative?.provider`); functional updater for `setConnectedUsers` |
+| `893c30a` | `useMemo` for `editorProps` (dep: `spellCheckProp`) |
+| `bc72838` | Vite alias `y-prosemirror` → `@tiptap/y-tiptap` to share `ySyncPluginKey` |
+
+| File | Change |
+|------|--------|
+| `apps/web/vite.config.ts` | `resolve.alias` mapping y-prosemirror → @tiptap/y-tiptap |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | useMemo extensions + editorProps; guard content sync + onChange in collab mode |
+| `apps/web/src/components/layout/DocumentPane.tsx` | Loading skeleton until provider connects; keyed ErrorBoundary |
+| `apps/web/src/hooks/useCollaboration.ts` | Auto-fetch collab token; functional setConnectedUsers updater |
+| `apps/api/src/routes/auth.ts` | `GET /auth/collab-token` endpoint (Redis-backed, 5-min TTL) |
+| `apps/collab/src/server.ts` | Redis collab token validation + dual auth path; Redis connect on startup |
+
+**Status:** ✅ Real-time collaboration working — green connection dot, user avatars, live editing confirmed by user.
