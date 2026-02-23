@@ -139,6 +139,7 @@ interface NotebookTreeProps {
   expandToPath?: { notebookId: string; path: string } | null;
   onExpandToPathHandled?: () => void;
   activeFilePath: string | null;
+  onLeaveNotebook?: (notebookId: string) => void;
 }
 
 export function NotebookTree({
@@ -163,9 +164,11 @@ export function NotebookTree({
   expandToPath,
   onExpandToPathHandled,
   activeFilePath,
+  onLeaveNotebook,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
+  const [leaveConfirm, setLeaveConfirm] = useState<{ id: string; name: string } | null>(null);
   // Restore tree expansion state from sessionStorage
   const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(() => {
     try {
@@ -763,9 +766,18 @@ export function NotebookTree({
               {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sourceType === 'cloud' && !nb.sharedBy ? (
                 <CtxItem icon={<ShareIcon />} label={nb.hasShares ? 'Manage Sharing' : 'Share…'} onClick={() => { if (nb) { setShareTarget({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
               ) : null; })()}
-              <CtxDivider />
-              <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />
-              <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
+              {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sharedBy ? (
+                <>
+                  <CtxDivider />
+                  <CtxItem icon={<TrashIcon />} label="Leave Shared Notebook" danger onClick={() => { if (nb) { setLeaveConfirm({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
+                </>
+              ) : (
+                <>
+                  <CtxDivider />
+                  <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { if (nb) startRename('notebook', nb.id, nb.name); }} />
+                  <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
+                </>
+              ); })()}
             </>
           ) : (
             <>
@@ -801,6 +813,30 @@ export function NotebookTree({
             onClose={() => setShareTarget(null)}
           />
         </Suspense>
+      )}
+
+      {/* Leave Shared Notebook confirm modal */}
+      {leaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setLeaveConfirm(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Leave Shared Notebook</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Are you sure you want to leave <strong>"{leaveConfirm.name}"</strong>? You will lose access to this notebook and it will be removed from your list.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setLeaveConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+              <button
+                onClick={() => {
+                  if (onLeaveNotebook) onLeaveNotebook(leaveConfirm.id);
+                  setLeaveConfirm(null);
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

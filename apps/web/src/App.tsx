@@ -580,6 +580,23 @@ export default function App() {
           activeFilePath={nb.activeTabId}
           mobileOpen={mobilePaneOpen}
           onMobileClose={() => setMobilePaneOpen(false)}
+          onLeaveNotebook={async (notebookId: string) => {
+            try {
+              const API_BASE = import.meta.env.VITE_API_URL || '';
+              const res = await fetch(`${API_BASE}/api/cloud/notebooks/${notebookId}/leave`, {
+                method: 'POST',
+                credentials: 'include',
+              });
+              if (res.ok) {
+                addToast('Left shared notebook', 'success');
+                nb.reloadNotebooks();
+              } else {
+                addToast('Failed to leave notebook', 'error');
+              }
+            } catch {
+              addToast('Failed to leave notebook', 'error');
+            }
+          }}
         />
         <OutlinePane
           headings={headings}

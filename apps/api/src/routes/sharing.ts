@@ -122,6 +122,20 @@ router.delete('/notebooks/:id/members/:userId', requireAuth, requireFeature('clo
   }
 });
 
+// POST /api/cloud/notebooks/:id/leave — Leave a shared notebook (self-remove)
+router.post('/notebooks/:id/leave', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+  try {
+    await query(
+      `UPDATE notebook_shares SET revoked_at = now()
+       WHERE notebook_id = $1 AND shared_with_user_id = $2 AND revoked_at IS NULL`,
+      [req.params.id, req.userId!],
+    );
+    res.json({ message: 'Left notebook' });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
 // ── Share Links ──────────────────────────────────────────────────────────
 
 // POST /api/cloud/notebooks/:id/share-links — Create share link
