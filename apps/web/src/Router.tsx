@@ -29,6 +29,7 @@ function AppRoutes() {
         <Route path="/app/magic-link" element={<App />} />
         <Route path="/app/verify-email" element={<App />} />
         <Route path="/app/auth-error" element={<App />} />
+        <Route path="/app/invite" element={<App />} />
         {/* Public share link viewer */}
         <Route path="/s/:token" element={<PublicDocumentViewer />} />
         {/* Main app with document deep links */}
