@@ -24,6 +24,10 @@ import { Mathematics } from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import { Callout } from './CalloutExtension';
 import { createLowlight } from 'lowlight';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+import type { HocuspocusProvider } from '@hocuspocus/provider';
+import './CollaboratorCursors.css';
 
 // Import common languages for code block highlighting
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -72,8 +76,13 @@ lowlight.register('ruby', ruby);
 lowlight.register('rb', ruby);
 lowlight.register('php', php);
 
-export function getEditorExtensions(placeholder?: string) {
-  return [
+export interface CollabOptions {
+  provider: HocuspocusProvider;
+  user: { name: string; color: string };
+}
+
+export function getEditorExtensions(placeholder?: string, collab?: CollabOptions) {
+  const extensions = [
     StarterKit.configure({
       // We use CodeBlockLowlight instead of the default code block
       codeBlock: false,
@@ -81,6 +90,8 @@ export function getEditorExtensions(placeholder?: string) {
       // We configure Link and Underline separately with custom options
       link: false,
       underline: false,
+      // When collaborative, disable built-in history (Yjs has its own undo manager)
+      history: collab ? false : undefined,
     }),
     Placeholder.configure({
       placeholder: placeholder ?? 'Start writing…',
@@ -142,4 +153,19 @@ export function getEditorExtensions(placeholder?: string) {
     }),
     Callout,
   ];
+
+  // Add collaboration extensions when in collaborative mode
+  if (collab) {
+    extensions.push(
+      Collaboration.configure({
+        document: collab.provider.document,
+      }),
+      CollaborationCursor.configure({
+        provider: collab.provider,
+        user: collab.user,
+      }),
+    );
+  }
+
+  return extensions;
 }

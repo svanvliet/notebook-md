@@ -36,6 +36,11 @@ interface MarkdownEditorProps {
   margins?: 'narrow' | 'regular' | 'wide';
   lineNumbers?: boolean;
   readOnly?: boolean;
+  /** Collaboration options — when set, enables real-time collaborative editing */
+  collaborative?: {
+    provider: import('@hocuspocus/provider').HocuspocusProvider;
+    user: { name: string; color: string };
+  };
 }
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -106,7 +111,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly, collaborative }: MarkdownEditorProps) {
   const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
@@ -128,11 +133,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
 
   const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
 
-  const extensions = [...getEditorExtensions(), SlashCommandExtension, DragHandle];
+  const extensions = [...getEditorExtensions(undefined, collaborative ? { provider: collaborative.provider, user: collaborative.user } : undefined), SlashCommandExtension, DragHandle];
 
   const editor = useEditor({
     extensions,
-    content: sanitize(content),
+    content: collaborative ? undefined : sanitize(content),
     editable: !readOnly,
     immediatelyRender: false,
     editorProps: {
