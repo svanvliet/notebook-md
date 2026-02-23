@@ -14,6 +14,8 @@ export interface NotebookMeta {
   sharedBy?: string;
   /** User's permission on a shared notebook */
   sharedPermission?: string;
+  /** True if the owner has shared this notebook with others */
+  hasShares?: boolean;
 }
 
 export interface FileEntry {

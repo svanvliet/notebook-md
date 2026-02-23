@@ -760,8 +760,8 @@ export function NotebookTree({
               {onRefreshNotebook && (
                 <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { if (contextMenu.target.kind === 'notebook') onRefreshNotebook(contextMenu.target.id); setContextMenu(null); }} />
               )}
-              {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sourceType === 'cloud' ? (
-                <CtxItem icon={<ShareIcon />} label="Share…" onClick={() => { if (nb) { setShareTarget({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
+              {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sourceType === 'cloud' && !nb.sharedBy ? (
+                <CtxItem icon={<ShareIcon />} label={nb.hasShares ? 'Manage Sharing' : 'Share…'} onClick={() => { if (nb) { setShareTarget({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
               ) : null; })()}
               <CtxDivider />
               <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />

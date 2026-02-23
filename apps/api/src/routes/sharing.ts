@@ -73,10 +73,27 @@ router.post('/invites/:token/accept', requireAuth, async (req: Request, res: Res
 
 // ── Members ──────────────────────────────────────────────────────────────
 
-// GET /api/cloud/notebooks/:id/members — List members
+// GET /api/cloud/notebooks/:id/members — List members (including owner)
 router.get('/notebooks/:id/members', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+  // Fetch the notebook owner
+  const ownerResult = await query<{ user_id: string; display_name: string; email: string; avatar_url: string | null }>(
+    `SELECT n.user_id, u.display_name, u.email, u.avatar_url
+     FROM notebooks n JOIN users u ON n.user_id = u.id
+     WHERE n.id = $1`,
+    [req.params.id],
+  );
   const members = await getMembers(req.params.id);
-  res.json({ members });
+  const owner = ownerResult.rows[0];
+  const ownerEntry = owner ? {
+    id: 'owner',
+    userId: owner.user_id,
+    email: owner.email,
+    displayName: owner.display_name,
+    avatarUrl: owner.avatar_url,
+    permission: 'owner',
+    accepted: true,
+  } : null;
+  res.json({ members: ownerEntry ? [ownerEntry, ...members.filter(m => m.userId !== owner.user_id)] : members });
 });
 
 // PATCH /api/cloud/notebooks/:id/members/:userId — Change role

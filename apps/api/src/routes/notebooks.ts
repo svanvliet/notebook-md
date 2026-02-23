@@ -18,8 +18,11 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     source_config: Record<string, unknown>;
     created_at: Date;
     updated_at: Date;
+    has_shares: boolean;
   }>(
-    'SELECT id, name, source_type, source_config, created_at, updated_at FROM notebooks WHERE user_id = $1 ORDER BY name',
+    'SELECT n.id, n.name, n.source_type, n.source_config, n.created_at, n.updated_at, ' +
+    '(SELECT COUNT(*) FROM notebook_shares ns WHERE ns.notebook_id = n.id AND ns.revoked_at IS NULL AND ns.shared_with_user_id != $1) > 0 AS has_shares ' +
+    'FROM notebooks n WHERE n.user_id = $1 ORDER BY n.name',
     [req.userId!],
   );
 
@@ -54,6 +57,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       sourceConfig: r.source_config,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+      hasShares: r.has_shares,
     })),
     sharedNotebooks: sharedResult.rows.map(r => ({
       id: r.id,
