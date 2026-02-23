@@ -4037,3 +4037,40 @@ Implemented HocusPocus server, Yjs collaboration extensions, and collaboration U
 - Update `TwoFactorSetup` / Account settings UI to hide the 2FA setup section for OAuth-only users (users without a password)
 - Consider showing an informational note instead: "Your account is secured by [Provider]'s authentication, including any 2FA you have enabled there."
 - Review backend: `onEnable2fa` / `onDisable2fa` should be no-ops or gated for OAuth-only users
+
+---
+
+## Post-Phase Bug Fixes & Polish (2026-02-23)
+
+### Fix: Cloud notebook file tree not loading
+
+**Problem:** After creating files in a Cloud notebook, the notebook tree showed "Empty notebook". Refreshing didn't help.  
+**Root cause:** `refreshFiles` in `useNotebookManager.ts` only handled github/onedrive/google-drive — Cloud fell through to `rawEntries = []`. File open/save/create/delete all fell through to IndexedDB (local store) instead of the sources API.  
+**Fix:** Created `apps/web/src/api/cloud.ts` with `listCloudTree`, `createCloudFile`, `deleteCloudFile`, `readCloudFile`, `writeCloudFile`. Wired Cloud into all file operation paths in `useNotebookManager`.  
+**Commit:** `b6ac7e9`
+
+### Fix: Cloud folder creation silently failing
+
+**Problem:** Creating a folder showed a success toast but no folder appeared in the tree.  
+**Root cause:** Two issues — (1) `validatePath` middleware strips trailing slashes, so the folder sentinel `/` was lost before reaching the cloud adapter; (2) `encodeURIComponent` encoded `/` as `%2F` in the URL, causing routing issues.  
+**Fix:** Client now sends `type: 'folder'` in the request body instead of encoding it in the URL. Sources router re-appends the trailing `/` for cloud provider before calling `createFile`. Added comprehensive folder test covering create → list → file-in-folder → folder survives child deletion.  
+**Commit:** `2b8a6b1`
+
+### Data cleanup: Orphaned cloud_documents rows
+
+Deleted 3 orphaned rows from the dev database in notebook `cbd84b6c-1a9d-4229-ab21-f88acc2b7995` (Cloud Test 1):
+- `path = 'Test'` — folder attempt before cloud file wiring fix
+- `path = 'Testing'` — folder attempt before folder creation fix
+- `path = 'Foldertest'` — folder attempt before folder creation fix
+
+### Added API test groups for faster targeted runs
+
+Added test group scripts to `apps/api/package.json`: `test:cloud` (~10s), `test:auth` (~40s), `test:notebooks`, `test:providers`, `test:misc`. Root shortcuts: `npm run test:api:cloud`, etc.  
+**Commit:** `4b74716`
+
+### UI: Cloud option ordering in Add Notebook modal
+
+Moved Cloud source type to appear right after Local (was last). Order is now: Local → Cloud → GitHub → OneDrive → Google Drive → iCloud.  
+**Commit:** `e848e68`
+
+**Tests:** ✅ 43 cloud tests pass (was 42, added folder creation test)
