@@ -1,5 +1,5 @@
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { getEditorExtensions } from './extensions';
 import { DragHandle } from './DragHandle';
@@ -135,7 +135,12 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
 
   const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
 
-  const extensions = [...getEditorExtensions(undefined, collaborative ? { provider: collaborative.provider, user: collaborative.user } : undefined), SlashCommandExtension, DragHandle];
+  // Memoize extensions to prevent TipTap from re-registering them on every render.
+  // CollaborationCursor re-init triggers awareness updates → re-render → infinite loop.
+  const extensions = useMemo(
+    () => [...getEditorExtensions(undefined, collaborative ? { provider: collaborative.provider, user: collaborative.user } : undefined), SlashCommandExtension, DragHandle],
+    [collaborative?.provider],
+  );
 
   const editor = useEditor({
     extensions,
