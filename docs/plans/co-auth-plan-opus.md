@@ -3,7 +3,7 @@
 **Requirements Source:** `docs/requirements/co-auth-requirements-opus.md` (v3.0)  
 **Cross-Reference:** `docs/plans/co-auth-plan-codex.md`  
 **Date:** 2026-02-23  
-**Status:** Phases 0–5 complete (local dev only)
+**Status:** Phases 0–5 complete, UI wiring complete (local dev only)
 
 ---
 

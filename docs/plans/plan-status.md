@@ -4074,3 +4074,74 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 **Commit:** `e848e68`
 
 **Tests:** ✅ 43 cloud tests pass (was 42, added folder creation test)
+
+---
+
+## UI Wiring Audit & Implementation (2026-02-23)
+
+**Context:** Audit of co-auth-plan-opus.md and co-auth-requirements-opus.md revealed many UI components were created during Phases 0-5 but never wired into the application. This batch connects them all.
+
+### QuotaBanner wired into App layout
+
+- Fixed `UsageData` interface to match actual API response (`storageBytesUsed`, `storageLimit`, `bannerState`)
+- Rendered `QuotaBanner` in App.tsx between DemoBanner and content area
+- Only renders when user is authenticated
+- Fetches usage every 5 minutes, shows yellow (90%) or red (100%) banner
+
+### CollaboratorAvatars + Connection Status in DocumentPane
+
+- Added `useCollaboration` hook call in DocumentPane for cloud documents
+- Renders `CollaboratorAvatars` showing connected users in tab bar
+- Connection status indicator (green/yellow/red dot) with tooltip
+- Extended `Tab` interface with optional `cloudDoc` field (`notebookId` + `path`)
+- App.tsx maps `cloudDoc` from notebook sourceType when converting OpenTab → Tab
+- Passes `currentUser` (from auth) and `collaborative` prop to MarkdownEditor
+
+### Version History trigger in editor
+
+- Added clock icon button in DocumentPane tab bar (only for cloud docs)
+- Toggles `VersionHistoryPanel` slide-out panel
+- Updated VersionHistoryPanel to accept `notebookId` + `documentPath` (resolves documentId internally)
+- Cloud adapter's `readFile` now returns `documentId` for version lookups
+- Added `documentId` to `FileContent` interface in sources/types.ts
+
+### View mode lock during collaboration
+
+- Added `effectiveViewMode` — forced to 'wysiwyg' when `collaborative` prop is set
+- Source and split view toggle buttons disabled with tooltip: "disabled during real-time collaboration"
+- All rendering logic uses `effectiveViewMode` to prevent source/split panes from appearing
+
+### "Shared with me" section in sidebar
+
+- Extended `GET /api/notebooks` to return `sharedNotebooks` array (accepted shares where user isn't the owner)
+- Updated `useNotebookManager` to sync shared notebooks with `sharedBy` and `sharedPermission` fields
+- Added `'cloud'` to `NotebookMeta.sourceType` union, plus `sharedBy?` and `sharedPermission?` fields
+- NotebookTree splits notebooks into own vs shared, renders "Shared with me" section header
+- Shared notebooks show owner name and Edit/View permission badge
+- Shared notebooks don't show in "Share…" context menu (only own cloud notebooks)
+
+| File | Change |
+|------|--------|
+| `apps/web/src/App.tsx` | Import QuotaBanner, render it, map cloudDoc to tabs, pass currentUser to DocumentPane |
+| `apps/web/src/components/layout/DocumentPane.tsx` | useCollaboration hook, CollaboratorAvatars, connection dot, version history button/panel, collaborative prop to editor |
+| `apps/web/src/components/layout/QuotaBanner.tsx` | Fixed UsageData interface to match API |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | effectiveViewMode for collab lock, disabled source/split buttons |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | "Shared with me" section with owner name + badge |
+| `apps/web/src/components/notebook/VersionHistoryPanel.tsx` | Accept notebookId+path, resolve documentId |
+| `apps/web/src/hooks/useNotebookManager.ts` | Sync shared notebooks from API |
+| `apps/web/src/stores/localNotebookStore.ts` | Added cloud to sourceType, sharedBy/sharedPermission fields |
+| `apps/api/src/routes/notebooks.ts` | Return sharedNotebooks in GET response |
+| `apps/api/src/services/sources/cloud.ts` | Return documentId in readFile |
+| `apps/api/src/services/sources/types.ts` | Added documentId to FileContent |
+
+**Commit:** `bb532c1` — Wire all missing co-authoring UI elements
+
+**Tests:** ✅ 43 cloud tests pass (no regressions)
+
+### Remaining UI gaps (not yet built — lower priority)
+
+- **SharingPage** — Account-level sharing management page (list shared/shared-with-me notebooks, manage links)
+- **ExportNotebookModal** — UI for exporting Cloud notebook to GitHub/OneDrive/Google Drive
+- **Mobile read-only banner** — "Co-editing is available on desktop" message for mobile cloud docs
+- **Markdown round-trip fidelity tests** — Automated tests for HTML↔Markdown conversion quality
+- **WebSocket auth for collab** — HocusPocus requires token but refresh_token cookie is HttpOnly; needs a session endpoint that returns a short-lived WS token
