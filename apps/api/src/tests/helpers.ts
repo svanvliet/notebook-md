@@ -17,7 +17,14 @@ export async function cleanDb() {
   await query('DELETE FROM password_reset_tokens');
   await query('DELETE FROM user_settings');
   await query('DELETE FROM github_installations');
+  await query('DELETE FROM collab_sessions');
+  await query('DELETE FROM document_versions');
+  await query('DELETE FROM cloud_documents');
+  await query('DELETE FROM notebook_shares');
+  await query('DELETE FROM notebook_public_links');
   await query('DELETE FROM notebooks');
+  await query('DELETE FROM user_usage_counters');
+  await query('DELETE FROM user_plan_subscriptions');
   await query('DELETE FROM sessions');
   await query('DELETE FROM identity_links');
   await query('DELETE FROM users');

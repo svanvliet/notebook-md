@@ -19,11 +19,14 @@ import googledriveRoutes from './routes/googledrive.js';
 import webhookRoutes from './routes/webhooks.js';
 import twoFactorRoutes from './routes/two-factor.js';
 import adminRoutes from './routes/admin.js';
+import entitlementsRoutes from './routes/entitlements.js';
+import usageRoutes from './routes/usage.js';
 
 // Register source adapters (side-effect imports)
 import './services/sources/github.js';
 import './services/sources/onedrive.js';
 import './services/sources/googledrive.js';
+import './services/sources/cloud.js';
 
 const app = express();
 
@@ -157,6 +160,8 @@ app.use('/api/sources', sourcesRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/onedrive', onedriveRoutes);
 app.use('/api/googledrive', googledriveRoutes);
+app.use('/api/entitlements', entitlementsRoutes);
+app.use('/api/usage', usageRoutes);
 app.use('/admin', adminRoutes);
 
 // Feature flag check (public — used by web client to gate UI)
