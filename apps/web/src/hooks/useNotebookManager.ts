@@ -157,6 +157,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
                 sortOrder: new Date(snb.createdAt).getTime(),
                 createdAt: new Date(snb.createdAt).getTime(),
                 updatedAt: new Date(snb.updatedAt).getTime(),
+                hasShares: snb.hasShares ?? false,
               });
             }
             // Also sync shared notebooks
