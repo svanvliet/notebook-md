@@ -21,6 +21,7 @@ import twoFactorRoutes from './routes/two-factor.js';
 import adminRoutes from './routes/admin.js';
 import entitlementsRoutes from './routes/entitlements.js';
 import usageRoutes from './routes/usage.js';
+import sharingRoutes from './routes/sharing.js';
 
 // Register source adapters (side-effect imports)
 import './services/sources/github.js';
@@ -162,6 +163,40 @@ app.use('/api/onedrive', onedriveRoutes);
 app.use('/api/googledrive', googledriveRoutes);
 app.use('/api/entitlements', entitlementsRoutes);
 app.use('/api/usage', usageRoutes);
+app.use('/api/cloud', sharingRoutes);
+
+// Public share link routes (no auth, separate mount point)
+import { Router as PublicRouter } from 'express';
+import { resolvePublicLink as resolveLink } from './services/shareLinks.js';
+import { decrypt as decryptContent } from './lib/encryption.js';
+const publicShareRouter = PublicRouter();
+publicShareRouter.get('/shares/:token/resolve', async (req, res) => {
+  const result = await resolveLink(req.params.token);
+  if (!result) { res.status(404).json({ error: 'Link not found or not public' }); return; }
+  const { query: dbQuery } = await import('./db/pool.js');
+  const files = await dbQuery<{ path: string; size_bytes: number }>(
+    'SELECT path, size_bytes FROM cloud_documents WHERE notebook_id = $1 ORDER BY path',
+    [result.notebookId],
+  );
+  res.json({ notebookName: result.notebookName, ownerName: result.ownerName, files: files.rows.map(f => ({ path: f.path, size: f.size_bytes })) });
+});
+publicShareRouter.get('/shares/:token/documents/{*filePath}', async (req, res) => {
+  const result = await resolveLink(req.params.token);
+  if (!result) { res.status(404).json({ error: 'Link not found or not public' }); return; }
+  const rawPath = (req.params as any).filePath;
+  const filePath = Array.isArray(rawPath) ? rawPath.join('/') : rawPath;
+  const { query: dbQuery } = await import('./db/pool.js');
+  const doc = await dbQuery<{ content_enc: string | null }>(
+    'SELECT content_enc FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
+    [result.notebookId, filePath],
+  );
+  if (doc.rows.length === 0) { res.status(404).json({ error: 'Document not found' }); return; }
+  const content = doc.rows[0].content_enc ? decryptContent(doc.rows[0].content_enc) : '';
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.json({ content, path: filePath });
+});
+app.use('/api/public', publicShareRouter);
+
 app.use('/admin', adminRoutes);
 
 // Feature flag check (public — used by web client to gate UI)

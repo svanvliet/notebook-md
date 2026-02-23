@@ -111,3 +111,22 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   });
   logger.info('Password reset email sent', { email });
 }
+
+export async function sendShareInviteEmail(email: string, ownerName: string, notebookName: string, token: string): Promise<void> {
+  const url = `${getBaseUrl()}/app/invite?token=${encodeURIComponent(token)}`;
+  await transporter.sendMail({
+    from: getFrom(),
+    to: email,
+    subject: `${ownerName} invited you to collaborate on "${notebookName}"`,
+    text: `${ownerName} invited you to collaborate on "${notebookName}" in Notebook.md.\n\nAccept the invitation:\n${url}\n\nThis invite expires in 7 days.`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="color: #1a1a1a;">You've been invited to collaborate</h2>
+        <p><strong>${ownerName}</strong> invited you to collaborate on <strong>"${notebookName}"</strong> in Notebook.md.</p>
+        <a href="${url}" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500;">Accept Invitation</a>
+        <p style="color: #666; font-size: 14px; margin-top: 24px;">This invite expires in 7 days.</p>
+      </div>
+    `,
+  });
+  logger.info('Share invite email sent', { email, ownerName, notebookName });
+}
