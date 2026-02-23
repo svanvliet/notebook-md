@@ -13,6 +13,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 
   res.json({
     cloudNotebooks: usage.cloudNotebookCount,
+    cloudNotebookCount: usage.cloudNotebookCount,
     storageBytesUsed: usage.cloudStorageBytes,
     storageLimit: entitlements.maxStorageBytes,
     bannerState,
