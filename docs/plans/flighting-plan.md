@@ -3,7 +3,7 @@
 **Requirements:** `docs/requirements/flighting-requirements.md`  
 **Branch:** `feature/flighting` (based on `feature/co-auth`)  
 **Date:** 2026-02-24  
-**Status:** ✅ Complete (all 5 phases)
+**Status:** Phases 1–5 complete; v2 redesign pending (move rollout % from flags to flights)
 
 ---
 
@@ -529,3 +529,77 @@ No code changes to existing `requireFeature` or `useFeatureFlag` call sites — 
 | `apps/web/src/main.tsx` or `App.tsx` | Wrap with FlagProvider | 5 |
 | `apps/api/src/routes/groups.ts` | New (user-facing join/leave) | 5 |
 | `apps/web/src/components/account/AccountModal.tsx` | Add Beta Programs section | 5 |
+
+---
+
+## Phase 6 — v2 Redesign: Flight-Level Rollout (Pending)
+
+**Goal:** Move `rollout_percentage` from `feature_flags` to `flights`, making flights the sole delivery mechanism for flags. This aligns with the mental model: Users → Groups → Flights (with %) → Flags.
+
+### Motivation
+
+The v1 implementation has rollout percentage on individual flags, which creates two parallel delivery paths:
+1. Flight-based delivery (targeted groups + direct user assignments)
+2. Per-flag percentage rollout (independent of flights)
+
+This is confusing and error-prone. If you have 6 co-authoring flags and want to roll out to 25%, you'd update 6 rows individually. If one gets missed, users get a broken partial experience.
+
+The redesigned model puts % on flights. One knob controls rollout for all flags in a flight atomically.
+
+### 6.1 Schema Changes
+
+```sql
+-- Add rollout_percentage to flights
+ALTER TABLE flights
+  ADD COLUMN rollout_percentage INTEGER NOT NULL DEFAULT 0
+    CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100);
+
+-- Remove rollout_percentage from feature_flags (or keep as deprecated, stop using in resolution)
+```
+
+### 6.2 Resolution Engine Changes
+
+Update `featureFlags.ts`:
+- Remove Step 4 (per-flag rollout %) and Step 5 (global default)
+- Expand Step 3 (flight delivery) to include flight-level rollout %
+- Hash on `flightName:userId` instead of `flagKey:userId`
+- Flags not delivered by any flight → OFF (source: `not_delivered`)
+
+New algorithm:
+1. Flag disabled (`enabled = false`) → OFF
+2. Per-user override → use override
+3. Flight delivery (for each flight containing this flag):
+   - 3a: Targeted assignment (group/user/domain) → ON
+   - 3b: Flight rollout % (hash `flightName:userId`) → ON if in bucket
+4. Not delivered → OFF
+
+### 6.3 Admin UI Changes
+
+- Remove rollout % selector from FeatureFlagsPage
+- Add rollout % slider to FlightsPage (in flight detail panel)
+- Create a "General Availability" flight for graduated features (rollout = 100%)
+
+### 6.4 Migration for Existing Co-Auth Flags
+
+Current state: 6 co-auth flags at `enabled = true`, `rollout_percentage = 100` (globally on).
+
+Migration plan:
+1. Create a "General Availability" flight with `rollout_percentage = 100`
+2. Add all 6 co-auth flags to the GA flight
+3. Resolution engine will deliver them via the GA flight at 100% — same behavior as today
+
+### 6.5 Tests
+
+- Update existing flighting tests for new resolution algorithm
+- Add tests for flight-level rollout %
+- Verify co-auth flags still resolve correctly through GA flight
+- Verify monotonic rollout at flight level
+
+### Exit Criteria
+
+- [ ] `rollout_percentage` on flights table, not feature_flags
+- [ ] Resolution uses flight-level % with `flightName:userId` hash
+- [ ] Flags without flight delivery resolve to OFF
+- [ ] Co-auth flags work through GA flight at 100%
+- [ ] Admin UI has rollout % on flights, not flags
+- [ ] All tests pass
