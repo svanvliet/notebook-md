@@ -49,6 +49,30 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     [req.userId!],
   );
 
+  // Fetch pending invites for this user (by email, not yet accepted)
+  const userEmail = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [req.userId!]);
+  const email = userEmail.rows[0]?.email;
+  const pendingResult = email ? await query<{
+    share_id: string;
+    notebook_id: string;
+    notebook_name: string;
+    owner_name: string;
+    permission: string;
+    created_at: Date;
+  }>(
+    `SELECT ns.id AS share_id, n.id AS notebook_id, n.name AS notebook_name,
+            u.display_name AS owner_name, ns.permission, ns.created_at
+     FROM notebook_shares ns
+     JOIN notebooks n ON ns.notebook_id = n.id
+     JOIN users u ON n.user_id = u.id
+     WHERE ns.shared_with_email = $1
+       AND ns.accepted_at IS NULL
+       AND ns.revoked_at IS NULL
+       AND ns.invite_expires_at > now()
+     ORDER BY ns.created_at DESC`,
+    [email],
+  ) : { rows: [] };
+
   res.json({
     notebooks: result.rows.map(r => ({
       id: r.id,
@@ -68,6 +92,14 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       updatedAt: r.updated_at,
       ownerName: r.owner_name,
       permission: r.permission,
+    })),
+    pendingInvites: pendingResult.rows.map(r => ({
+      shareId: r.share_id,
+      notebookId: r.notebook_id,
+      notebookName: r.notebook_name,
+      ownerName: r.owner_name,
+      permission: r.permission,
+      invitedAt: r.created_at,
     })),
   });
 });

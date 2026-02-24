@@ -16,6 +16,13 @@ export interface NotebookMeta {
   sharedPermission?: string;
   /** True if the owner has shared this notebook with others */
   hasShares?: boolean;
+  /** Pending invite details (not yet accepted) */
+  pendingInvite?: {
+    shareId: string;
+    ownerName: string;
+    permission: string;
+    invitedAt: string;
+  };
 }
 
 export interface FileEntry {

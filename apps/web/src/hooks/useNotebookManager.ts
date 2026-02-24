@@ -145,7 +145,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         try {
           const res = await apiFetch('/api/notebooks');
           if (res.ok) {
-            const { notebooks: serverNbs, sharedNotebooks: sharedNbs } = await res.json();
+            const { notebooks: serverNbs, sharedNotebooks: sharedNbs, pendingInvites: pendingInvs } = await res.json();
             const serverIds = new Set<string>();
             for (const snb of serverNbs) {
               serverIds.add(snb.id);
@@ -173,6 +173,27 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
                 updatedAt: new Date(snb.updatedAt).getTime(),
                 sharedBy: snb.ownerName,
                 sharedPermission: snb.permission,
+              });
+            }
+            // Sync pending invites as placeholder notebooks
+            for (const inv of (pendingInvs ?? [])) {
+              serverIds.add(inv.notebookId);
+              await upsertNotebook({
+                id: inv.notebookId,
+                name: inv.notebookName,
+                sourceType: 'cloud',
+                sourceConfig: {},
+                sortOrder: new Date(inv.invitedAt).getTime(),
+                createdAt: new Date(inv.invitedAt).getTime(),
+                updatedAt: new Date(inv.invitedAt).getTime(),
+                sharedBy: inv.ownerName,
+                sharedPermission: inv.permission,
+                pendingInvite: {
+                  shareId: inv.shareId,
+                  ownerName: inv.ownerName,
+                  permission: inv.permission,
+                  invitedAt: inv.invitedAt,
+                },
               });
             }
             // Remove orphan remote notebooks from IndexedDB (stale local copies)
