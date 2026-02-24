@@ -4569,3 +4569,9 @@ Status: All flighting phases (1-6) complete. Ready for production deployment pla
 Added is_permanent column to flights table (migration 009). GA flight marked as permanent. API returns 403 on delete attempts, admin UI hides Delete button for permanent flights. 32 admin tests pass.
 
 Commit: b7c689f
+
+### cloud_collab Flag Wired to Collab Features
+
+The cloud_collab feature flag was created in migration 004 but never enforced. Now wired to two places: (1) collab server rejects non-owner WebSocket connections when kill-switched, (2) web app useCollaboration hook skips WebSocket connection when flag is off. This enables the rollback scenario from the co-auth plan: disable cloud_collab to kill real-time editing while keeping cloud notebooks functional via REST.
+
+Commit: f8bb4b5

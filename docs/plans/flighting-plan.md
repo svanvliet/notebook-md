@@ -477,7 +477,7 @@ The 6 existing cloud flags need to work seamlessly with the new system. Here's t
 | Flag | Used By | Current State |
 |------|---------|---------------|
 | `cloud_notebooks` | `requireFeature` (4 routes), `useFeatureFlag` (AddNotebookModal) | Enabled globally in dev |
-| `cloud_collab` | Referenced in code but not gated by middleware yet | Enabled globally in dev |
+| `cloud_collab` | `useCollaboration` hook (web), collab server `onAuthenticate` (WebSocket gate) | Enabled globally in dev |
 | `cloud_sharing` | `requireFeature` (11 routes) | Enabled globally in dev |
 | `cloud_public_links` | Referenced but not actively gated | Enabled globally in dev |
 | `soft_quota_banners` | `useFeatureFlag` (QuotaBanner) | Enabled globally in dev |
