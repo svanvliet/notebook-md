@@ -3,7 +3,7 @@
 **Requirements:** `docs/requirements/flighting-requirements.md`  
 **Branch:** `feature/flighting` (based on `feature/co-auth`)  
 **Date:** 2026-02-24  
-**Status:** Phases 1–5 complete; v2 redesign pending (move rollout % from flags to flights)
+**Status:** All phases complete (Phases 1–5 + Phase 6 v2 redesign)
 
 ---
 
@@ -532,9 +532,11 @@ No code changes to existing `requireFeature` or `useFeatureFlag` call sites — 
 
 ---
 
-## Phase 6 — v2 Redesign: Flight-Level Rollout (Pending)
+## Phase 6 — v2 Redesign: Flight-Level Rollout ✅
 
 **Goal:** Move `rollout_percentage` from `feature_flags` to `flights`, making flights the sole delivery mechanism for flags. This aligns with the mental model: Users → Groups → Flights (with %) → Flags.
+
+**Commit:** `6e4785e`
 
 ### Motivation
 
@@ -594,12 +596,13 @@ Migration plan:
 - Add tests for flight-level rollout %
 - Verify co-auth flags still resolve correctly through GA flight
 - Verify monotonic rollout at flight level
+- Added `seedFlagsWithGAFlight()` helper to fix co-auth tests (sharing, export, version-history)
 
 ### Exit Criteria
 
-- [ ] `rollout_percentage` on flights table, not feature_flags
-- [ ] Resolution uses flight-level % with `flightName:userId` hash
-- [ ] Flags without flight delivery resolve to OFF
-- [ ] Co-auth flags work through GA flight at 100%
-- [ ] Admin UI has rollout % on flights, not flags
-- [ ] All tests pass
+- [x] `rollout_percentage` on flights table, not feature_flags
+- [x] Resolution uses flight-level % with `flightName:userId` hash
+- [x] Flags without flight delivery resolve to OFF
+- [x] Co-auth flags work through GA flight at 100%
+- [x] Admin UI has rollout % on flights, not flags
+- [x] All 332 tests pass
