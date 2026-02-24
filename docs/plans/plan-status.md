@@ -4575,3 +4575,9 @@ Commit: b7c689f
 The cloud_collab feature flag was created in migration 004 but never enforced. Now wired to two places: (1) collab server rejects non-owner WebSocket connections when kill-switched, (2) web app useCollaboration hook skips WebSocket connection when flag is off. This enables the rollback scenario from the co-auth plan: disable cloud_collab to kill real-time editing while keeping cloud notebooks functional via REST.
 
 Commit: f8bb4b5
+
+### View-Only Fallback When cloud_collab Disabled
+
+When cloud_collab is kill-switched, non-owners default to view-only (no last-write-wins risk). Share modal hides Editor option and defaults to Viewer. API rejects editor invites and role changes with a clear error message. Owners retain full editing in solo mode. 333 tests pass.
+
+Commits: f8bb4b5 (collab gate), 26c4e76 (loading fix), e91b3d7 (view-only enforcement)
