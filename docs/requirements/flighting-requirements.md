@@ -1,7 +1,7 @@
 # Feature Flags & Flighting Requirements
 
 **Date:** 2026-02-24  
-**Status:** Draft  
+**Status:** Draft → v2 (redesigned: rollout % moved from flags to flights)  
 **Author:** Co-authored with Copilot  
 **Depends on:** Existing feature flag system (migration 004, `featureFlags.ts`, admin UI)
 
@@ -71,10 +71,12 @@ This is insufficient for production rollout of co-authoring and future features 
 
 | # | Decision | Choice |
 |---|----------|--------|
-| D1 | Flight vs. rollout percentage | Flight assignment **bypasses** rollout percentage — if a user is in a flight, they get the flags regardless of rollout %. Percentage only applies to users not in any flight for that flag. |
+| D1 | Rollout percentage scope | Rollout percentage lives on **flights**, not on individual flags. A flight at 30% means 30% of users get *all* the flags in that flight. This ensures related flags roll out atomically and avoids managing N percentages for N flags. |
 | D2 | Group enrollment | **Both** admin-managed and self-enrollment. Admins create groups; some groups are marked `allow_self_enroll = true` so users can opt in via account settings (e.g., "Join Beta"). |
 | D3 | Beta indicator | **Configurable per flight.** Each flight has a `show_badge` boolean. When true, features gated by the flight's flags show a "Beta" or "Preview" badge in the UI. When false, features appear seamlessly. |
 | D4 | Domain-based targeting | **Yes.** Groups support an optional `email_domain` filter (e.g., `@company.com`). Users whose email matches the domain are implicitly members of the group without explicit enrollment. |
+| D5 | Default flag state | Flags are **OFF by default** unless delivered through a flight. A flag with `enabled = true` but no flight assignment is inactive. This prevents accidental exposure — features must be explicitly flighted to reach users. |
+| D6 | Feature graduation | Graduated features use a built-in "General Availability" flight at `rollout_percentage = 100` with all users implicitly included. Alternatively, the flag check can be removed from code entirely. |
 
 ---
 
@@ -82,12 +84,10 @@ This is insufficient for production rollout of co-authoring and future features 
 
 ### 3.1 Evolve `feature_flags` Table
 
-Extend the existing table rather than replacing it.
+Extend the existing table. The flag itself is now a simple registry entry with a kill switch. Rollout percentage has moved to flights (D1).
 
 ```sql
 ALTER TABLE feature_flags
-  ADD COLUMN rollout_percentage INTEGER DEFAULT 100
-    CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100),
   ADD COLUMN variants JSONB DEFAULT NULL,
   ADD COLUMN stale_at TIMESTAMPTZ DEFAULT NULL;
 ```
@@ -95,20 +95,20 @@ ALTER TABLE feature_flags
 | Column | Type | Description |
 |--------|------|-------------|
 | `key` | `VARCHAR(100) PK` | Unique flag identifier (existing) |
-| `enabled` | `BOOLEAN` | Global on/off kill switch (existing) |
+| `enabled` | `BOOLEAN` | Global kill switch — `false` = OFF for everyone, no exceptions (existing) |
 | `description` | `TEXT` | Human-readable description (existing) |
-| `rollout_percentage` | `INTEGER 0–100` | Percentage of users who see the flag enabled. Default 100 (all users when `enabled = true`) |
 | `variants` | `JSONB` | Optional variant definitions for A/B tests, e.g. `["control", "variant_a", "variant_b"]`. When `null`, flag is boolean (enabled/disabled) |
 | `stale_at` | `TIMESTAMPTZ` | Optional expiration hint — admin reminder to clean up temporary flags |
 | `updated_at` | `TIMESTAMPTZ` | Last modified (existing) |
+
+**Note:** `rollout_percentage` is NOT on flags — it lives on flights. A flag is either killed (`enabled = false`), overridden per-user, delivered through a flight, or inactive. See §4 for the full resolution algorithm.
 
 **Resolution logic for a flag:**
 
 1. If `enabled = false` → flag is OFF for everyone (kill switch)
 2. If user has an **override** → use the override value
-3. If user is in a **group** that has a flight containing this flag → flag is ON
-4. If `rollout_percentage < 100` → hash `(flag_key, user_id)` to determine inclusion
-5. If `rollout_percentage = 100` → flag is ON
+3. If user is in a **flight** that contains this flag (via group assignment, direct assignment, or flight rollout %) → flag is ON
+4. Otherwise → flag is OFF (not delivered)
 
 ### 3.2 New Tables
 
@@ -170,19 +170,32 @@ CREATE TABLE user_group_members (
 
 A flight groups related feature flags together so they can be assigned as a unit. For example, a "co-authoring-beta" flight bundles `cloud_notebooks`, `cloud_collab`, `cloud_sharing`, `cloud_public_links`, and `soft_quota_banners`.
 
+Flights own the `rollout_percentage`. This means a single knob controls rollout for all flags in the flight simultaneously — no risk of partial feature exposure (D1).
+
 ```sql
 CREATE TABLE flights (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(100) UNIQUE NOT NULL,
   description TEXT,
   enabled BOOLEAN NOT NULL DEFAULT true,
+  rollout_percentage INTEGER NOT NULL DEFAULT 0
+    CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100),
   show_badge BOOLEAN NOT NULL DEFAULT false,
   badge_label VARCHAR(50) DEFAULT 'Beta',
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+```
 
+| Column | Description |
+|--------|-------------|
+| `enabled` | Flight kill switch — `false` disables the entire flight |
+| `rollout_percentage` | What % of *all* users get this flight's flags. `0` = group/user-assigned only. `100` = generally available. Hash is based on `flightName:userId` for determinism. |
+| `show_badge` | When true, features delivered by this flight show a badge in the UI |
+| `badge_label` | Badge text (default "Beta") |
+
+```sql
 CREATE TABLE flight_flags (
   flight_id UUID NOT NULL REFERENCES flights(id) ON DELETE CASCADE,
   flag_key VARCHAR(100) NOT NULL REFERENCES feature_flags(key) ON DELETE CASCADE,
@@ -219,15 +232,16 @@ Each assignment targets either a group OR a user (not both). This allows:
 
 ## 4. Flag Resolution Algorithm
 
-The flag resolution service evaluates all flags for a given user and returns a `Record<string, boolean | string>` map. Resolution follows a strict priority order:
+The flag resolution service evaluates all flags for a given user and returns a `Record<string, ResolvedFlag>` map. Resolution follows a strict priority order.
+
+The key principle: **flights are the delivery mechanism for flags** (D5). A flag that exists in the registry but is not delivered through any flight is OFF. This prevents accidental exposure.
 
 ```
 Priority (highest to lowest):
-1. Flag global kill switch (enabled = false → OFF, no exceptions)
+1. Flag kill switch (enabled = false → OFF, no exceptions)
 2. Per-user override (flag_overrides table)
-3. Flight assignment (via group membership or direct user assignment)
-4. Percentage rollout (deterministic hash of flag_key + user_id)
-5. Global default (enabled = true, rollout_percentage = 100 → ON)
+3. Flight delivery (group assignment, direct user assignment, or flight rollout %)
+4. Default: OFF (flag not delivered to this user)
 ```
 
 ### 4.1 Detailed Resolution Steps
@@ -236,9 +250,9 @@ For each flag, given `user_id`:
 
 ```
 function resolveFlag(flag, userId):
-  // Step 1: Global kill switch
+  // Step 1: Kill switch
   if flag.enabled == false:
-    return { enabled: false, variant: null, source: 'kill_switch' }
+    return { enabled: false, source: 'kill_switch' }
 
   // Step 2: Per-user override
   override = SELECT * FROM flag_overrides
@@ -247,67 +261,77 @@ function resolveFlag(flag, userId):
   if override exists:
     return { enabled: override.enabled, variant: override.variant, source: 'override' }
 
-  // Step 3: Flight assignment (group, direct, or domain-based) — bypasses rollout % (D1)
-  flightMatch = SELECT f.show_badge, f.badge_label FROM flight_flags ff
-    JOIN flights f ON ff.flight_id = f.id
-    JOIN flight_assignments fa ON fa.flight_id = f.id
-    WHERE ff.flag_key = flag.key
-      AND f.enabled = true
-      AND (
-        fa.user_id = userId
-        OR fa.group_id IN (
-          SELECT group_id FROM user_group_members WHERE user_id = userId
-          UNION
-          SELECT id FROM user_groups
-            WHERE email_domain IS NOT NULL
-              AND userEmail LIKE '%@' || email_domain  -- domain match (D4)
+  // Step 3: Flight delivery — check all flights containing this flag
+  for each flight in (SELECT f.* FROM flight_flags ff
+      JOIN flights f ON ff.flight_id = f.id
+      WHERE ff.flag_key = flag.key AND f.enabled = true):
+
+    // 3a: Targeted assignment (group membership, direct user, domain match)
+    assigned = SELECT 1 FROM flight_assignments fa
+      WHERE fa.flight_id = flight.id
+        AND (
+          fa.user_id = userId
+          OR fa.group_id IN (
+            SELECT group_id FROM user_group_members WHERE user_id = userId
+            UNION
+            SELECT id FROM user_groups
+              WHERE email_domain IS NOT NULL
+                AND userEmail LIKE '%@' || email_domain  -- domain match (D4)
+          )
         )
-      )
-  if flightMatch exists:
-    return { enabled: true, variant: null, source: 'flight',
-             badge: flightMatch.show_badge ? flightMatch.badge_label : null }
+    if assigned:
+      return { enabled: true, source: 'flight',
+               badge: flight.show_badge ? flight.badge_label : null }
 
-  // Step 4: Percentage rollout
-  if flag.rollout_percentage < 100:
-    bucket = hash(flag.key + userId) % 100
-    if bucket < flag.rollout_percentage:
-      return { enabled: true, variant: null, source: 'rollout' }
-    else:
-      return { enabled: false, variant: null, source: 'rollout_excluded' }
+    // 3b: Flight rollout percentage (for users not explicitly assigned)
+    if flight.rollout_percentage > 0:
+      bucket = hash(flight.name + ':' + userId) % 100
+      if bucket < flight.rollout_percentage:
+        return { enabled: true, source: 'rollout',
+                 badge: flight.show_badge ? flight.badge_label : null }
 
-  // Step 5: Global default (enabled = true, rollout = 100)
-  return { enabled: true, variant: null, source: 'global' }
+  // Step 4: Not delivered — flag is OFF
+  return { enabled: false, source: 'not_delivered' }
 ```
 
 ### 4.2 Deterministic Percentage Rollout
 
-Percentage rollout must be **deterministic** per user — the same user always gets the same result for a given flag at a given percentage. This is critical for consistency across page loads, API calls, and devices.
+Percentage rollout is on the **flight**, not on individual flags. This ensures all flags in a flight roll out together atomically — a user either gets all flags in the flight or none of them.
 
-Use a hash-based bucket:
+The hash is based on `flightName:userId` (not `flagKey:userId`):
 
 ```typescript
-function getUserBucket(flagKey: string, userId: string): number {
-  // FNV-1a or similar fast hash
-  const hash = fnv1a(`${flagKey}:${userId}`);
+function getFlightBucket(flightName: string, userId: string): number {
+  const hash = fnv1a(`${flightName}:${userId}`);
   return hash % 100; // 0–99
 }
 ```
 
-When `rollout_percentage` increases from 10% to 20%, users in bucket 0–9 remain included. Users in bucket 10–19 are added. No existing users are removed. This ensures a **monotonically increasing** rollout.
+When a flight's `rollout_percentage` increases from 10% to 20%, users in bucket 0–9 remain included. Users in bucket 10–19 are added. No existing users are removed. This ensures a **monotonically increasing** rollout.
 
-### 4.3 Variant Resolution (A/B Tests)
+### 4.3 Feature Graduation (D6)
+
+When a feature is ready for general availability:
+
+1. **Option A — Set flight to 100%:** Set the flight's `rollout_percentage = 100`. All users now get the flags. Simple, preserves the flight record for auditing.
+2. **Option B — Create a "GA" flight:** Create a "General Availability" flight with `rollout_percentage = 100`, move graduated flags into it, remove them from beta flights. Clean separation.
+3. **Option C — Remove the flag check:** Delete the `requireFeature` / `useFlag` calls from code. The flag becomes permanently on. Most complete graduation.
+
+Recommendation: Use Option A during transition, then Option C when confident.
+
+### 4.4 Variant Resolution (A/B Tests)
 
 When a flag has `variants` defined (e.g., `["control", "variant_a", "variant_b"]`):
 
 1. If the user has an override with a `variant`, use that
-2. Otherwise, use the same hash-based bucket to deterministically assign a variant:
+2. Otherwise, use a separate hash to deterministically assign a variant:
    ```
    variantIndex = hash(flag.key + ":variant:" + userId) % variants.length
    variant = variants[variantIndex]
    ```
 3. The flag is `enabled = true` with the variant value
 
-**Note:** A/B test flags still respect the kill switch and rollout percentage. A flag at 50% rollout with 2 variants means 25% get variant A, 25% get variant B, 50% get nothing.
+**Note:** A/B test flags still respect the kill switch. Variants are only assigned to users who receive the flag through a flight.
 
 ---
 
@@ -582,39 +606,40 @@ This gives admins a "what does this user see?" diagnostic view.
 
 1. **Admin creates a group** "co-auth-beta" with description "Co-authoring beta testers"
 2. **Admin adds 10 users** to the group (by email search)
-3. **Admin creates a flight** "co-authoring-v1" containing flags: `cloud_notebooks`, `cloud_collab`, `cloud_sharing`, `cloud_public_links`, `soft_quota_banners`
+3. **Admin creates a flight** "co-authoring-v1" containing flags: `cloud_notebooks`, `cloud_collab`, `cloud_sharing`, `cloud_public_links`, `soft_quota_banners` — with `rollout_percentage = 0` (group-assigned only) and `show_badge = true`
 4. **Admin assigns flight** "co-authoring-v1" → group "co-auth-beta"
-5. **Result:** Those 10 users see all co-authoring features. Everyone else does not.
+5. **Result:** Those 10 users see all co-authoring features with a "Beta" badge. Everyone else does not.
 6. **To add more testers:** Admin adds users to the "co-auth-beta" group — they immediately get access.
 7. **To end beta:** Admin disables the flight or removes the assignment.
 
 ### 9.2 Gradual Rollout to General Availability
 
-1. **Admin sets** `cloud_notebooks` flag `rollout_percentage = 10` and `enabled = true`
-2. **Result:** 10% of all users (deterministic) see cloud notebooks, plus all beta group users (via flight)
+1. **Admin sets** "co-authoring-v1" flight `rollout_percentage = 10`
+2. **Result:** 10% of all users (deterministic) see all co-authoring features, plus all beta group users (via assignment)
 3. **Admin monitors metrics** — error rates, support tickets, usage patterns
-4. **Admin increases** rollout to 25%, then 50%, then 100%
-5. **At 100%:** Feature is generally available. Clean up: remove flight assignments, set `stale_at` on the flight.
+4. **Admin increases** flight rollout to 25%, then 50%, then 100%
+5. **At 100%:** Feature is generally available to all users through the flight. All flags roll out together atomically.
+6. **Optional cleanup:** Remove `show_badge`, remove beta group assignments, or eventually remove flag checks from code.
 
 ### 9.3 A/B Testing a New Editor Layout
 
 1. **Admin creates flag** `new_editor_layout` with `variants: ["control", "compact", "wide"]`
-2. **Admin sets** `rollout_percentage = 30` (30% of users participate in the test)
-3. **Frontend** uses `useFeatureVariant('new_editor_layout')` → returns `{ enabled: true, variant: "compact" }` for some users
+2. **Admin creates flight** "editor-experiment" with `rollout_percentage = 30`, containing the flag
+3. **Frontend** uses `useFlag('new_editor_layout')` → enabled for 30% of users, with deterministic variant assignment
 4. **Analytics** tracks engagement metrics per variant
-5. **Admin picks winner** → sets variant for all users or removes flag and ships the winning layout
+5. **Admin picks winner** → sets flight to 100% with winning variant, or removes flag and ships the winning layout
 
 ### 9.4 Emergency Kill Switch
 
 1. **Production incident** — co-authoring WebSocket server is overloaded
 2. **Admin sets** `cloud_collab` flag `enabled = false` in admin console
-3. **Result:** Feature is immediately disabled for ALL users, including beta testers and overrides
+3. **Result:** Feature is immediately disabled for ALL users, including beta testers and overrides — flag kill switch takes absolute priority
 4. **Investigation proceeds** — once fixed, admin re-enables the flag
 
 ### 9.5 Support Escalation Override
 
 1. **User reports** they can't see cloud notebooks but should be able to
-2. **Admin searches for user** in admin console → sees their flag resolution (all flags OFF, not in any group)
+2. **Admin searches for user** in admin console → sees their flag resolution (all flags OFF, not in any flight)
 3. **Admin creates override:** `cloud_notebooks → enabled = true` for this user, reason: "Support ticket #456", expires in 30 days
 4. **User refreshes** → feature appears
 
@@ -725,31 +750,31 @@ When analytics infrastructure is in place:
 
 ### Must Have (V1)
 
-- [ ] Existing `requireFeature` middleware works unchanged (backward compatible)
-- [ ] Existing `useFeatureFlag` hook works unchanged (backward compatible)
-- [ ] Flags can be resolved per-user (not just globally)
-- [ ] Per-user overrides can be created/removed via admin UI
-- [ ] User groups can be created with members added/removed via admin UI
-- [ ] Groups support `email_domain` filter for implicit membership (D4)
-- [ ] Groups support `allow_self_enroll` with user-facing join/leave (D2)
-- [ ] Flights can bundle multiple flags and be assigned to groups or users via admin UI
-- [ ] Flight assignment bypasses rollout percentage (D1)
-- [ ] Flights support configurable badge display (D3)
-- [ ] Percentage-based rollout is deterministic per user
-- [ ] Global kill switch (enabled = false) overrides all targeting
-- [ ] Frontend fetches all flags in a single batch API call
-- [ ] `DEV_FLIGHTING=true` env var enables full resolution in dev mode (§6.3)
-- [ ] All admin actions are logged to audit log
-- [ ] All 277+ existing API tests continue to pass
-- [ ] New tests cover: flag resolution priority, override expiry, group membership, flight assignment, domain matching, self-enrollment, rollout determinism
+- [x] Existing `requireFeature` middleware works unchanged (backward compatible)
+- [x] Existing `useFeatureFlag` hook works unchanged (backward compatible)
+- [x] Flags can be resolved per-user (not just globally)
+- [x] Per-user overrides can be created/removed via admin UI
+- [x] User groups can be created with members added/removed via admin UI
+- [x] Groups support `email_domain` filter for implicit membership (D4)
+- [x] Groups support `allow_self_enroll` with user-facing join/leave (D2)
+- [x] Flights can bundle multiple flags and be assigned to groups or users via admin UI
+- [x] Flights support configurable badge display (D3)
+- [ ] Rollout percentage lives on flights, not flags (D1) — **v2 redesign, not yet implemented**
+- [ ] Flags are OFF by default unless delivered through a flight (D5) — **v2 redesign, not yet implemented**
+- [x] Global kill switch (enabled = false) overrides all targeting
+- [x] Frontend fetches all flags in a single batch API call
+- [x] `DEV_FLIGHTING=true` env var enables full resolution in dev mode (§6.3)
+- [x] All admin actions are logged to audit log
+- [x] All 277+ existing API tests continue to pass
+- [x] New tests cover: flag resolution priority, override expiry, group membership, flight assignment, domain matching, self-enrollment, rollout determinism
 
 ### Should Have (V1)
 
-- [ ] User detail page in admin shows resolved flags with source
-- [ ] Rollout percentage slider in admin UI
-- [ ] Override expiry (auto-cleanup of expired overrides)
+- [x] User detail page in admin shows resolved flags with source
+- [ ] Rollout percentage slider on flights in admin UI — **v2 redesign, not yet implemented**
+- [x] Override expiry (auto-cleanup of expired overrides)
 - [ ] Stale flag indicator in admin UI
-- [ ] "Beta Programs" section in user account settings for self-enrollment (D2)
+- [x] "Beta Programs" section in user account settings for self-enrollment (D2)
 
 ### Nice to Have (V2)
 

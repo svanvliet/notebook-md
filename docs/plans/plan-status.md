@@ -4534,4 +4534,24 @@ Created `FlagProvider` context replacing per-flag API calls with batch resolutio
 - 52 flighting-specific tests (24 resolution + 28 admin)
 - Admin app type checks clean
 
-**Status:** ✅ All 5 phases complete. Flighting system is ready for use.
+**Status:** Phases 1–5 complete. v2 redesign pending.
+
+### v2 Redesign Decision (2026-02-24)
+
+After reviewing the implemented system, the rollout model was redesigned:
+
+**Problem:** v1 puts `rollout_percentage` on individual flags. With 6 co-authoring flags, rolling out to 25% requires updating 6 rows independently. If one is missed, users get a broken partial experience. Two parallel delivery paths (flights vs. per-flag %) create confusion.
+
+**Solution:** Move `rollout_percentage` from `feature_flags` to `flights`. Flights become the sole delivery mechanism:
+- Users → Groups → Flights (with %) → Flags
+- A flag is OFF by default unless delivered through a flight
+- One knob on the flight controls rollout for all its flags atomically
+- Graduated features use a "General Availability" flight at 100%
+
+**Impact:** Requires Phase 6 implementation:
+- Schema: add `rollout_percentage` to `flights`, deprecate on `feature_flags`
+- Resolution engine: remove per-flag rollout, add flight-level rollout with `flightName:userId` hash
+- Admin UI: move rollout slider from flags page to flights page
+- Migration: create GA flight for existing co-auth flags
+
+See updated `docs/requirements/flighting-requirements.md` (v2) and `docs/plans/flighting-plan.md` (Phase 6).
