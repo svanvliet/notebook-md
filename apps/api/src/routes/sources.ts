@@ -44,6 +44,32 @@ async function requireCloudEditor(req: Request, res: Response, next: () => void)
   next();
 }
 
+// ── Middleware: check read access for cloud notebooks ──────────────────────
+async function requireCloudAccess(req: Request, res: Response, next: () => void) {
+  if (req.params.provider !== 'cloud') { next(); return; }
+  const notebookId = (req.query.root as string) ?? '';
+  if (!notebookId) { next(); return; }
+  const userId = req.userId!;
+
+  // Owner can always read
+  const ownerCheck = await dbQuery<{ user_id: string }>(
+    'SELECT user_id FROM notebooks WHERE id = $1',
+    [notebookId],
+  );
+  if (ownerCheck.rows.length > 0 && ownerCheck.rows[0].user_id === userId) { next(); return; }
+
+  // Shared user — check any active share
+  const shareCheck = await dbQuery<{ permission: string }>(
+    'SELECT permission FROM notebook_shares WHERE notebook_id = $1 AND shared_with_user_id = $2 AND revoked_at IS NULL AND accepted_at IS NOT NULL',
+    [notebookId, userId],
+  );
+  if (shareCheck.rows.length === 0) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+  next();
+}
+
 // ── Per-user rate limiting (Redis-backed) ─────────────────────────────────
 const isTest = process.env.VITEST === 'true';
 
@@ -140,7 +166,7 @@ async function resolveProvider(req: Request, res: Response): Promise<{ adapter: 
 
 // ── GET /api/sources/:provider/tree — List entire tree recursively ────────
 
-router.get('/:provider/tree', async (req: Request, res: Response) => {
+router.get('/:provider/tree', requireCloudAccess, async (req: Request, res: Response) => {
   const resolved = await resolveProvider(req, res);
   if (!resolved) return;
 
@@ -168,7 +194,7 @@ router.get('/:provider/tree', async (req: Request, res: Response) => {
 
 // ── GET /api/sources/:provider/files — List directory ─────────────────────
 
-router.get('/:provider/files', async (req: Request, res: Response) => {
+router.get('/:provider/files', requireCloudAccess, async (req: Request, res: Response) => {
   const resolved = await resolveProvider(req, res);
   if (!resolved) return;
 
@@ -191,7 +217,7 @@ router.get('/:provider/files', async (req: Request, res: Response) => {
 
 // ── GET /api/sources/:provider/files/* — Read file ────────────────────────
 
-router.get('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+router.get('/:provider/files/{*filePath}', validatePath, requireCloudAccess, async (req: Request, res: Response) => {
   const resolved = await resolveProvider(req, res);
   if (!resolved) return;
 
