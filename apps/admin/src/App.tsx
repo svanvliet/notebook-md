@@ -5,6 +5,8 @@ import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import AuditLogPage from './pages/AuditLogPage';
 import FeatureFlagsPage from './pages/FeatureFlagsPage';
+import GroupsPage from './pages/GroupsPage';
+import FlightsPage from './pages/FlightsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 
 export default function App() {
@@ -63,7 +65,47 @@ export default function App() {
           <Route path="audit-log" element={<AuditLogPage getAuditLog={admin.getAuditLog} />} />
           <Route
             path="feature-flags"
-            element={<FeatureFlagsPage getFeatureFlags={admin.getFeatureFlags} saveFeatureFlag={admin.saveFeatureFlag} />}
+            element={
+              <FeatureFlagsPage
+                getFeatureFlags={admin.getFeatureFlags}
+                saveFeatureFlag={admin.saveFeatureFlag}
+                getFlagOverrides={admin.getFlagOverrides}
+                createFlagOverride={admin.createFlagOverride}
+                deleteFlagOverride={admin.deleteFlagOverride}
+              />
+            }
+          />
+          <Route
+            path="groups"
+            element={
+              <GroupsPage
+                getGroups={admin.getGroups}
+                createGroup={admin.createGroup}
+                getGroup={admin.getGroup}
+                updateGroup={admin.updateGroup}
+                deleteGroup={admin.deleteGroup}
+                addGroupMembers={admin.addGroupMembers}
+                removeGroupMember={admin.removeGroupMember}
+              />
+            }
+          />
+          <Route
+            path="flights"
+            element={
+              <FlightsPage
+                getFlights={admin.getFlights}
+                createFlight={admin.createFlight}
+                getFlight={admin.getFlight}
+                updateFlight={admin.updateFlight}
+                deleteFlight={admin.deleteFlight}
+                addFlightFlags={admin.addFlightFlags}
+                removeFlightFlag={admin.removeFlightFlag}
+                assignToFlight={admin.assignToFlight}
+                removeFlightAssignment={admin.removeFlightAssignment}
+                getFeatureFlags={admin.getFeatureFlags}
+                getGroups={admin.getGroups}
+              />
+            }
           />
           <Route
             path="announcements"
