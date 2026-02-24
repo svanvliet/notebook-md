@@ -74,6 +74,7 @@ router.delete('/notebooks/:id/invites/:inviteId', requireAuth, requireFeature('c
 });
 
 // POST /api/cloud/invites/:token/accept — Accept invite
+// POST /api/cloud/invites/:token/accept — Accept invite (via email link token)
 router.post('/invites/:token/accept', requireAuth, async (req: Request, res: Response) => {
   try {
     const result = await acceptInvite(req.params.token, req.userId!);
@@ -81,6 +82,31 @@ router.post('/invites/:token/accept', requireAuth, async (req: Request, res: Res
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+});
+
+// POST /api/cloud/invites/accept-by-id — Accept invite by share ID (in-app flow)
+router.post('/invites/accept-by-id', requireAuth, async (req: Request, res: Response) => {
+  const { shareId } = req.body;
+  if (!shareId) { res.status(400).json({ error: 'shareId required' }); return; }
+
+  // Look up the user's email to verify they are the intended recipient
+  const userResult = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [req.userId!]);
+  if (userResult.rows.length === 0) { res.status(401).json({ error: 'User not found' }); return; }
+
+  const share = await query<{ id: string; notebook_id: string; shared_with_email: string; accepted_at: Date | null; revoked_at: Date | null; invite_expires_at: Date }>(
+    'SELECT id, notebook_id, shared_with_email, accepted_at, revoked_at, invite_expires_at FROM notebook_shares WHERE id = $1',
+    [shareId],
+  );
+  if (share.rows.length === 0) { res.status(404).json({ error: 'Invite not found' }); return; }
+
+  const s = share.rows[0];
+  if (s.shared_with_email !== userResult.rows[0].email) { res.status(403).json({ error: 'This invite is not for you' }); return; }
+  if (s.accepted_at) { res.status(400).json({ error: 'Invite already accepted' }); return; }
+  if (s.revoked_at) { res.status(400).json({ error: 'Invite has been revoked' }); return; }
+  if (new Date(s.invite_expires_at) < new Date()) { res.status(400).json({ error: 'Invite has expired' }); return; }
+
+  await query('UPDATE notebook_shares SET shared_with_user_id = $1, accepted_at = now() WHERE id = $2', [req.userId!, s.id]);
+  res.json({ notebookId: s.notebook_id, message: 'Invite accepted' });
 });
 
 // ── Members ──────────────────────────────────────────────────────────────

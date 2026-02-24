@@ -597,6 +597,22 @@ export default function App() {
               addToast('Failed to leave notebook', 'error');
             }
           }}
+          onAcceptInvite={async (shareId: string) => {
+            const API_BASE = import.meta.env.VITE_API_URL || '';
+            const res = await fetch(`${API_BASE}/api/cloud/invites/accept-by-id`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ shareId }),
+            });
+            if (res.ok) {
+              addToast('Invitation accepted!', 'success');
+              nb.reloadNotebooks();
+            } else {
+              const data = await res.json().catch(() => ({}));
+              addToast(data.error || 'Failed to accept invitation', 'error');
+            }
+          }}
         />
         <OutlinePane
           headings={headings}

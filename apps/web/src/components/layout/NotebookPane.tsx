@@ -45,6 +45,7 @@ interface NotebookPaneProps {
   mobileOpen?: boolean;
   onMobileClose?: () => void;
   onLeaveNotebook?: (notebookId: string) => void;
+  onAcceptInvite?: (shareId: string) => Promise<void>;
 }
 
 export function NotebookPane({
@@ -75,6 +76,7 @@ export function NotebookPane({
   mobileOpen,
   onMobileClose,
   onLeaveNotebook,
+  onAcceptInvite,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -199,6 +201,7 @@ export function NotebookPane({
             onExpandToPathHandled={onExpandToPathHandled}
             activeFilePath={activeFilePath}
             onLeaveNotebook={onLeaveNotebook}
+            onAcceptInvite={onAcceptInvite}
           />
         </div>
       )}
@@ -308,6 +311,7 @@ export function NotebookPane({
                 onExpandToPathHandled={onExpandToPathHandled}
                 activeFilePath={activeFilePath}
                 onLeaveNotebook={onLeaveNotebook}
+                onAcceptInvite={onAcceptInvite}
               />
             </div>
           </div>
