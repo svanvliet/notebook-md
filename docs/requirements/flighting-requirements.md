@@ -67,6 +67,15 @@ This is insufficient for production rollout of co-authoring and future features 
 - Environment-level flags (staging vs. production) — handle via separate databases
 - Client-side SDKs for mobile apps
 
+### Key Design Decisions
+
+| # | Decision | Choice |
+|---|----------|--------|
+| D1 | Flight vs. rollout percentage | Flight assignment **bypasses** rollout percentage — if a user is in a flight, they get the flags regardless of rollout %. Percentage only applies to users not in any flight for that flag. |
+| D2 | Group enrollment | **Both** admin-managed and self-enrollment. Admins create groups; some groups are marked `allow_self_enroll = true` so users can opt in via account settings (e.g., "Join Beta"). |
+| D3 | Beta indicator | **Configurable per flight.** Each flight has a `show_badge` boolean. When true, features gated by the flight's flags show a "Beta" or "Preview" badge in the UI. When false, features appear seamlessly. |
+| D4 | Domain-based targeting | **Yes.** Groups support an optional `email_domain` filter (e.g., `@company.com`). Users whose email matches the domain are implicitly members of the group without explicit enrollment. |
+
 ---
 
 ## 3. Data Model
@@ -141,6 +150,8 @@ CREATE TABLE user_groups (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(100) UNIQUE NOT NULL,
   description TEXT,
+  allow_self_enroll BOOLEAN NOT NULL DEFAULT false,
+  email_domain VARCHAR(255) DEFAULT NULL,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -165,6 +176,8 @@ CREATE TABLE flights (
   name VARCHAR(100) UNIQUE NOT NULL,
   description TEXT,
   enabled BOOLEAN NOT NULL DEFAULT true,
+  show_badge BOOLEAN NOT NULL DEFAULT false,
+  badge_label VARCHAR(50) DEFAULT 'Beta',
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -234,18 +247,25 @@ function resolveFlag(flag, userId):
   if override exists:
     return { enabled: override.enabled, variant: override.variant, source: 'override' }
 
-  // Step 3: Flight assignment (group or direct)
-  flightMatch = SELECT 1 FROM flight_flags ff
+  // Step 3: Flight assignment (group, direct, or domain-based) — bypasses rollout % (D1)
+  flightMatch = SELECT f.show_badge, f.badge_label FROM flight_flags ff
     JOIN flights f ON ff.flight_id = f.id
     JOIN flight_assignments fa ON fa.flight_id = f.id
     WHERE ff.flag_key = flag.key
       AND f.enabled = true
       AND (
         fa.user_id = userId
-        OR fa.group_id IN (SELECT group_id FROM user_group_members WHERE user_id = userId)
+        OR fa.group_id IN (
+          SELECT group_id FROM user_group_members WHERE user_id = userId
+          UNION
+          SELECT id FROM user_groups
+            WHERE email_domain IS NOT NULL
+              AND userEmail LIKE '%@' || email_domain  -- domain match (D4)
+        )
       )
   if flightMatch exists:
-    return { enabled: true, variant: null, source: 'flight' }
+    return { enabled: true, variant: null, source: 'flight',
+             badge: flightMatch.show_badge ? flightMatch.badge_label : null }
 
   // Step 4: Percentage rollout
   if flag.rollout_percentage < 100:
@@ -302,13 +322,15 @@ GET /api/flags
 Authorization: (session cookie)
 Response: {
   flags: {
-    "cloud_notebooks": { enabled: true, variant: null },
-    "cloud_collab": { enabled: true, variant: null },
-    "cloud_sharing": { enabled: false, variant: null },
-    "new_editor": { enabled: true, variant: "variant_b" }
+    "cloud_notebooks": { enabled: true, variant: null, badge: null },
+    "cloud_collab": { enabled: true, variant: null, badge: "Beta" },
+    "cloud_sharing": { enabled: false, variant: null, badge: null },
+    "new_editor": { enabled: true, variant: "variant_b", badge: "Preview" }
   }
 }
 ```
+
+The `badge` field is non-null only when the flag was resolved via a flight with `show_badge = true` (D3). The frontend uses this to optionally render a badge next to the feature UI.
 
 This returns **all** resolved flags for the current user in a single call. The frontend caches the result and refreshes periodically (1-minute TTL, matching current behavior).
 
@@ -346,21 +368,31 @@ DELETE /admin/feature-flags/:key/overrides/:userId → Remove override
 
 ```
 GET    /admin/groups                        → List all groups with member count
-POST   /admin/groups                        → Create group { name, description }
-GET    /admin/groups/:id                    → Get group details + members
-PATCH  /admin/groups/:id                    → Update group name/description
+POST   /admin/groups                        → Create group { name, description, allowSelfEnroll?, emailDomain? }
+GET    /admin/groups/:id                    → Get group details + members (includes domain-matched users)
+PATCH  /admin/groups/:id                    → Update group name/description/allowSelfEnroll/emailDomain
 DELETE /admin/groups/:id                    → Delete group (cascades assignments)
 POST   /admin/groups/:id/members            → Add members { userIds: string[] }
 DELETE /admin/groups/:id/members/:userId    → Remove member
 ```
 
+#### User-Facing Group Enrollment (D2)
+
+```
+GET    /api/groups/joinable                 → List groups with allow_self_enroll = true
+POST   /api/groups/:id/join                 → Authenticated user joins a self-enroll group
+POST   /api/groups/:id/leave               → Authenticated user leaves a group
+```
+
+These are exposed in the user's account settings under a "Beta Programs" section.
+
 ### 5.6 Admin API — Flights
 
 ```
 GET    /admin/flights                       → List all flights with assigned flag count
-POST   /admin/flights                       → Create flight { name, description, flagKeys: string[] }
+POST   /admin/flights                       → Create flight { name, description, flagKeys, showBadge?, badgeLabel? }
 GET    /admin/flights/:id                   → Get flight details + flags + assignments
-PATCH  /admin/flights/:id                   → Update flight name/description/enabled
+PATCH  /admin/flights/:id                   → Update flight name/description/enabled/showBadge/badgeLabel
 DELETE /admin/flights/:id                   → Delete flight
 POST   /admin/flights/:id/flags             → Add flags to flight { flagKeys: string[] }
 DELETE /admin/flights/:id/flags/:key        → Remove flag from flight
@@ -681,7 +713,7 @@ When analytics infrastructure is in place:
 |-----------|-------------|
 | **Scheduled flags** | Auto-enable/disable flags at a specific date/time |
 | **Mutual exclusion** | Ensure a user is in at most one A/B test variant across multiple experiments |
-| **Segment targeting** | Target by user attributes (e.g., account age, plan tier) beyond explicit group membership |
+| **Segment targeting** | Target by user attributes beyond email domain (e.g., account age, plan tier, usage patterns) |
 | **Flag dependencies** | "Flag B requires Flag A" — automatically enable prerequisites |
 | **LaunchDarkly integration** | Migrate to a managed service if in-house system becomes a burden |
 | **Real-time propagation** | Push flag changes via WebSocket instead of polling |
@@ -698,13 +730,18 @@ When analytics infrastructure is in place:
 - [ ] Flags can be resolved per-user (not just globally)
 - [ ] Per-user overrides can be created/removed via admin UI
 - [ ] User groups can be created with members added/removed via admin UI
+- [ ] Groups support `email_domain` filter for implicit membership (D4)
+- [ ] Groups support `allow_self_enroll` with user-facing join/leave (D2)
 - [ ] Flights can bundle multiple flags and be assigned to groups or users via admin UI
+- [ ] Flight assignment bypasses rollout percentage (D1)
+- [ ] Flights support configurable badge display (D3)
 - [ ] Percentage-based rollout is deterministic per user
 - [ ] Global kill switch (enabled = false) overrides all targeting
 - [ ] Frontend fetches all flags in a single batch API call
+- [ ] `DEV_FLIGHTING=true` env var enables full resolution in dev mode (§6.3)
 - [ ] All admin actions are logged to audit log
 - [ ] All 277+ existing API tests continue to pass
-- [ ] New tests cover: flag resolution priority, override expiry, group membership, flight assignment, rollout determinism
+- [ ] New tests cover: flag resolution priority, override expiry, group membership, flight assignment, domain matching, self-enrollment, rollout determinism
 
 ### Should Have (V1)
 
@@ -712,6 +749,7 @@ When analytics infrastructure is in place:
 - [ ] Rollout percentage slider in admin UI
 - [ ] Override expiry (auto-cleanup of expired overrides)
 - [ ] Stale flag indicator in admin UI
+- [ ] "Beta Programs" section in user account settings for self-enrollment (D2)
 
 ### Nice to Have (V2)
 
