@@ -203,6 +203,76 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     })();
   }, [userId]);
 
+  // Poll for permission changes on shared notebooks (every 60s)
+  useEffect(() => {
+    if (!userId || isDemoMode) return;
+    const hasShared = notebooks.some(nb => nb.sharedBy);
+    const hasShares = notebooks.some(nb => nb.hasShares);
+    if (!hasShared && !hasShares) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch('/api/notebooks');
+        if (!res.ok) return;
+        const { notebooks: serverNbs, sharedNotebooks: sharedNbs } = await res.json();
+
+        // Check for permission changes on shared notebooks
+        for (const snb of (sharedNbs ?? [])) {
+          const local = notebooks.find(n => n.id === snb.id);
+          if (local && local.sharedPermission !== snb.permission) {
+            await upsertNotebook({
+              id: snb.id, name: snb.name, sourceType: snb.sourceType,
+              sourceConfig: snb.sourceConfig ?? {},
+              sortOrder: new Date(snb.createdAt).getTime(),
+              createdAt: new Date(snb.createdAt).getTime(),
+              updatedAt: new Date(snb.updatedAt).getTime(),
+              sharedBy: snb.ownerName,
+              sharedPermission: snb.permission,
+            });
+            toast?.(
+              snb.permission === 'viewer'
+                ? `Your access to "${snb.name}" was changed to Viewer`
+                : `Your access to "${snb.name}" was changed to Editor`,
+              'info',
+            );
+          }
+        }
+
+        // Check for hasShares changes on owned notebooks
+        for (const snb of serverNbs) {
+          const local = notebooks.find(n => n.id === snb.id);
+          if (local && local.hasShares !== (snb.hasShares ?? false)) {
+            await upsertNotebook({
+              id: snb.id, name: snb.name, sourceType: snb.sourceType,
+              sourceConfig: snb.sourceConfig ?? {},
+              sortOrder: new Date(snb.createdAt).getTime(),
+              createdAt: new Date(snb.createdAt).getTime(),
+              updatedAt: new Date(snb.updatedAt).getTime(),
+              hasShares: snb.hasShares ?? false,
+            });
+          }
+        }
+
+        // Check for revoked shares (notebook disappeared from shared list)
+        const sharedIds = new Set((sharedNbs ?? []).map((s: { id: string }) => s.id));
+        for (const nb of notebooks) {
+          if (nb.sharedBy && !sharedIds.has(nb.id)) {
+            await deleteNb(nb.id);
+            toast?.(`You were removed from "${nb.name}"`, 'info');
+          }
+        }
+
+        // Refresh notebook list to reflect changes
+        const nbs = await listNotebooks();
+        setNotebooks(nbs);
+      } catch {
+        // Offline or API error — skip this cycle
+      }
+    }, 60_000);
+
+    return () => clearInterval(interval);
+  }, [userId, isDemoMode, notebooks, toast]);
+
   /** Get a notebook by ID from current state */
   const getNotebook = useCallback(
     (id: string) => notebooks.find((n) => n.id === id),
