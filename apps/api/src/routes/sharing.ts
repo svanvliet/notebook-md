@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { requireFeature } from '../services/featureFlags.js';
+import { requireFeature, isFeatureEnabled } from '../services/featureFlags.js';
 import { sendInvite, acceptInvite, revokeAccess, getMembers, updateMemberRole } from '../services/sharing.js';
 import { createShareLink, revokeShareLink, toggleLinkVisibility, getShareLinks } from '../services/shareLinks.js';
 import { sendShareInviteEmail } from '../lib/email.js';
@@ -17,6 +17,15 @@ router.post('/notebooks/:id/invites', requireAuth, requireFeature('cloud_sharing
   if (!email || !permission || !['editor', 'viewer'].includes(permission)) {
     res.status(400).json({ error: 'Valid email and permission (editor/viewer) required' });
     return;
+  }
+
+  // When cloud_collab is disabled, only viewer invites are allowed
+  if (permission === 'editor') {
+    const collabOn = await isFeatureEnabled('cloud_collab', req.userId);
+    if (!collabOn) {
+      res.status(400).json({ error: 'Editor invites are unavailable while real-time collaboration is disabled' });
+      return;
+    }
   }
 
   try {
@@ -174,6 +183,15 @@ router.patch('/notebooks/:id/members/:userId', requireAuth, requireFeature('clou
   if (!permission || !['editor', 'viewer'].includes(permission)) {
     res.status(400).json({ error: 'Valid permission (editor/viewer) required' });
     return;
+  }
+
+  // When cloud_collab is disabled, only viewer role is allowed
+  if (permission === 'editor') {
+    const collabOn = await isFeatureEnabled('cloud_collab', req.userId);
+    if (!collabOn) {
+      res.status(400).json({ error: 'Editor role is unavailable while real-time collaboration is disabled' });
+      return;
+    }
   }
 
   try {

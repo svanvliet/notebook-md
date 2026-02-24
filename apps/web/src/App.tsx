@@ -28,6 +28,7 @@ import { useCookieConsent } from './hooks/useCookieConsent';
 import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
+import { useFlag } from './hooks/useFlagProvider';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { migrateAnonymousNotebooks, setStorageScope } from './stores/localNotebookStore';
 import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './stores/demoContent';
@@ -49,6 +50,7 @@ export default function App() {
   const { settings, updateSettings } = useSettings(auth.isSignedIn && !auth.isDemoMode);
   const cookieConsent = useCookieConsent();
   const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
+  const collabEnabled = useFlag('cloud_collab');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -374,7 +376,7 @@ export default function App() {
       hasUnsavedChanges: t.hasUnsavedChanges,
       content: t.content,
       loading: t.loading,
-      readOnly: nb.pendingPrs.has(t.notebookId) || notebook?.sharedPermission === 'viewer',
+      readOnly: nb.pendingPrs.has(t.notebookId) || notebook?.sharedPermission === 'viewer' || (!collabEnabled && notebook?.sharedPermission && notebook.sharedPermission !== 'owner'),
       cloudDoc: notebook?.sourceType === 'cloud' ? { notebookId: t.notebookId, path: t.path } : undefined,
     };
   });
