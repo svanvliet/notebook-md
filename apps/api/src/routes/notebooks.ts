@@ -44,6 +44,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
      JOIN users u ON n.user_id = u.id
      WHERE ns.shared_with_user_id = $1
        AND ns.accepted_at IS NOT NULL
+       AND ns.revoked_at IS NULL
        AND n.user_id != $1
      ORDER BY n.name`,
     [req.userId!],
