@@ -53,7 +53,11 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 async function readCloudFile(notebookId: string, filePath: string) {
   const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`);
-  if (!res.ok) throw new Error('Failed to read cloud file');
+  if (!res.ok) {
+    const err = new Error('Failed to read cloud file');
+    (err as any).status = res.status;
+    throw err;
+  }
   return res.json() as Promise<{ path: string; name: string; content: string; sha?: string }>;
 }
 
@@ -375,15 +379,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         setFiles((prev) => ({ ...prev, [notebookId]: toFileEntries(notebookId, rawEntries) }));
       } catch (err) {
         // Silently ignore access denied for shared notebooks (revoked access)
-        const msg = (err as Error).message;
-        if (nb.sharedBy && (msg.includes('403') || msg.includes('Access denied'))) {
+        if (nb.sharedBy && (err as any).status === 403) {
           // Revoked access — remove the stale notebook entirely
           await deleteNb(notebookId);
           setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
           setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
           setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
         } else {
-          toast?.(`Failed to load files: ${msg}`, 'error');
+          toast?.(`Failed to load files: ${(err as Error).message}`, 'error');
         }
       } finally {
         setLoadingNotebooks((prev) => {
@@ -947,15 +950,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         } catch (err) {
           setTabs((prev) => prev.filter((t) => t.id !== tabId));
           // Silently handle access denied for shared notebooks (revoked access)
-          const msg = (err as Error).message;
-          if (nb.sharedBy && (msg.includes('403') || msg.includes('Access denied'))) {
+          if (nb.sharedBy && (err as any).status === 403) {
             // Revoked — remove notebook from state
             await deleteNb(notebookId);
             setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
             setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
             setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
           } else {
-            toast?.(`Failed to open file: ${msg}`, 'error');
+            toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
           }
         }
         return;
