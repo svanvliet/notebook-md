@@ -283,4 +283,186 @@ describe('Sharing & Permissions (Phase 3)', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe('Accept invite by ID (in-app flow)', () => {
+    let shareId: string;
+    let inviteeCookies: string;
+
+    beforeAll(async () => {
+      // Create a fresh user for this test
+      const invitee = await signUp('invitee-byid@test.com', 'Password1!', 'Invitee');
+      inviteeCookies = invitee.cookies;
+
+      // Owner creates an invite for this user
+      const invRes = await request
+        .post(`/api/cloud/notebooks/${notebookId}/invites`)
+        .set('Cookie', ownerCookies)
+        .send({ email: 'invitee-byid@test.com', permission: 'editor' });
+      expect(invRes.status).toBe(201);
+      shareId = invRes.body.invite.id;
+    });
+
+    it('should accept invite by share ID', async () => {
+      const res = await request
+        .post('/api/cloud/invites/accept-by-id')
+        .set('Cookie', inviteeCookies)
+        .send({ shareId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.notebookId).toBe(notebookId);
+      expect(res.body.message).toBe('Invite accepted');
+    });
+
+    it('should reject double-accept', async () => {
+      const res = await request
+        .post('/api/cloud/invites/accept-by-id')
+        .set('Cookie', inviteeCookies)
+        .send({ shareId });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Invite already accepted');
+    });
+
+    it('should reject accept by wrong user', async () => {
+      // Create another invite
+      const invRes = await request
+        .post(`/api/cloud/notebooks/${notebookId}/invites`)
+        .set('Cookie', ownerCookies)
+        .send({ email: 'someone-else@test.com', permission: 'viewer' });
+      expect(invRes.status).toBe(201);
+
+      const res = await request
+        .post('/api/cloud/invites/accept-by-id')
+        .set('Cookie', inviteeCookies)
+        .send({ shareId: invRes.body.invite.id });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should require shareId', async () => {
+      const res = await request
+        .post('/api/cloud/invites/accept-by-id')
+        .set('Cookie', inviteeCookies)
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('Decline invite by ID (in-app flow)', () => {
+    let shareId: string;
+    let declineeCookies: string;
+
+    beforeAll(async () => {
+      const declinee = await signUp('declinee@test.com', 'Password1!', 'Declinee');
+      declineeCookies = declinee.cookies;
+
+      const invRes = await request
+        .post(`/api/cloud/notebooks/${notebookId}/invites`)
+        .set('Cookie', ownerCookies)
+        .send({ email: 'declinee@test.com', permission: 'editor' });
+      expect(invRes.status).toBe(201);
+      shareId = invRes.body.invite.id;
+    });
+
+    it('should decline invite by share ID', async () => {
+      const res = await request
+        .post('/api/cloud/invites/decline-by-id')
+        .set('Cookie', declineeCookies)
+        .send({ shareId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.notebookId).toBe(notebookId);
+      expect(res.body.message).toBe('Invite declined');
+    });
+
+    it('should reject double-decline (already revoked)', async () => {
+      const res = await request
+        .post('/api/cloud/invites/decline-by-id')
+        .set('Cookie', declineeCookies)
+        .send({ shareId });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Invite already revoked');
+    });
+
+    it('should reject decline by wrong user', async () => {
+      // Create invite for someone else
+      const invRes = await request
+        .post(`/api/cloud/notebooks/${notebookId}/invites`)
+        .set('Cookie', ownerCookies)
+        .send({ email: 'other-person@test.com', permission: 'viewer' });
+      expect(invRes.status).toBe(201);
+
+      const res = await request
+        .post('/api/cloud/invites/decline-by-id')
+        .set('Cookie', declineeCookies)
+        .send({ shareId: invRes.body.invite.id });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should not show declined invite in shared notebooks list', async () => {
+      // The declined share should NOT appear in sharedNotebooks for the declinee
+      const res = await request
+        .get('/api/notebooks')
+        .set('Cookie', declineeCookies);
+
+      expect(res.status).toBe(200);
+      const shared = res.body.sharedNotebooks ?? [];
+      const found = shared.find((s: any) => s.id === notebookId);
+      expect(found).toBeUndefined();
+    });
+  });
+
+  describe('Revoked shares excluded from notebooks list', () => {
+    let revokeeCookies: string;
+    let revokeeId: string;
+
+    beforeAll(async () => {
+      const revokee = await signUp('revokee@test.com', 'Password1!', 'Revokee');
+      revokeeCookies = revokee.cookies;
+      revokeeId = revokee.res.body.user.id;
+
+      // Invite, accept via token
+      await clearMailpit();
+      const invRes = await request
+        .post(`/api/cloud/notebooks/${notebookId}/invites`)
+        .set('Cookie', ownerCookies)
+        .send({ email: 'revokee@test.com', permission: 'editor' });
+      expect(invRes.status).toBe(201);
+
+      // Accept via accept-by-id
+      await request
+        .post('/api/cloud/invites/accept-by-id')
+        .set('Cookie', revokeeCookies)
+        .send({ shareId: invRes.body.invite.id });
+    });
+
+    it('should show accepted share in notebooks list', async () => {
+      const res = await request
+        .get('/api/notebooks')
+        .set('Cookie', revokeeCookies);
+
+      const shared = res.body.sharedNotebooks ?? [];
+      const found = shared.find((s: any) => s.id === notebookId);
+      expect(found).toBeDefined();
+      expect(found.permission).toBe('editor');
+    });
+
+    it('should exclude revoked share from notebooks list', async () => {
+      // Owner removes member
+      await request
+        .delete(`/api/cloud/notebooks/${notebookId}/members/${revokeeId}`)
+        .set('Cookie', ownerCookies);
+
+      const res = await request
+        .get('/api/notebooks')
+        .set('Cookie', revokeeCookies);
+
+      const shared = res.body.sharedNotebooks ?? [];
+      const found = shared.find((s: any) => s.id === notebookId);
+      expect(found).toBeUndefined();
+    });
+  });
 });
