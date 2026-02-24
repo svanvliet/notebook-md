@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import Redis from 'ioredis';
+import * as Y from 'yjs';
+import { createCipheriv, createHash, randomBytes } from 'crypto';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -53,6 +55,67 @@ function assignColor(userId: string): string {
     hash |= 0;
   }
   return COLORS[Math.abs(hash) % COLORS.length];
+}
+
+// ── Encrypt helper (mirrors apps/api/src/lib/encryption.ts) ───────────────
+function encrypt(plaintext: string): string {
+  const raw = process.env.ENCRYPTION_KEY;
+  if (!raw) throw new Error('ENCRYPTION_KEY not set');
+  const key = Buffer.byteLength(raw, 'utf8') === 32
+    ? Buffer.from(raw, 'utf8')
+    : createHash('sha256').update(raw).digest();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`;
+}
+
+// ── Yjs XML fragment → HTML converter ─────────────────────────────────────
+function yTextToHtml(ytext: Y.XmlText): string {
+  return ytext.toDelta().map((op: { insert: string; attributes?: Record<string, unknown> }) => {
+    let s = typeof op.insert === 'string' ? op.insert.replace(/&/g, '&amp;').replace(/</g, '&lt;') : '';
+    if (op.attributes?.bold) s = `<strong>${s}</strong>`;
+    if (op.attributes?.italic) s = `<em>${s}</em>`;
+    if (op.attributes?.code) s = `<code>${s}</code>`;
+    if (op.attributes?.link) s = `<a href="${(op.attributes.link as { href: string }).href}">${s}</a>`;
+    return s;
+  }).join('');
+}
+
+function yElementToHtml(el: Y.XmlElement): string {
+  const inner = el.toArray().map((child) => {
+    if (child instanceof Y.XmlText) return yTextToHtml(child);
+    if (child instanceof Y.XmlElement) return yElementToHtml(child);
+    return '';
+  }).join('');
+  const n = el.nodeName;
+  if (n === 'paragraph') return `<p>${inner}</p>`;
+  if (n === 'heading') return `<h${el.getAttribute('level') || 1}>${inner}</h${el.getAttribute('level') || 1}>`;
+  if (n === 'bulletList') return `<ul>${inner}</ul>`;
+  if (n === 'orderedList') return `<ol>${inner}</ol>`;
+  if (n === 'listItem') return `<li>${inner}</li>`;
+  if (n === 'taskList') return `<ul data-type="taskList">${inner}</ul>`;
+  if (n === 'taskItem') return `<li data-type="taskItem">${inner}</li>`;
+  if (n === 'codeBlock') return `<pre><code>${inner}</code></pre>`;
+  if (n === 'blockquote') return `<blockquote>${inner}</blockquote>`;
+  if (n === 'hardBreak') return '<br>';
+  if (n === 'horizontalRule') return '<hr>';
+  if (n === 'image') return `<img src="${el.getAttribute('src') || ''}" alt="${el.getAttribute('alt') || ''}">`;
+  return inner; // fallback: render children without wrapper
+}
+
+function ydocStateToHtml(state: Uint8Array): string {
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, state);
+  const frag = doc.getXmlFragment('default');
+  const html = frag.toArray().map((child) => {
+    if (child instanceof Y.XmlElement) return yElementToHtml(child);
+    if (child instanceof Y.XmlText) return yTextToHtml(child);
+    return '';
+  }).join('');
+  doc.destroy();
+  return html;
 }
 
 const server = Server.configure({
@@ -185,11 +248,15 @@ const server = Server.configure({
       async store({ documentName, state }) {
         try {
           const { notebookId, filePath } = parseDocumentName(documentName);
-          // Store Yjs state
+          // Sync content_enc so REST reads always have current content
+          const html = ydocStateToHtml(state);
+          const contentEnc = encrypt(html);
+          const sizeBytes = Buffer.byteLength(html, 'utf-8');
           await pool.query(
-            `UPDATE cloud_documents SET ydoc_state = $1, updated_at = now()
-             WHERE notebook_id = $2 AND path = $3`,
-            [Buffer.from(state), notebookId, filePath],
+            `UPDATE cloud_documents
+             SET ydoc_state = $1, content_enc = $2, size_bytes = $3, updated_at = now()
+             WHERE notebook_id = $4 AND path = $5`,
+            [Buffer.from(state), contentEnc, sizeBytes, notebookId, filePath],
           );
         } catch (err) {
           console.error('[collab] store error:', err);
