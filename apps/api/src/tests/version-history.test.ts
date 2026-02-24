@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { request, signUp, cleanDb, closeDb } from './helpers.js';
+import { request, signUp, cleanDb, closeDb, seedFlagsWithGAFlight } from './helpers.js';
 import { query } from '../db/pool.js';
 import { encrypt } from '../lib/encryption.js';
 import { runVersionCleanup } from '../jobs/versionCleanup.js';
 import { runUsageReconciliation } from '../jobs/usageReconciliation.js';
+import { clearFlagCache } from '../services/featureFlags.js';
 
 describe('Version History & Jobs (Phase 5)', () => {
   let ownerCookies: string;
@@ -14,14 +15,13 @@ describe('Version History & Jobs (Phase 5)', () => {
   beforeAll(async () => {
     await cleanDb();
 
-    // Seed feature flags
-    await query(
-      `INSERT INTO feature_flags (key, enabled, description) VALUES
-       ('cloud_notebooks', true, 'test'),
-       ('cloud_sharing', true, 'test'),
-       ('soft_quota_banners', true, 'test')
-       ON CONFLICT (key) DO UPDATE SET enabled = true`
-    );
+    // Seed feature flags (with GA flight for delivery)
+    await seedFlagsWithGAFlight([
+      { key: 'cloud_notebooks' },
+      { key: 'cloud_sharing' },
+      { key: 'soft_quota_banners' },
+    ]);
+    clearFlagCache();
 
     // Create owner
     const owner = await signUp('version-owner@test.com', 'Password1!', 'VersionOwner');

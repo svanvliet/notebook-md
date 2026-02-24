@@ -9,7 +9,7 @@ export default function FeatureFlagsPage({
   deleteFlagOverride,
 }: {
   getFeatureFlags: () => Promise<{ flags: FeatureFlag[] }>;
-  saveFeatureFlag: (data: { key: string; enabled: boolean; description?: string; rolloutPercentage?: number }) => Promise<{ message: string }>;
+  saveFeatureFlag: (data: { key: string; enabled: boolean; description?: string }) => Promise<{ message: string }>;
   getFlagOverrides: (key: string) => Promise<{ overrides: FlagOverride[] }>;
   createFlagOverride: (key: string, data: { userId: string; enabled: boolean; reason?: string }) => Promise<{ message: string }>;
   deleteFlagOverride: (key: string, userId: string) => Promise<{ message: string }>;
@@ -18,7 +18,6 @@ export default function FeatureFlagsPage({
   const [showCreate, setShowCreate] = useState(false);
   const [newKey, setNewKey] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [newPct, setNewPct] = useState(100);
 
   // Override detail
   const [selectedFlag, setSelectedFlag] = useState<string | null>(null);
@@ -36,21 +35,16 @@ export default function FeatureFlagsPage({
   };
 
   const handleToggle = async (flag: FeatureFlag) => {
-    await saveFeatureFlag({ key: flag.key, enabled: !flag.enabled, description: flag.description ?? undefined, rolloutPercentage: flag.rolloutPercentage });
+    await saveFeatureFlag({ key: flag.key, enabled: !flag.enabled, description: flag.description ?? undefined });
     load();
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKey.trim()) return;
-    await saveFeatureFlag({ key: newKey.trim(), enabled: false, description: newDesc.trim() || undefined, rolloutPercentage: newPct });
-    setNewKey(''); setNewDesc(''); setNewPct(100);
+    await saveFeatureFlag({ key: newKey.trim(), enabled: false, description: newDesc.trim() || undefined });
+    setNewKey(''); setNewDesc('');
     setShowCreate(false);
-    load();
-  };
-
-  const handleRolloutChange = async (flag: FeatureFlag, pct: number) => {
-    await saveFeatureFlag({ key: flag.key, enabled: flag.enabled, description: flag.description ?? undefined, rolloutPercentage: pct });
     load();
   };
 
@@ -85,7 +79,6 @@ export default function FeatureFlagsPage({
           <div className="flex gap-3">
             <input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="flag_key" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm flex-1" required />
             <input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Description (optional)" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm flex-1" />
-            <input type="number" min={0} max={100} value={newPct} onChange={e => setNewPct(Number(e.target.value))} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-20" title="Rollout %" />
             <button type="submit" className="bg-green-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-green-700">Create</button>
           </div>
         </form>
@@ -103,7 +96,6 @@ export default function FeatureFlagsPage({
                     <th className="text-left px-4 py-2 font-medium">Key</th>
                     <th className="text-left px-4 py-2 font-medium">Description</th>
                     <th className="text-left px-4 py-2 font-medium">Status</th>
-                    <th className="text-left px-4 py-2 font-medium">Rollout</th>
                     <th className="text-left px-4 py-2 font-medium">Updated</th>
                     <th className="text-left px-4 py-2 font-medium">Actions</th>
                   </tr>
@@ -117,11 +109,6 @@ export default function FeatureFlagsPage({
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${f.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                           {f.enabled ? 'Enabled' : 'Disabled'}
                         </span>
-                      </td>
-                      <td className="px-4 py-2">
-                        <select value={f.rolloutPercentage} onChange={e => { e.stopPropagation(); handleRolloutChange(f, Number(e.target.value)); }} onClick={e => e.stopPropagation()} className="border border-gray-300 rounded px-1 py-0.5 text-xs w-16">
-                          {[0, 5, 10, 25, 50, 75, 100].map(p => <option key={p} value={p}>{p}%</option>)}
-                        </select>
                       </td>
                       <td className="px-4 py-2 text-xs text-gray-500">{new Date(f.updatedAt).toLocaleString()}</td>
                       <td className="px-4 py-2">
