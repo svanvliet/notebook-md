@@ -206,7 +206,7 @@ export function NotebookTree({
     for (const id of expandedNotebooks) {
       if (loadedRemotesRef.current.has(id)) continue;
       const nb = notebooks.find((n) => n.id === id);
-      if (nb && nb.sourceType && nb.sourceType !== 'local') {
+      if (nb && nb.sourceType && nb.sourceType !== 'local' && !nb.pendingInvite) {
         if (!files[id] || files[id].length === 0) {
           loadedRemotesRef.current.add(id);
           onExpandNotebook?.(id);
