@@ -190,6 +190,7 @@ export default function ShareNotebookModal({ notebookId, notebookName, onClose }
               <div key={m.userId} className="flex items-center justify-between py-2 px-1">
                 <div>
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{m.displayName || m.email}</span>
+                  {m.displayName && m.email && <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">({m.email})</span>}
                   {!m.accepted && <span className="ml-2 text-xs text-yellow-600">(pending)</span>}
                 </div>
                 <div className="flex items-center gap-2">

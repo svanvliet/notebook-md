@@ -14,6 +14,36 @@ import { logger } from '../lib/logger.js';
 
 const router = Router();
 
+// ── Middleware: check editor permission for cloud write operations ─────────
+async function requireCloudEditor(req: Request, res: Response, next: () => void) {
+  if (req.params.provider !== 'cloud') { next(); return; }
+  const notebookId = (req.query.root as string) ?? '';
+  if (!notebookId) { next(); return; }
+  const userId = req.userId!;
+
+  // Owner can always write
+  const ownerCheck = await dbQuery<{ user_id: string }>(
+    'SELECT user_id FROM notebooks WHERE id = $1',
+    [notebookId],
+  );
+  if (ownerCheck.rows.length > 0 && ownerCheck.rows[0].user_id === userId) { next(); return; }
+
+  // Shared user — check permission
+  const shareCheck = await dbQuery<{ permission: string }>(
+    'SELECT permission FROM notebook_shares WHERE notebook_id = $1 AND shared_with_user_id = $2 AND revoked_at IS NULL AND accepted_at IS NOT NULL',
+    [notebookId, userId],
+  );
+  if (shareCheck.rows.length === 0) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+  if (shareCheck.rows[0].permission === 'viewer') {
+    res.status(403).json({ error: 'Viewers cannot modify files' });
+    return;
+  }
+  next();
+}
+
 // ── Per-user rate limiting (Redis-backed) ─────────────────────────────────
 const isTest = process.env.VITEST === 'true';
 
@@ -184,7 +214,7 @@ router.get('/:provider/files/{*filePath}', validatePath, async (req: Request, re
 
 // ── PUT /api/sources/:provider/files/* — Update file ──────────────────────
 
-router.put('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+router.put('/:provider/files/{*filePath}', validatePath, requireCloudEditor, async (req: Request, res: Response) => {
   const resolved = await resolveProvider(req, res);
   if (!resolved) return;
 
@@ -212,7 +242,7 @@ router.put('/:provider/files/{*filePath}', validatePath, async (req: Request, re
 
 // ── POST /api/sources/:provider/files/* — Create file ─────────────────────
 
-router.post('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+router.post('/:provider/files/{*filePath}', validatePath, requireCloudEditor, async (req: Request, res: Response) => {
   const resolved = await resolveProvider(req, res);
   if (!resolved) return;
 
@@ -239,7 +269,7 @@ router.post('/:provider/files/{*filePath}', validatePath, async (req: Request, r
 
 // ── DELETE /api/sources/:provider/files/* — Delete file ───────────────────
 
-router.delete('/:provider/files/{*filePath}', validatePath, async (req: Request, res: Response) => {
+router.delete('/:provider/files/{*filePath}', validatePath, requireCloudEditor, async (req: Request, res: Response) => {
   const resolved = await resolveProvider(req, res);
   if (!resolved) return;
 
