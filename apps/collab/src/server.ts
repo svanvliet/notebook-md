@@ -110,8 +110,20 @@ const server = Server.configure({
 
     if (notebookResult.rows.length === 0) throw new Error('Notebook not found');
 
+    const isOwner = notebookResult.rows[0].user_id === userId;
+
+    // Check cloud_collab kill switch — if disabled, block non-owner connections
+    if (!isOwner) {
+      const flagResult = await pool.query(
+        "SELECT enabled FROM feature_flags WHERE key = 'cloud_collab'",
+      );
+      if (flagResult.rows.length > 0 && !flagResult.rows[0].enabled) {
+        throw new Error('Real-time collaboration is currently disabled');
+      }
+    }
+
     let permission = 'viewer';
-    if (notebookResult.rows[0].user_id === userId) {
+    if (isOwner) {
       permission = 'owner';
     } else {
       // Check notebook_shares
