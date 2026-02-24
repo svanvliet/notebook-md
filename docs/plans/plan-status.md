@@ -4349,3 +4349,110 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 | `apps/api/src/routes/sources.ts` | Added `requireCloudEditor` middleware on PUT/POST/DELETE cloud file routes |
 
 **Status:** ✅ Viewer permission enforcement complete — server + client both enforce read-only for viewers.
+
+---
+
+### Session Entry — 2026-02-24 (continued): Authorization Gaps, Share UX Polish, Invite Flow, Revoke Fixes
+
+**Scope:** Comprehensive security audit, share pill UX, permission polling, invite accept/decline in-app flow, revoked share cleanup, and test coverage.
+
+#### 1. Authorization Gap Closure
+
+Conducted full security audit of all sharing, cloud, and sources API routes. Found and closed 6 critical/high gaps:
+
+- **GET cloud tree/files/readFile**: Added `requireCloudAccess` middleware — blocks unauthorized users
+- **DELETE invite**: Added ownership check — only notebook owner can revoke invites
+- **GET invites/members**: Added ownership or membership checks
+- **Export & version history routes**: Added `hasNotebookAccess`/`hasDocumentAccess` helpers in `cloud.ts`
+
+| Commit | Description |
+|--------|-------------|
+| `ed5abde` | Close authorization gaps across sharing, cloud, and sources APIs |
+
+#### 2. Share UX Pills
+
+- Changed "Edit"/"View" labels to "Editor"/"Viewer" to indicate role
+- Removed owner name text, added hover tooltip "Owner: {Owner Name}" on pill
+- Added green "Shared" pill for owner's notebooks with active shares; clicking opens Manage Sharing modal on Members tab
+
+| Commit | Description |
+|--------|-------------|
+| `a837eff` | Improve shared notebook pills: Editor/Viewer with owner tooltip, Shared pill for owners |
+| `a56e1a4` | Match pill styling, open Members tab from Shared pill |
+
+#### 3. Permission Polling (60s)
+
+- Added polling effect in `useNotebookManager` that re-fetches `/api/notebooks` every 60 seconds
+- Detects `sharedPermission` changes, `hasShares` changes, and revoked shares
+- Editor→Viewer: editor goes read-only automatically
+- Viewer→Editor: toast with "Refresh to edit" action link (toasts with actions persist, don't auto-dismiss)
+
+| Commit | Description |
+|--------|-------------|
+| `46a5d7f` | Poll for permission changes every 60s |
+| `09de744` | Add 'Refresh to edit' action link on viewer→editor toast |
+
+#### 4. In-App Pending Invite Flow
+
+- Added `pendingInvites` to GET `/api/notebooks` response (matched by user email)
+- Added `POST /api/cloud/invites/accept-by-id` endpoint for in-app acceptance
+- Added `POST /api/cloud/invites/decline-by-id` endpoint for in-app decline
+- Pending notebooks appear in "Shared with me" with amber "View Invitation" pill (non-expandable, no context menu)
+- Invitation modal shows notebook name, owner, role, date with Accept/Decline buttons
+- Accept/decline both call `syncNotebooksFromServer()` to immediately refresh the tree
+
+| Commit | Description |
+|--------|-------------|
+| `5d66270` | Show pending invites with View Invitation modal and in-app accept |
+| `b1b9a4e` | Refresh tree on invite accept/decline with server sync |
+
+#### 5. Revoked Share Cleanup (Multi-Layer Fix)
+
+Fixed persistent bug where revoked shared notebooks remained visible due to stale IndexedDB entries and race conditions:
+
+1. **Orphan cleanup**: Removes tabs and sessionStorage expansion state for deleted notebooks
+2. **Silent 403 handling**: Shared notebooks that return 403 are removed from React state
+3. **Error status propagation**: `listCloudTree`/`readCloudFile` now attach HTTP status to error objects
+4. **Race condition fix**: 403 handler only removes from React state, not IndexedDB (sync IIFE is sole authority)
+5. **Pending invite guards**: `refreshFiles`, `onExpandNotebook`, and tree auto-expand all skip `pendingInvite` notebooks
+6. **API fix**: `GET /api/notebooks` `sharedNotebooks` query now filters `revoked_at IS NULL`
+
+| Commit | Description |
+|--------|-------------|
+| `1066a79` | Fix revoked share cleanup: remove stale notebooks, tabs, suppress 403 toasts |
+| `3e88546` | Handle revoked share URL gracefully: redirect to /app, skip stale tabs |
+| `85fae48` | Auto-purge revoked shared notebooks on 403 |
+| `ec09748` | Fix 403 detection: attach status code to errors |
+| `eef011f` | Fix 403 purge race: don't delete from IndexedDB, only React state |
+| `b9a432b` | Guard all paths against loading files for pending invite notebooks |
+| `5de7d67` | Fix revoked/declined shares still appearing in shared notebooks list |
+
+#### 6. Test Coverage
+
+Added 10 new API tests for the in-app invite flow:
+
+- Accept-by-id: happy path, double-accept rejection, wrong user rejection, missing shareId
+- Decline-by-id: happy path, double-decline rejection, wrong user rejection, declined invite excluded from notebooks list
+- Revoked shares: accepted share visible, revoked share excluded from notebooks list
+
+| Commit | Description |
+|--------|-------------|
+| `2ced455` | Add tests for accept-by-id, decline-by-id, and revoked share exclusion |
+
+#### Key Files Changed
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/sources.ts` | `requireCloudEditor` + `requireCloudAccess` middleware |
+| `apps/api/src/routes/sharing.ts` | `accept-by-id`, `decline-by-id` endpoints; ownership checks |
+| `apps/api/src/routes/notebooks.ts` | `pendingInvites` in response; `revoked_at IS NULL` filter |
+| `apps/api/src/routes/cloud.ts` | `hasNotebookAccess`/`hasDocumentAccess` helpers |
+| `apps/api/src/tests/sharing.test.ts` | 10 new tests (277 total, all pass) |
+| `apps/web/src/hooks/useNotebookManager.ts` | `syncNotebooksFromServer()` extracted; permission polling; pending invite guards |
+| `apps/web/src/hooks/useToast.tsx` | Toast action support (label + onClick, no auto-dismiss) |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Pending invite UI, invitation modal, accept/decline wiring |
+| `apps/web/src/components/notebook/ShareNotebookModal.tsx` | Email display, initialTab prop |
+| `apps/web/src/App.tsx` | Read-only viewer check, onAcceptInvite, onDeclineInvite |
+| `apps/web/src/api/cloud.ts` | HTTP status attached to errors |
+
+**Status:** ✅ All Phase 3 exit criteria met except "Account sharing management page" (deferred to Phase 6). Phases 4 and 5 were completed in prior sessions. **All Phases 0–5 are functionally complete.**

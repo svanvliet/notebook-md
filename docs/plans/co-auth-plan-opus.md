@@ -915,8 +915,8 @@ When an owner revokes a collaborator's access or revokes a share link:
 - [x] Public link pages include noindex meta tags
 - [x] Owner can revoke access; collaborator is disconnected immediately
 - [ ] Account sharing management page lists all shares and links
-- [ ] Viewer role enforces read-only editing
-- [ ] Editor role allows full editing via collaboration
+- [x] Viewer role enforces read-only editing
+- [x] Editor role allows full editing via collaboration
 - [x] All permission checks are enforced server-side (API + HocusPocus)
 - [x] Audit log entries for all sharing actions
 - [x] All existing tests pass + new integration tests for sharing flows
