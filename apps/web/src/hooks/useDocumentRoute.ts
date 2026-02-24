@@ -114,7 +114,11 @@ export function useDocumentRoute({
     if (notebooks.length === 0) return;
 
     const notebookId = resolveNotebookId(notebookName, notebooks);
-    if (!notebookId) return;
+    if (!notebookId) {
+      // Notebook not found (e.g., revoked share) — redirect to app root
+      navigate('/app', { replace: true });
+      return;
+    }
 
     const currentTabId = activeTabIdRef.current;
     if (currentTabId) {

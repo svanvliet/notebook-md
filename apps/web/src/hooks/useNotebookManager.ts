@@ -1421,7 +1421,9 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       }
 
       // Open each tab (errors are swallowed for individual tabs)
+      // Skip tabs for notebooks that no longer exist (e.g., revoked shares)
       for (const t of toOpen) {
+        if (!notebooks.find(n => n.id === t.notebookId)) continue;
         await handleOpenFile(t.notebookId, t.path).catch(() => {});
       }
 
@@ -1432,7 +1434,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     } catch { /* ignore corrupt data */ }
     // Mark restoration as done AFTER all opens complete (prevents premature persistence clearing)
     tabRestorationDone.current = true;
-  }, [handleOpenFile]);
+  }, [handleOpenFile, notebooks]);
 
   const handleCopyFile = useCallback(async (
     sourceNotebookId: string,
