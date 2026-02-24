@@ -607,10 +607,26 @@ export default function App() {
             });
             if (res.ok) {
               addToast('Invitation accepted!', 'success');
-              nb.reloadNotebooks();
+              await nb.syncNotebooksFromServer();
             } else {
               const data = await res.json().catch(() => ({}));
               addToast(data.error || 'Failed to accept invitation', 'error');
+            }
+          }}
+          onDeclineInvite={async (shareId: string) => {
+            const API_BASE = import.meta.env.VITE_API_URL || '';
+            const res = await fetch(`${API_BASE}/api/cloud/invites/decline-by-id`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ shareId }),
+            });
+            if (res.ok) {
+              addToast('Invitation declined', 'info');
+              await nb.syncNotebooksFromServer();
+            } else {
+              const data = await res.json().catch(() => ({}));
+              addToast(data.error || 'Failed to decline invitation', 'error');
             }
           }}
         />

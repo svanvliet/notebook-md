@@ -141,6 +141,7 @@ interface NotebookTreeProps {
   activeFilePath: string | null;
   onLeaveNotebook?: (notebookId: string) => void;
   onAcceptInvite?: (shareId: string) => Promise<void>;
+  onDeclineInvite?: (shareId: string) => Promise<void>;
 }
 
 export function NotebookTree({
@@ -167,12 +168,14 @@ export function NotebookTree({
   activeFilePath,
   onLeaveNotebook,
   onAcceptInvite,
+  onDeclineInvite,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string; initialTab?: 'invite' | 'members' | 'links' } | null>(null);
   const [leaveConfirm, setLeaveConfirm] = useState<{ id: string; name: string } | null>(null);
   const [inviteModal, setInviteModal] = useState<{ nb: NotebookMeta } | null>(null);
   const [acceptingInvite, setAcceptingInvite] = useState(false);
+  const [decliningInvite, setDecliningInvite] = useState(false);
   // Restore tree expansion state from sessionStorage
   const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(() => {
     try {
@@ -912,8 +915,21 @@ export function NotebookTree({
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setInviteModal(null)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                Decline
+              <button
+                disabled={decliningInvite}
+                onClick={async () => {
+                  if (!onDeclineInvite || !inviteModal.nb.pendingInvite) return;
+                  setDecliningInvite(true);
+                  try {
+                    await onDeclineInvite(inviteModal.nb.pendingInvite.shareId);
+                    setInviteModal(null);
+                  } finally {
+                    setDecliningInvite(false);
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                {decliningInvite ? 'Declining…' : 'Decline'}
               </button>
               <button
                 disabled={acceptingInvite}

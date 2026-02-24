@@ -134,111 +134,113 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     messageTimer.current = setTimeout(() => setStatusMessage(null), ms);
   }, []);
 
+  // Sync remote notebooks from the API into IndexedDB and update React state.
+  // Called on initial load and after invite accept/decline to refresh the tree.
+  const syncNotebooksFromServer = useCallback(async () => {
+    if (!userId || isDemoMode) return;
+    try {
+      const res = await apiFetch('/api/notebooks');
+      if (res.ok) {
+        const { notebooks: serverNbs, sharedNotebooks: sharedNbs, pendingInvites: pendingInvs } = await res.json();
+        const serverIds = new Set<string>();
+        for (const snb of serverNbs) {
+          serverIds.add(snb.id);
+          await upsertNotebook({
+            id: snb.id,
+            name: snb.name,
+            sourceType: snb.sourceType,
+            sourceConfig: snb.sourceConfig ?? {},
+            sortOrder: new Date(snb.createdAt).getTime(),
+            createdAt: new Date(snb.createdAt).getTime(),
+            updatedAt: new Date(snb.updatedAt).getTime(),
+            hasShares: snb.hasShares ?? false,
+          });
+        }
+        for (const snb of (sharedNbs ?? [])) {
+          serverIds.add(snb.id);
+          await upsertNotebook({
+            id: snb.id,
+            name: snb.name,
+            sourceType: snb.sourceType,
+            sourceConfig: snb.sourceConfig ?? {},
+            sortOrder: new Date(snb.createdAt).getTime(),
+            createdAt: new Date(snb.createdAt).getTime(),
+            updatedAt: new Date(snb.updatedAt).getTime(),
+            sharedBy: snb.ownerName,
+            sharedPermission: snb.permission,
+          });
+        }
+        for (const inv of (pendingInvs ?? [])) {
+          serverIds.add(inv.notebookId);
+          await upsertNotebook({
+            id: inv.notebookId,
+            name: inv.notebookName,
+            sourceType: 'cloud',
+            sourceConfig: {},
+            sortOrder: new Date(inv.invitedAt).getTime(),
+            createdAt: new Date(inv.invitedAt).getTime(),
+            updatedAt: new Date(inv.invitedAt).getTime(),
+            sharedBy: inv.ownerName,
+            sharedPermission: inv.permission,
+            pendingInvite: {
+              shareId: inv.shareId,
+              ownerName: inv.ownerName,
+              permission: inv.permission,
+              invitedAt: inv.invitedAt,
+            },
+          });
+        }
+        // Remove orphan remote notebooks from IndexedDB
+        const localNbs = await listNotebooks();
+        const orphanIds: string[] = [];
+        for (const lnb of localNbs) {
+          if (lnb.sourceType && lnb.sourceType !== 'local' && !serverIds.has(lnb.id)) {
+            await deleteNb(lnb.id);
+            orphanIds.push(lnb.id);
+          }
+        }
+        if (orphanIds.length > 0) {
+          setTabs((prev) => prev.filter((t) => !orphanIds.includes(t.notebookId)));
+          try {
+            const raw = sessionStorage.getItem('nb:tree:notebooks');
+            if (raw) {
+              const expanded: string[] = JSON.parse(raw);
+              const filtered = expanded.filter(id => !orphanIds.includes(id));
+              sessionStorage.setItem('nb:tree:notebooks', JSON.stringify(filtered));
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch {
+      // Offline or API error — continue with local data
+    }
+    // Refresh state from IndexedDB
+    const nbs = await listNotebooks();
+    setNotebooks(nbs);
+    const fileMap: Record<string, FileEntry[]> = {};
+    for (const nb of nbs) {
+      if (nb.sourceType === 'local' || !nb.sourceType) {
+        fileMap[nb.id] = await listFiles(nb.id);
+      }
+    }
+    setFiles(fileMap);
+  }, [userId, isDemoMode]);
+
   // Load notebooks and their files when scope changes
   useEffect(() => {
     setStorageScope(userId ?? null);
-    // Clear tabs synchronously when user scope changes (before async notebook load).
-    // This prevents a race where restoreTabs opens tabs, then the IIFE's setTabs([]) clears them.
     setTabs([]);
     setActiveTabId(null);
-    // NOTE: tabRestorationDone is reset INSIDE the IIFE after real notebooks load.
-    // Resetting it here would allow a premature restoration with stale notebooks.
     (async () => {
-      // Sync remote notebooks from server into IndexedDB (skip in demo mode)
-      if (userId && !isDemoMode) {
-        try {
-          const res = await apiFetch('/api/notebooks');
-          if (res.ok) {
-            const { notebooks: serverNbs, sharedNotebooks: sharedNbs, pendingInvites: pendingInvs } = await res.json();
-            const serverIds = new Set<string>();
-            for (const snb of serverNbs) {
-              serverIds.add(snb.id);
-              await upsertNotebook({
-                id: snb.id,
-                name: snb.name,
-                sourceType: snb.sourceType,
-                sourceConfig: snb.sourceConfig ?? {},
-                sortOrder: new Date(snb.createdAt).getTime(),
-                createdAt: new Date(snb.createdAt).getTime(),
-                updatedAt: new Date(snb.updatedAt).getTime(),
-                hasShares: snb.hasShares ?? false,
-              });
-            }
-            // Also sync shared notebooks
-            for (const snb of (sharedNbs ?? [])) {
-              serverIds.add(snb.id);
-              await upsertNotebook({
-                id: snb.id,
-                name: snb.name,
-                sourceType: snb.sourceType,
-                sourceConfig: snb.sourceConfig ?? {},
-                sortOrder: new Date(snb.createdAt).getTime(),
-                createdAt: new Date(snb.createdAt).getTime(),
-                updatedAt: new Date(snb.updatedAt).getTime(),
-                sharedBy: snb.ownerName,
-                sharedPermission: snb.permission,
-              });
-            }
-            // Sync pending invites as placeholder notebooks
-            for (const inv of (pendingInvs ?? [])) {
-              serverIds.add(inv.notebookId);
-              await upsertNotebook({
-                id: inv.notebookId,
-                name: inv.notebookName,
-                sourceType: 'cloud',
-                sourceConfig: {},
-                sortOrder: new Date(inv.invitedAt).getTime(),
-                createdAt: new Date(inv.invitedAt).getTime(),
-                updatedAt: new Date(inv.invitedAt).getTime(),
-                sharedBy: inv.ownerName,
-                sharedPermission: inv.permission,
-                pendingInvite: {
-                  shareId: inv.shareId,
-                  ownerName: inv.ownerName,
-                  permission: inv.permission,
-                  invitedAt: inv.invitedAt,
-                },
-              });
-            }
-            // Remove orphan remote notebooks from IndexedDB (stale local copies)
-            const localNbs = await listNotebooks();
-            const orphanIds: string[] = [];
-            for (const lnb of localNbs) {
-              if (lnb.sourceType && lnb.sourceType !== 'local' && !serverIds.has(lnb.id)) {
-                await deleteNb(lnb.id);
-                orphanIds.push(lnb.id);
-              }
-            }
-            // Clean up tabs and expansion state for removed notebooks
-            if (orphanIds.length > 0) {
-              setTabs((prev) => prev.filter((t) => !orphanIds.includes(t.notebookId)));
-              try {
-                const raw = sessionStorage.getItem('nb:tree:notebooks');
-                if (raw) {
-                  const expanded: string[] = JSON.parse(raw);
-                  const filtered = expanded.filter(id => !orphanIds.includes(id));
-                  sessionStorage.setItem('nb:tree:notebooks', JSON.stringify(filtered));
-                }
-              } catch { /* ignore */ }
-            }
-          }
-        } catch {
-          // Offline or API error — continue with local data
-        }
-      }
-
-      const nbs = await listNotebooks();
+      await syncNotebooksFromServer();
       // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
+      // (syncNotebooksFromServer already called setNotebooks, but we reset the flag here)
+      tabRestorationDone.current = false;
+      // Re-read to ensure we have the latest after sync (sync already set state, but
+      // tabRestorationDone needs to be false before the render that triggers restoration)
+      const nbs = await listNotebooks();
       tabRestorationDone.current = false;
       setNotebooks(nbs);
-      const fileMap: Record<string, FileEntry[]> = {};
-      for (const nb of nbs) {
-        if (nb.sourceType === 'local' || !nb.sourceType) {
-          fileMap[nb.id] = await listFiles(nb.id);
-        }
-        // Remote notebooks load their tree on expand (lazy)
-      }
-      setFiles(fileMap);
     })();
   }, [userId]);
 
@@ -1630,6 +1632,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
+    syncNotebooksFromServer,
     restoreTabs,
     pendingPrs,
     /** Set the navigation callback for URL-based routing of link clicks */
