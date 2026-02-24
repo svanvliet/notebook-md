@@ -4515,7 +4515,7 @@ Created `FlagProvider` context replacing per-flag API calls with batch resolutio
 | File | Purpose |
 |------|---------|
 | `apps/api/migrations/007_flighting.sql` | Migration for all flighting tables |
-| `apps/api/src/services/featureFlags.ts` | Core resolution engine (5-step algorithm) |
+| `apps/api/src/services/featureFlags.ts` | Core resolution engine (4-step algorithm, v2) |
 | `apps/api/src/routes/admin.ts` | Groups, flights, overrides CRUD endpoints |
 | `apps/api/src/app.ts` | Batch flags endpoint, self-enrollment endpoints |
 | `apps/api/src/tests/flighting.test.ts` | Resolution engine + self-enrollment tests |
@@ -4534,7 +4534,7 @@ Created `FlagProvider` context replacing per-flag API calls with batch resolutio
 - 52 flighting-specific tests (24 resolution + 28 admin)
 - Admin app type checks clean
 
-**Status:** Phases 1–5 complete. v2 redesign pending.
+**Status:** All flighting phases (1–6) complete. Ready for production deployment planning.
 
 ### v2 Redesign Decision (2026-02-24)
 
@@ -4555,3 +4555,11 @@ After reviewing the implemented system, the rollout model was redesigned:
 - Migration: create GA flight for existing co-auth flags
 
 See updated `docs/requirements/flighting-requirements.md` (v2) and `docs/plans/flighting-plan.md` (Phase 6).
+
+### Phase 6 — v2 Redesign: Flight-Level Rollout
+
+Moved rollout_percentage from feature_flags to flights. Rewrote resolution engine to 4-step algorithm. Flags OFF by default unless delivered through a flight. Created migration 008, GA flight, seedFlagsWithGAFlight() test helper. All 332 tests pass.
+
+Commit: 6e4785e
+
+Status: All flighting phases (1-6) complete. Ready for production deployment planning.
