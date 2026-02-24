@@ -175,7 +175,9 @@ export default function FlightsPage({
                         <button onClick={e => { e.stopPropagation(); handleToggle(f); }} className={`text-xs hover:underline ${f.enabled ? 'text-red-600' : 'text-green-600'}`}>
                           {f.enabled ? 'Disable' : 'Enable'}
                         </button>
-                        <button onClick={e => { e.stopPropagation(); handleDelete(f.id); }} className="text-red-600 text-xs hover:underline">Delete</button>
+                        {!f.isPermanent && (
+                          <button onClick={e => { e.stopPropagation(); handleDelete(f.id); }} className="text-red-600 text-xs hover:underline">Delete</button>
+                        )}
                       </td>
                     </tr>
                   ))}

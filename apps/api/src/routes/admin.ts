@@ -722,11 +722,12 @@ router.get('/flights', async (_req: Request, res: Response) => {
     rollout_percentage: number;
     show_badge: boolean;
     badge_label: string;
+    is_permanent: boolean;
     created_at: Date;
     flag_count: string;
     assignment_count: string;
   }>(
-    `SELECT f.id, f.name, f.description, f.enabled, f.rollout_percentage, f.show_badge, f.badge_label, f.created_at,
+    `SELECT f.id, f.name, f.description, f.enabled, f.rollout_percentage, f.show_badge, f.badge_label, f.is_permanent, f.created_at,
             (SELECT count(*) FROM flight_flags ff WHERE ff.flight_id = f.id) as flag_count,
             (SELECT count(*) FROM flight_assignments fa WHERE fa.flight_id = f.id) as assignment_count
      FROM flights f
@@ -742,6 +743,7 @@ router.get('/flights', async (_req: Request, res: Response) => {
       rolloutPercentage: f.rollout_percentage,
       showBadge: f.show_badge,
       badgeLabel: f.badge_label,
+      isPermanent: f.is_permanent,
       createdAt: f.created_at,
       flagCount: Number(f.flag_count),
       assignmentCount: Number(f.assignment_count),
@@ -799,8 +801,9 @@ router.get('/flights/:id', async (req: Request, res: Response) => {
     rollout_percentage: number;
     show_badge: boolean;
     badge_label: string;
+    is_permanent: boolean;
     created_at: Date;
-  }>('SELECT id, name, description, enabled, rollout_percentage, show_badge, badge_label, created_at FROM flights WHERE id = $1', [req.params.id]);
+  }>('SELECT id, name, description, enabled, rollout_percentage, show_badge, badge_label, is_permanent, created_at FROM flights WHERE id = $1', [req.params.id]);
 
   if (flight.rows.length === 0) {
     res.status(404).json({ error: 'Flight not found' });
@@ -840,6 +843,7 @@ router.get('/flights/:id', async (req: Request, res: Response) => {
       rolloutPercentage: f.rollout_percentage,
       showBadge: f.show_badge,
       badgeLabel: f.badge_label,
+      isPermanent: f.is_permanent,
       createdAt: f.created_at,
     },
     flags: flags.rows.map(r => r.flag_key),
@@ -892,9 +896,13 @@ router.patch('/flights/:id', async (req: Request, res: Response) => {
 });
 
 router.delete('/flights/:id', async (req: Request, res: Response) => {
-  const existing = await query('SELECT id, name FROM flights WHERE id = $1', [req.params.id]);
+  const existing = await query<{ id: string; name: string; is_permanent: boolean }>('SELECT id, name, is_permanent FROM flights WHERE id = $1', [req.params.id]);
   if (existing.rows.length === 0) {
     res.status(404).json({ error: 'Flight not found' });
+    return;
+  }
+  if (existing.rows[0].is_permanent) {
+    res.status(403).json({ error: 'Cannot delete a permanent flight' });
     return;
   }
 

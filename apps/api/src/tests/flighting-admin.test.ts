@@ -173,6 +173,18 @@ describe('Flighting Admin API', () => {
       await request.get(`/admin/flights/${createRes.body.id}`).set('Cookie', adminCookies).expect(404);
     });
 
+    it('rejects deletion of a permanent flight', async () => {
+      const fRes = await query<{ id: string }>(
+        "INSERT INTO flights (name, is_permanent) VALUES ('Permanent Flight', true) RETURNING id",
+      );
+      const res = await request.delete(`/admin/flights/${fRes.rows[0].id}`).set('Cookie', adminCookies);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain('permanent');
+
+      // Verify it still exists
+      await request.get(`/admin/flights/${fRes.rows[0].id}`).set('Cookie', adminCookies).expect(200);
+    });
+
     it('adds and removes flags from a flight', async () => {
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('flag_a', true), ('flag_b', true)");
 
