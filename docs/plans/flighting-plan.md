@@ -498,15 +498,13 @@ No code changes to existing `requireFeature` or `useFeatureFlag` call sites — 
 
 ---
 
-## Open Questions
+## Open Questions (Resolved)
 
-The following questions may affect implementation details:
-
-1. **Admin user search for overrides/groups:** When adding a user to a group or creating an override, we need to search users by email. The existing admin API has `GET /admin/users?search=...` — is this sufficient, or do we need a lighter-weight search endpoint?
-
-2. **Cache TTL tuning:** The plan uses 30s server cache + 60s client poll. Is 90s max propagation delay acceptable for flag changes? The kill switch bypasses cache (flag `enabled = false` is checked fresh), but rollout/flight changes would take up to 90s to propagate.
-
-3. **Migration ordering:** The next migration number is `007`. Should this be a single migration file, or split into multiple (e.g., `007a_flighting_tables.sql`, `007b_flighting_indexes.sql`)? The plan assumes a single `007_flighting.sql`.
+| # | Question | Answer |
+|---|----------|--------|
+| 1 | Is the existing `GET /admin/users?search=...` sufficient for adding users to groups/overrides? | **Yes**, sufficient for now. |
+| 2 | Is 90s max propagation delay (30s server + 60s client) acceptable? | **Yes.** |
+| 3 | Single migration file or split? | **Single** `007_flighting.sql`. |
 
 ---
 
