@@ -98,7 +98,7 @@ export interface SaveLocationRequest {
 
 import type { ToastType } from './useToast';
 
-export type ToastFn = (message: string, type?: ToastType) => void;
+export type ToastFn = (message: string, type?: ToastType, action?: { label: string; onClick: () => void }) => void;
 
 export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDemoMode?: boolean) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
@@ -229,12 +229,18 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
               sharedBy: snb.ownerName,
               sharedPermission: snb.permission,
             });
-            toast?.(
-              snb.permission === 'viewer'
-                ? `Your access to "${snb.name}" was changed to Viewer`
-                : `Your access to "${snb.name}" was changed to Editor`,
-              'info',
-            );
+            if (snb.permission === 'viewer') {
+              toast?.(
+                `Your access to "${snb.name}" was changed to Viewer`,
+                'info',
+              );
+            } else {
+              toast?.(
+                `Your access to "${snb.name}" was changed to Editor.`,
+                'info',
+                { label: 'Refresh to edit', onClick: () => window.location.reload() },
+              );
+            }
           }
         }
 

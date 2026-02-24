@@ -47,7 +47,20 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       role="alert"
     >
       <span className={`text-sm font-bold mt-px shrink-0 ${style.iconColor}`}>{style.icon}</span>
-      <p className="text-sm text-gray-700 dark:text-gray-300 flex-1 leading-snug">{toast.message}</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300 flex-1 leading-snug">
+        {toast.message}
+        {toast.action && (
+          <>
+            {' '}
+            <button
+              onClick={toast.action.onClick}
+              className="text-blue-500 dark:text-blue-400 hover:underline font-medium"
+            >
+              {toast.action.label}
+            </button>
+          </>
+        )}
+      </p>
       <button
         onClick={onDismiss}
         className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 shrink-0 mt-px"
