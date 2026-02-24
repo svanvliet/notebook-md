@@ -663,6 +663,15 @@ export function NotebookTree({
                   PR
                 </span>
               )}
+              {nb.sourceType === 'cloud' && nb.hasShares && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShareTarget({ id: nb.id, name: nb.name }); }}
+                  className="shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                  title="Manage sharing"
+                >
+                  Shared
+                </button>
+              )}
             </div>
             {isExpanded && (
               <div>
@@ -716,11 +725,8 @@ export function NotebookTree({
                   <ChevronRightIcon className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                   <SourceIcon sourceType={nb.sourceType ?? 'local'} className="w-4 h-4 shrink-0" />
                   <span className="truncate flex-1">{nb.name}</span>
-                  <span className="ml-auto shrink-0 text-[10px] text-gray-400 dark:text-gray-500" title={`Shared by ${nb.sharedBy}`}>
-                    {nb.sharedBy}
-                  </span>
-                  <span className="shrink-0 text-[10px] font-medium text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1 py-0.5 rounded">
-                    {nb.sharedPermission === 'viewer' ? 'View' : 'Edit'}
+                  <span className="shrink-0 text-[10px] font-medium text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1 py-0.5 rounded cursor-default" title={`Owner: ${nb.sharedBy}`}>
+                    {nb.sharedPermission === 'viewer' ? 'Viewer' : 'Editor'}
                   </span>
                 </div>
                 {isExpanded && (
