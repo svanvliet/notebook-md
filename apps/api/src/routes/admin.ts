@@ -4,6 +4,7 @@ import { healthCheck } from '../db/pool.js';
 import { redisHealthCheck } from '../lib/redis.js';
 import { auditLog } from '../lib/audit.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { clearFlagCache, resolveAllFlags } from '../services/featureFlags.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -334,36 +335,692 @@ router.get('/feature-flags', async (_req: Request, res: Response) => {
     key: string;
     enabled: boolean;
     description: string | null;
+    rollout_percentage: number;
+    variants: string[] | null;
+    stale_at: Date | null;
     updated_at: Date;
-  }>('SELECT key, enabled, description, updated_at FROM feature_flags ORDER BY key');
+  }>('SELECT key, enabled, description, rollout_percentage, variants, stale_at, updated_at FROM feature_flags ORDER BY key');
 
-  res.json({ flags: result.rows });
+  res.json({
+    flags: result.rows.map(f => ({
+      key: f.key,
+      enabled: f.enabled,
+      description: f.description,
+      rolloutPercentage: f.rollout_percentage,
+      variants: f.variants,
+      staleAt: f.stale_at,
+      updatedAt: f.updated_at,
+    })),
+  });
 });
 
 router.post('/feature-flags', async (req: Request, res: Response) => {
-  const { key, enabled, description } = req.body;
+  const { key, enabled, description, rolloutPercentage, variants, staleAt } = req.body;
 
   if (!key || typeof key !== 'string') {
     res.status(400).json({ error: 'Key is required' });
     return;
   }
 
+  const pct = rolloutPercentage !== undefined ? Math.min(100, Math.max(0, Number(rolloutPercentage))) : 100;
+
   await query(
-    `INSERT INTO feature_flags (key, enabled, description)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (key) DO UPDATE SET enabled = $2, description = $3, updated_at = now()`,
-    [key, enabled ?? false, description ?? null],
+    `INSERT INTO feature_flags (key, enabled, description, rollout_percentage, variants, stale_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (key) DO UPDATE SET enabled = $2, description = $3, rollout_percentage = $4, variants = $5, stale_at = $6, updated_at = now()`,
+    [key, enabled ?? false, description ?? null, pct, variants ?? null, staleAt ?? null],
   );
+
+  clearFlagCache();
 
   await auditLog({
     userId: req.userId!,
     action: 'admin_action',
-    details: { type: 'feature_flag_updated', key, enabled: enabled ?? false },
+    details: { type: 'feature_flag_updated', key, enabled: enabled ?? false, rolloutPercentage: pct },
     ipAddress: getClientIp(req),
     userAgent: req.headers['user-agent'],
   });
 
   res.json({ message: 'Feature flag saved' });
+});
+
+// ── Feature Flag Overrides ────────────────────────────────────────────────────
+
+router.get('/feature-flags/:key/overrides', async (req: Request, res: Response) => {
+  const result = await query<{
+    user_id: string;
+    enabled: boolean;
+    variant: string | null;
+    reason: string | null;
+    expires_at: Date | null;
+    created_at: Date;
+    email: string | null;
+    display_name: string | null;
+  }>(
+    `SELECT fo.user_id, fo.enabled, fo.variant, fo.reason, fo.expires_at, fo.created_at, u.email, u.display_name
+     FROM flag_overrides fo
+     LEFT JOIN users u ON fo.user_id = u.id
+     WHERE fo.flag_key = $1
+     ORDER BY fo.created_at DESC`,
+    [req.params.key],
+  );
+
+  res.json({
+    overrides: result.rows.map(o => ({
+      userId: o.user_id,
+      email: o.email,
+      displayName: o.display_name,
+      enabled: o.enabled,
+      variant: o.variant,
+      reason: o.reason,
+      expiresAt: o.expires_at,
+      createdAt: o.created_at,
+    })),
+  });
+});
+
+router.post('/feature-flags/:key/overrides', async (req: Request, res: Response) => {
+  const { userId, enabled, variant, reason, expiresAt } = req.body;
+  const flagKey = req.params.key;
+
+  if (!userId) {
+    res.status(400).json({ error: 'userId is required' });
+    return;
+  }
+
+  // Verify flag exists
+  const flag = await query('SELECT key FROM feature_flags WHERE key = $1', [flagKey]);
+  if (flag.rows.length === 0) {
+    res.status(404).json({ error: 'Flag not found' });
+    return;
+  }
+
+  await query(
+    `INSERT INTO flag_overrides (flag_key, user_id, enabled, variant, reason, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (flag_key, user_id) DO UPDATE SET enabled = $3, variant = $4, reason = $5, expires_at = $6`,
+    [flagKey, userId, enabled ?? true, variant ?? null, reason ?? null, expiresAt ?? null],
+  );
+
+  clearFlagCache(userId);
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flag_override_created', flagKey, targetUserId: userId, enabled: enabled ?? true },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Override saved' });
+});
+
+router.delete('/feature-flags/:key/overrides/:userId', async (req: Request, res: Response) => {
+  const { key, userId } = req.params;
+
+  const result = await query('DELETE FROM flag_overrides WHERE flag_key = $1 AND user_id = $2', [key, userId]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Override not found' });
+    return;
+  }
+
+  clearFlagCache(userId);
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flag_override_deleted', flagKey: key, targetUserId: userId },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Override deleted' });
+});
+
+// ── User Flag Resolution ─────────────────────────────────────────────────────
+
+router.get('/users/:id/flags', async (req: Request, res: Response) => {
+  const targetId = req.params.id;
+
+  const user = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [targetId]);
+  if (user.rows.length === 0) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  // Temporarily clear cache for fresh resolution
+  clearFlagCache(targetId);
+  const flags = await resolveAllFlags(targetId, user.rows[0].email);
+
+  res.json({ flags });
+});
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+
+router.get('/groups', async (_req: Request, res: Response) => {
+  const result = await query<{
+    id: string;
+    name: string;
+    description: string | null;
+    allow_self_enroll: boolean;
+    email_domain: string | null;
+    created_at: Date;
+    member_count: string;
+  }>(
+    `SELECT g.id, g.name, g.description, g.allow_self_enroll, g.email_domain, g.created_at,
+            (SELECT count(*) FROM user_group_members ugm WHERE ugm.group_id = g.id) as member_count
+     FROM user_groups g
+     ORDER BY g.name`,
+  );
+
+  res.json({
+    groups: result.rows.map(g => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      allowSelfEnroll: g.allow_self_enroll,
+      emailDomain: g.email_domain,
+      createdAt: g.created_at,
+      memberCount: Number(g.member_count),
+    })),
+  });
+});
+
+router.post('/groups', async (req: Request, res: Response) => {
+  const { name, description, allowSelfEnroll, emailDomain } = req.body;
+
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: 'Name is required' });
+    return;
+  }
+
+  const result = await query<{ id: string }>(
+    `INSERT INTO user_groups (name, description, allow_self_enroll, email_domain, created_by)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [name, description ?? null, allowSelfEnroll ?? false, emailDomain ?? null, req.userId],
+  );
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'group_created', groupId: result.rows[0].id, name },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.status(201).json({ id: result.rows[0].id, message: 'Group created' });
+});
+
+router.get('/groups/:id', async (req: Request, res: Response) => {
+  const group = await query<{
+    id: string;
+    name: string;
+    description: string | null;
+    allow_self_enroll: boolean;
+    email_domain: string | null;
+    created_at: Date;
+  }>('SELECT id, name, description, allow_self_enroll, email_domain, created_at FROM user_groups WHERE id = $1', [req.params.id]);
+
+  if (group.rows.length === 0) {
+    res.status(404).json({ error: 'Group not found' });
+    return;
+  }
+
+  const members = await query<{
+    user_id: string;
+    email: string;
+    display_name: string | null;
+    added_at: Date;
+  }>(
+    `SELECT ugm.user_id, u.email, u.display_name, ugm.added_at
+     FROM user_group_members ugm
+     JOIN users u ON ugm.user_id = u.id
+     WHERE ugm.group_id = $1
+     ORDER BY ugm.added_at DESC`,
+    [req.params.id],
+  );
+
+  const g = group.rows[0];
+  res.json({
+    group: {
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      allowSelfEnroll: g.allow_self_enroll,
+      emailDomain: g.email_domain,
+      createdAt: g.created_at,
+    },
+    members: members.rows.map(m => ({
+      userId: m.user_id,
+      email: m.email,
+      displayName: m.display_name,
+      addedAt: m.added_at,
+    })),
+  });
+});
+
+router.patch('/groups/:id', async (req: Request, res: Response) => {
+  const { name, description, allowSelfEnroll, emailDomain } = req.body;
+
+  const existing = await query('SELECT id FROM user_groups WHERE id = $1', [req.params.id]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Group not found' });
+    return;
+  }
+
+  await query(
+    `UPDATE user_groups SET
+       name = COALESCE($1, name),
+       description = COALESCE($2, description),
+       allow_self_enroll = COALESCE($3, allow_self_enroll),
+       email_domain = $4,
+       updated_at = now()
+     WHERE id = $5`,
+    [name ?? null, description ?? null, allowSelfEnroll ?? null, emailDomain !== undefined ? emailDomain : null, req.params.id],
+  );
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'group_updated', groupId: req.params.id },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Group updated' });
+});
+
+router.delete('/groups/:id', async (req: Request, res: Response) => {
+  const existing = await query('SELECT id, name FROM user_groups WHERE id = $1', [req.params.id]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Group not found' });
+    return;
+  }
+
+  await query('DELETE FROM user_groups WHERE id = $1', [req.params.id]);
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'group_deleted', groupId: req.params.id },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Group deleted' });
+});
+
+router.post('/groups/:id/members', async (req: Request, res: Response) => {
+  const { userIds } = req.body;
+  const groupId = req.params.id;
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    res.status(400).json({ error: 'userIds array is required' });
+    return;
+  }
+
+  const existing = await query('SELECT id FROM user_groups WHERE id = $1', [groupId]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Group not found' });
+    return;
+  }
+
+  let added = 0;
+  for (const uid of userIds) {
+    const result = await query(
+      `INSERT INTO user_group_members (group_id, user_id, added_by)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [groupId, uid, req.userId],
+    );
+    added += result.rowCount ?? 0;
+  }
+
+  // Clear cache for all added users
+  for (const uid of userIds) clearFlagCache(uid);
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'group_members_added', groupId, count: added },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: `${added} member(s) added` });
+});
+
+router.delete('/groups/:id/members/:userId', async (req: Request, res: Response) => {
+  const { id: groupId, userId } = req.params;
+
+  const result = await query('DELETE FROM user_group_members WHERE group_id = $1 AND user_id = $2', [groupId, userId]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Member not found' });
+    return;
+  }
+
+  clearFlagCache(userId);
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'group_member_removed', groupId, targetUserId: userId },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Member removed' });
+});
+
+// ── Flights ──────────────────────────────────────────────────────────────────
+
+router.get('/flights', async (_req: Request, res: Response) => {
+  const result = await query<{
+    id: string;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+    show_badge: boolean;
+    badge_label: string;
+    created_at: Date;
+    flag_count: string;
+    assignment_count: string;
+  }>(
+    `SELECT f.id, f.name, f.description, f.enabled, f.show_badge, f.badge_label, f.created_at,
+            (SELECT count(*) FROM flight_flags ff WHERE ff.flight_id = f.id) as flag_count,
+            (SELECT count(*) FROM flight_assignments fa WHERE fa.flight_id = f.id) as assignment_count
+     FROM flights f
+     ORDER BY f.name`,
+  );
+
+  res.json({
+    flights: result.rows.map(f => ({
+      id: f.id,
+      name: f.name,
+      description: f.description,
+      enabled: f.enabled,
+      showBadge: f.show_badge,
+      badgeLabel: f.badge_label,
+      createdAt: f.created_at,
+      flagCount: Number(f.flag_count),
+      assignmentCount: Number(f.assignment_count),
+    })),
+  });
+});
+
+router.post('/flights', async (req: Request, res: Response) => {
+  const { name, description, flagKeys, showBadge, badgeLabel } = req.body;
+
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: 'Name is required' });
+    return;
+  }
+
+  const result = await query<{ id: string }>(
+    `INSERT INTO flights (name, description, show_badge, badge_label, created_by)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [name, description ?? null, showBadge ?? false, badgeLabel ?? 'Beta', req.userId],
+  );
+
+  const flightId = result.rows[0].id;
+
+  // Add flags if provided
+  if (Array.isArray(flagKeys) && flagKeys.length > 0) {
+    for (const fk of flagKeys) {
+      await query(
+        'INSERT INTO flight_flags (flight_id, flag_key) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [flightId, fk],
+      );
+    }
+  }
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_created', flightId, name, flagKeys: flagKeys ?? [] },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.status(201).json({ id: flightId, message: 'Flight created' });
+});
+
+router.get('/flights/:id', async (req: Request, res: Response) => {
+  const flight = await query<{
+    id: string;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+    show_badge: boolean;
+    badge_label: string;
+    created_at: Date;
+  }>('SELECT id, name, description, enabled, show_badge, badge_label, created_at FROM flights WHERE id = $1', [req.params.id]);
+
+  if (flight.rows.length === 0) {
+    res.status(404).json({ error: 'Flight not found' });
+    return;
+  }
+
+  const flags = await query<{ flag_key: string }>(
+    'SELECT flag_key FROM flight_flags WHERE flight_id = $1 ORDER BY flag_key',
+    [req.params.id],
+  );
+
+  const assignments = await query<{
+    id: string;
+    group_id: string | null;
+    user_id: string | null;
+    assigned_at: Date;
+    group_name: string | null;
+    email: string | null;
+  }>(
+    `SELECT fa.id, fa.group_id, fa.user_id, fa.assigned_at,
+            g.name as group_name, u.email
+     FROM flight_assignments fa
+     LEFT JOIN user_groups g ON fa.group_id = g.id
+     LEFT JOIN users u ON fa.user_id = u.id
+     WHERE fa.flight_id = $1
+     ORDER BY fa.assigned_at DESC`,
+    [req.params.id],
+  );
+
+  const f = flight.rows[0];
+  res.json({
+    flight: {
+      id: f.id,
+      name: f.name,
+      description: f.description,
+      enabled: f.enabled,
+      showBadge: f.show_badge,
+      badgeLabel: f.badge_label,
+      createdAt: f.created_at,
+    },
+    flags: flags.rows.map(r => r.flag_key),
+    assignments: assignments.rows.map(a => ({
+      id: a.id,
+      groupId: a.group_id,
+      groupName: a.group_name,
+      userId: a.user_id,
+      email: a.email,
+      assignedAt: a.assigned_at,
+    })),
+  });
+});
+
+router.patch('/flights/:id', async (req: Request, res: Response) => {
+  const { name, description, enabled, showBadge, badgeLabel } = req.body;
+
+  const existing = await query('SELECT id FROM flights WHERE id = $1', [req.params.id]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Flight not found' });
+    return;
+  }
+
+  await query(
+    `UPDATE flights SET
+       name = COALESCE($1, name),
+       description = COALESCE($2, description),
+       enabled = COALESCE($3, enabled),
+       show_badge = COALESCE($4, show_badge),
+       badge_label = COALESCE($5, badge_label),
+       updated_at = now()
+     WHERE id = $6`,
+    [name ?? null, description ?? null, enabled ?? null, showBadge ?? null, badgeLabel ?? null, req.params.id],
+  );
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_updated', flightId: req.params.id },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Flight updated' });
+});
+
+router.delete('/flights/:id', async (req: Request, res: Response) => {
+  const existing = await query('SELECT id, name FROM flights WHERE id = $1', [req.params.id]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Flight not found' });
+    return;
+  }
+
+  await query('DELETE FROM flights WHERE id = $1', [req.params.id]);
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_deleted', flightId: req.params.id },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Flight deleted' });
+});
+
+router.post('/flights/:id/flags', async (req: Request, res: Response) => {
+  const { flagKeys } = req.body;
+  const flightId = req.params.id;
+
+  if (!Array.isArray(flagKeys) || flagKeys.length === 0) {
+    res.status(400).json({ error: 'flagKeys array is required' });
+    return;
+  }
+
+  const existing = await query('SELECT id FROM flights WHERE id = $1', [flightId]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Flight not found' });
+    return;
+  }
+
+  let added = 0;
+  for (const fk of flagKeys) {
+    const result = await query(
+      'INSERT INTO flight_flags (flight_id, flag_key) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [flightId, fk],
+    );
+    added += result.rowCount ?? 0;
+  }
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_flags_added', flightId, flagKeys, added },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: `${added} flag(s) added` });
+});
+
+router.delete('/flights/:id/flags/:key', async (req: Request, res: Response) => {
+  const { id: flightId, key } = req.params;
+
+  const result = await query('DELETE FROM flight_flags WHERE flight_id = $1 AND flag_key = $2', [flightId, key]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Flag not assigned to this flight' });
+    return;
+  }
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_flag_removed', flightId, flagKey: key },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Flag removed from flight' });
+});
+
+router.post('/flights/:id/assign', async (req: Request, res: Response) => {
+  const { groupId, userId } = req.body;
+  const flightId = req.params.id;
+
+  if (!groupId && !userId) {
+    res.status(400).json({ error: 'groupId or userId is required' });
+    return;
+  }
+
+  const existing = await query('SELECT id FROM flights WHERE id = $1', [flightId]);
+  if (existing.rows.length === 0) {
+    res.status(404).json({ error: 'Flight not found' });
+    return;
+  }
+
+  const result = await query<{ id: string }>(
+    `INSERT INTO flight_assignments (flight_id, group_id, user_id, assigned_by)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [flightId, groupId ?? null, userId ?? null, req.userId],
+  );
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_assignment_created', flightId, groupId, targetUserId: userId },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.status(201).json({ id: result.rows[0].id, message: 'Assignment created' });
+});
+
+router.delete('/flights/:id/assignments/:assignmentId', async (req: Request, res: Response) => {
+  const { assignmentId } = req.params;
+
+  const result = await query('DELETE FROM flight_assignments WHERE id = $1', [assignmentId]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Assignment not found' });
+    return;
+  }
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'flight_assignment_deleted', assignmentId },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'Assignment removed' });
 });
 
 // ── Announcements ────────────────────────────────────────────────────────────
