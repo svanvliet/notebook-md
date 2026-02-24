@@ -361,8 +361,14 @@ case "${1:-start}" in
     DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd" \
       node apps/api/cli/promote-admin.js "$2"
     ;;
+  flighting)
+    echo -e "${YELLOW}⚡ Flighting mode: DEV_FLIGHTING=true${NC}"
+    echo -e "  Feature flags will resolve via flights/groups (not auto-enabled)"
+    export DEV_FLIGHTING=true
+    do_start
+    ;;
   *)
-    echo "Usage: ./dev.sh [start|stop|status|logs|promote-admin <email>]"
+    echo "Usage: ./dev.sh [start|stop|status|logs|flighting|promote-admin <email>]"
     exit 1
     ;;
 esac
