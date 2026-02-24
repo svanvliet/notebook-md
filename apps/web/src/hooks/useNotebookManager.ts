@@ -380,8 +380,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       } catch (err) {
         // Silently ignore access denied for shared notebooks (revoked access)
         if (nb.sharedBy && (err as any).status === 403) {
-          // Revoked access — remove the stale notebook entirely
-          await deleteNb(notebookId);
+          // Revoked access — remove from React state (sync IIFE handles IndexedDB cleanup)
           setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
           setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
           setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
@@ -951,8 +950,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           setTabs((prev) => prev.filter((t) => t.id !== tabId));
           // Silently handle access denied for shared notebooks (revoked access)
           if (nb.sharedBy && (err as any).status === 403) {
-            // Revoked — remove notebook from state
-            await deleteNb(notebookId);
+            // Revoked — remove from React state (sync IIFE handles IndexedDB)
             setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
             setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
             setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
