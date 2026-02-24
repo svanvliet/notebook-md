@@ -755,53 +755,71 @@ export function NotebookTree({
           className="fixed bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 min-w-[160px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          {contextMenu.target.kind === 'notebook' ? (
-            <>
-              <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'file'); setContextMenu(null); }} />
-              <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'folder'); setContextMenu(null); }} />
-              <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'notebook') onImportFile(contextMenu.target.id, ''); setContextMenu(null); }} />
-              {onRefreshNotebook && (
-                <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { if (contextMenu.target.kind === 'notebook') onRefreshNotebook(contextMenu.target.id); setContextMenu(null); }} />
-              )}
-              {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sourceType === 'cloud' && !nb.sharedBy ? (
-                <CtxItem icon={<ShareIcon />} label={nb.hasShares ? 'Manage Sharing' : 'Share…'} onClick={() => { if (nb) { setShareTarget({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
-              ) : null; })()}
-              {(() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); return nb?.sharedBy ? (
+          {(() => {
+            const ctxNbId = contextMenu.target.kind === 'notebook' ? contextMenu.target.id : contextMenu.target.notebookId;
+            const ctxNb = notebooks.find((n) => n.id === ctxNbId);
+            const isViewer = ctxNb?.sharedPermission === 'viewer';
+
+            if (contextMenu.target.kind === 'notebook') {
+              return (
                 <>
-                  <CtxDivider />
-                  <CtxItem icon={<TrashIcon />} label="Leave Shared Notebook" danger onClick={() => { if (nb) { setLeaveConfirm({ id: nb.id, name: nb.name }); setContextMenu(null); } }} />
+                  {!isViewer && (
+                    <>
+                      <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { onCreateFile(ctxNbId, '', 'file'); setContextMenu(null); }} />
+                      <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { onCreateFile(ctxNbId, '', 'folder'); setContextMenu(null); }} />
+                      <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { onImportFile(ctxNbId, ''); setContextMenu(null); }} />
+                    </>
+                  )}
+                  {onRefreshNotebook && (
+                    <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { onRefreshNotebook(ctxNbId); setContextMenu(null); }} />
+                  )}
+                  {ctxNb?.sourceType === 'cloud' && !ctxNb.sharedBy && (
+                    <CtxItem icon={<ShareIcon />} label={ctxNb.hasShares ? 'Manage Sharing' : 'Share…'} onClick={() => { setShareTarget({ id: ctxNb.id, name: ctxNb.name }); setContextMenu(null); }} />
+                  )}
+                  {ctxNb?.sharedBy ? (
+                    <>
+                      <CtxDivider />
+                      <CtxItem icon={<TrashIcon />} label="Leave Shared Notebook" danger onClick={() => { setLeaveConfirm({ id: ctxNb.id, name: ctxNb.name }); setContextMenu(null); }} />
+                    </>
+                  ) : (
+                    <>
+                      <CtxDivider />
+                      <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { if (ctxNb) startRename('notebook', ctxNb.id, ctxNb.name); }} />
+                      <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { onDeleteNotebook(ctxNbId); setContextMenu(null); }} />
+                    </>
+                  )}
                 </>
-              ) : (
+              );
+            } else {
+              return (
                 <>
-                  <CtxDivider />
-                  <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { if (nb) startRename('notebook', nb.id, nb.name); }} />
-                  <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
+                  {contextMenu.target.fileType === 'folder' && !isViewer && (
+                    <>
+                      <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
+                      <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
+                      <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'file') onImportFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
+                      <CtxDivider />
+                    </>
+                  )}
+                  {!isViewer && (
+                    <>
+                      <CtxItem
+                        icon={<RenameIcon />}
+                        label={t('notebook.rename')}
+                        onClick={() => {
+                          if (contextMenu.target.kind === 'file') {
+                            const name = contextMenu.target.path.split('/').pop() ?? '';
+                            startRename('file', `${contextMenu.target.notebookId}:${contextMenu.target.path}`, name);
+                          }
+                        }}
+                      />
+                      <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'file') onDeleteFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
+                    </>
+                  )}
                 </>
-              ); })()}
-            </>
-          ) : (
-            <>
-              {contextMenu.target.fileType === 'folder' && (
-                <>
-                  <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
-                  <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
-                  <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'file') onImportFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
-                  <CtxDivider />
-                </>
-              )}
-              <CtxItem
-                icon={<RenameIcon />}
-                label={t('notebook.rename')}
-                onClick={() => {
-                  if (contextMenu.target.kind === 'file') {
-                    const name = contextMenu.target.path.split('/').pop() ?? '';
-                    startRename('file', `${contextMenu.target.notebookId}:${contextMenu.target.path}`, name);
-                  }
-                }}
-              />
-              <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'file') onDeleteFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
-            </>
-          )}
+              );
+            }
+          })()}
         </div>
       )}
 
