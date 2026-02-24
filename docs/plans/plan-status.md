@@ -4311,3 +4311,41 @@ Moved Cloud source type to appear right after Local (was last). Order is now: Lo
 | `apps/web/src/stores/localNotebookStore.ts` | Added `hasShares?: boolean` to NotebookMeta interface |
 
 **Status:** ✅ Share UX polish complete — owner-only sharing, manage label, leave flow all wired.
+
+---
+
+### Session Entry — 2026-02-24: Viewer Permission Enforcement
+
+**Problem:** Three bugs reported after sharing a notebook and changing a member from Editor to Viewer:
+1. Members with same display name were indistinguishable in the Share dialog
+2. Changing a member's role to Viewer didn't enforce read-only — user could still edit, save, create files
+3. API had no permission checks on cloud file write/create/delete operations
+
+**What was done:**
+
+1. **Member email display** — Added email address in parentheses next to display name in the Share dialog members tab, so users with the same name are distinguishable.
+
+2. **Client-side read-only enforcement:**
+   - `readOnly` flag in App.tsx now checks `notebook?.sharedPermission === 'viewer'` (was only checking pending PRs)
+   - TipTap editor becomes non-editable for viewer tabs (via existing `editable: !readOnly` path)
+   - Context menu hides New File, New Folder, Import, Rename, Delete items for viewers
+   - Viewers see only Refresh in notebook context menu, and no write actions on files
+
+3. **API-side permission enforcement:**
+   - Added `requireCloudEditor` middleware in `sources.ts` that checks notebook ownership or editor-level share permission
+   - Applied to PUT (save), POST (create), DELETE (delete) routes for cloud provider
+   - Viewers receive `403 Viewers cannot modify files` on any write attempt
+   - Owners always pass; shared editors pass; viewers and non-members are blocked
+
+| Commit | Description |
+|--------|-------------|
+| `02f3b09` | Enforce viewer permissions: read-only editor, hidden write actions, API guard |
+
+| File | Change |
+|------|--------|
+| `apps/web/src/components/notebook/ShareNotebookModal.tsx` | Show email alongside display name for members |
+| `apps/web/src/App.tsx` | `readOnly` now includes `sharedPermission === 'viewer'` check |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Refactored context menu: compute `isViewer`, hide write actions for viewers |
+| `apps/api/src/routes/sources.ts` | Added `requireCloudEditor` middleware on PUT/POST/DELETE cloud file routes |
+
+**Status:** ✅ Viewer permission enforcement complete — server + client both enforce read-only for viewers.
