@@ -7,6 +7,7 @@ interface ShareNotebookModalProps {
   notebookId: string;
   notebookName: string;
   onClose: () => void;
+  initialTab?: Tab;
 }
 
 type Tab = 'invite' | 'members' | 'links';
@@ -27,8 +28,8 @@ interface ShareLink {
   createdAt: string;
 }
 
-export default function ShareNotebookModal({ notebookId, notebookName, onClose }: ShareNotebookModalProps) {
-  const [tab, setTab] = useState<Tab>('invite');
+export default function ShareNotebookModal({ notebookId, notebookName, onClose, initialTab }: ShareNotebookModalProps) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'invite');
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState<'editor' | 'viewer'>('editor');
   const [members, setMembers] = useState<Member[]>([]);
