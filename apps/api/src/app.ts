@@ -151,8 +151,8 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 });
 
-import { isFeatureEnabled, resolveAllFlags } from './services/featureFlags.js';
-import { optionalAuth } from './middleware/auth.js';
+import { isFeatureEnabled, resolveAllFlags, clearFlagCache } from './services/featureFlags.js';
+import { optionalAuth, requireAuth } from './middleware/auth.js';
 
 app.use('/auth', authRoutes);
 app.use('/auth/2fa', twoFactorRoutes);
@@ -219,6 +219,60 @@ app.get('/api/flags', optionalAuth, async (req, res) => {
     flags[key] = { enabled: resolved.enabled, variant: resolved.variant, badge: resolved.badge };
   }
   res.json({ flags });
+});
+
+// ── Self-enrollment groups (user-facing) ─────────────────────────────────────
+
+app.get('/api/groups/joinable', requireAuth, async (req, res) => {
+  const { query: dbQuery } = await import('./db/pool.js');
+  const result = await dbQuery<{
+    id: string;
+    name: string;
+    description: string | null;
+    is_member: boolean;
+  }>(
+    `SELECT g.id, g.name, g.description,
+            EXISTS(SELECT 1 FROM user_group_members ugm WHERE ugm.group_id = g.id AND ugm.user_id = $1) as is_member
+     FROM user_groups g
+     WHERE g.allow_self_enroll = true
+     ORDER BY g.name`,
+    [req.userId],
+  );
+  res.json({
+    groups: result.rows.map(g => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      isMember: g.is_member,
+    })),
+  });
+});
+
+app.post('/api/groups/:id/join', requireAuth, async (req, res) => {
+  const { query: dbQuery } = await import('./db/pool.js');
+  const group = await dbQuery<{ allow_self_enroll: boolean }>(
+    'SELECT allow_self_enroll FROM user_groups WHERE id = $1',
+    [req.params.id],
+  );
+  if (group.rows.length === 0) { res.status(404).json({ error: 'Group not found' }); return; }
+  if (!group.rows[0].allow_self_enroll) { res.status(403).json({ error: 'This group does not allow self-enrollment' }); return; }
+
+  await dbQuery(
+    'INSERT INTO user_group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [req.params.id, req.userId],
+  );
+  clearFlagCache(req.userId!);
+  res.json({ message: 'Joined group' });
+});
+
+app.post('/api/groups/:id/leave', requireAuth, async (req, res) => {
+  const { query: dbQuery } = await import('./db/pool.js');
+  await dbQuery(
+    'DELETE FROM user_group_members WHERE group_id = $1 AND user_id = $2',
+    [req.params.id, req.userId],
+  );
+  clearFlagCache(req.userId!);
+  res.json({ message: 'Left group' });
 });
 
 // Error handler (must be last)
