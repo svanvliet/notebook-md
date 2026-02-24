@@ -17,6 +17,8 @@ export interface UseCollaborationResult {
   ydoc: Y.Doc | null;
   isConnected: boolean;
   isSynced: boolean;
+  /** True when the hook is actively trying to establish a collab connection */
+  isAttempting: boolean;
   connectedUsers: CollabUser[];
   error: string | null;
 }
@@ -138,11 +140,15 @@ export function useCollaboration(
     };
   }, [notebookId, documentPath, collabEnabled]);
 
+  // Collab is being attempted when we have a doc to connect to AND the flag is on
+  const isAttempting = !!(notebookId && documentPath && collabEnabled);
+
   return {
     provider: providerRef.current,
     ydoc: ydocRef.current,
     isConnected,
     isSynced,
+    isAttempting,
     connectedUsers,
     error,
   };
