@@ -47,6 +47,12 @@ router.post('/notebooks/:id/invites', requireAuth, requireFeature('cloud_sharing
 
 // GET /api/cloud/notebooks/:id/invites — List pending invites
 router.get('/notebooks/:id/invites', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+  // Verify caller is notebook owner
+  const notebook = await query<{ user_id: string }>('SELECT user_id FROM notebooks WHERE id = $1', [req.params.id]);
+  if (notebook.rows.length === 0 || notebook.rows[0].user_id !== req.userId!) {
+    res.status(403).json({ error: 'Only the notebook owner can view invites' });
+    return;
+  }
   const members = await getMembers(req.params.id);
   const pending = members.filter(m => !m.accepted);
   res.json({ invites: pending });
@@ -54,6 +60,12 @@ router.get('/notebooks/:id/invites', requireAuth, requireFeature('cloud_sharing'
 
 // DELETE /api/cloud/notebooks/:id/invites/:inviteId — Revoke pending invite
 router.delete('/notebooks/:id/invites/:inviteId', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+  // Verify caller is notebook owner
+  const notebook = await query<{ user_id: string }>('SELECT user_id FROM notebooks WHERE id = $1', [req.params.id]);
+  if (notebook.rows.length === 0 || notebook.rows[0].user_id !== req.userId!) {
+    res.status(403).json({ error: 'Only the notebook owner can revoke invites' });
+    return;
+  }
   await query(
     'UPDATE notebook_shares SET revoked_at = now() WHERE id = $1 AND notebook_id = $2',
     [req.params.inviteId, req.params.id],
@@ -82,9 +94,20 @@ router.get('/notebooks/:id/members', requireAuth, requireFeature('cloud_sharing'
      WHERE n.id = $1`,
     [req.params.id],
   );
-  const members = await getMembers(req.params.id);
   const owner = ownerResult.rows[0];
-  const ownerEntry = owner ? {
+  if (!owner) { res.status(404).json({ error: 'Notebook not found' }); return; }
+
+  // Verify caller is owner or active member
+  if (owner.user_id !== req.userId!) {
+    const share = await query<{ id: string }>(
+      'SELECT id FROM notebook_shares WHERE notebook_id = $1 AND shared_with_user_id = $2 AND revoked_at IS NULL AND accepted_at IS NOT NULL',
+      [req.params.id, req.userId!],
+    );
+    if (share.rows.length === 0) { res.status(403).json({ error: 'Access denied' }); return; }
+  }
+
+  const members = await getMembers(req.params.id);
+  const ownerEntry = {
     id: 'owner',
     userId: owner.user_id,
     email: owner.email,
@@ -92,8 +115,8 @@ router.get('/notebooks/:id/members', requireAuth, requireFeature('cloud_sharing'
     avatarUrl: owner.avatar_url,
     permission: 'owner',
     accepted: true,
-  } : null;
-  res.json({ members: ownerEntry ? [ownerEntry, ...members.filter(m => m.userId !== owner.user_id)] : members });
+  };
+  res.json({ members: [ownerEntry, ...members.filter(m => m.userId !== owner.user_id)] });
 });
 
 // PATCH /api/cloud/notebooks/:id/members/:userId — Change role

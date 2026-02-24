@@ -8,18 +8,36 @@ import { decrypt } from '../lib/encryption.js';
 
 const router = Router();
 
+// Helper: check if user is owner or has an active share on a notebook
+async function hasNotebookAccess(notebookId: string, userId: string): Promise<{ hasAccess: boolean; permission: string }> {
+  const owner = await query<{ user_id: string }>('SELECT user_id FROM notebooks WHERE id = $1', [notebookId]);
+  if (owner.rows.length > 0 && owner.rows[0].user_id === userId) {
+    return { hasAccess: true, permission: 'owner' };
+  }
+  const share = await query<{ permission: string }>(
+    'SELECT permission FROM notebook_shares WHERE notebook_id = $1 AND shared_with_user_id = $2 AND revoked_at IS NULL AND accepted_at IS NOT NULL',
+    [notebookId, userId],
+  );
+  if (share.rows.length > 0) {
+    return { hasAccess: true, permission: share.rows[0].permission };
+  }
+  return { hasAccess: false, permission: '' };
+}
+
+// Helper: check if user is owner or has access via a document's notebook
+async function hasDocumentAccess(docId: string, userId: string): Promise<{ hasAccess: boolean; permission: string }> {
+  const doc = await query<{ notebook_id: string }>('SELECT notebook_id FROM cloud_documents WHERE id = $1', [docId]);
+  if (doc.rows.length === 0) return { hasAccess: false, permission: '' };
+  return hasNotebookAccess(doc.rows[0].notebook_id, userId);
+}
+
 // GET /api/cloud/notebooks/:id/export — Download as .zip
 router.get('/notebooks/:id/export', requireAuth, requireFeature('cloud_notebooks'), async (req: Request, res: Response) => {
   const notebookId = req.params.id;
 
   // Verify access (owner or shared member)
-  const access = await query<{ permission: string }>(
-    `SELECT permission FROM notebook_shares
-     WHERE notebook_id = $1 AND shared_with_user_id = $2 AND revoked_at IS NULL`,
-    [notebookId, req.userId!],
-  );
-
-  if (access.rows.length === 0) {
+  const { hasAccess } = await hasNotebookAccess(notebookId, req.userId!);
+  if (!hasAccess) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
@@ -67,15 +85,9 @@ router.get('/documents/:docId/versions', requireAuth, requireFeature('cloud_note
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
   const offset = (page - 1) * limit;
 
-  // Verify access via document → notebook → shares
-  const access = await query<{ id: string }>(
-    `SELECT cd.id FROM cloud_documents cd
-     JOIN notebook_shares ns ON cd.notebook_id = ns.notebook_id
-     WHERE cd.id = $1 AND ns.shared_with_user_id = $2 AND ns.revoked_at IS NULL`,
-    [docId, req.userId!],
-  );
-
-  if (access.rows.length === 0) {
+  // Verify access via document → notebook (owner or shared member)
+  const { hasAccess } = await hasDocumentAccess(docId, req.userId!);
+  if (!hasAccess) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
@@ -122,14 +134,8 @@ router.get('/documents/:docId/versions/:versionId', requireAuth, requireFeature(
   const { docId, versionId } = req.params;
 
   // Verify access
-  const access = await query<{ id: string }>(
-    `SELECT cd.id FROM cloud_documents cd
-     JOIN notebook_shares ns ON cd.notebook_id = ns.notebook_id
-     WHERE cd.id = $1 AND ns.shared_with_user_id = $2 AND ns.revoked_at IS NULL`,
-    [docId, req.userId!],
-  );
-
-  if (access.rows.length === 0) {
+  const { hasAccess } = await hasDocumentAccess(docId, req.userId!);
+  if (!hasAccess) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
@@ -153,19 +159,13 @@ router.post('/documents/:docId/versions/:versionId/restore', requireAuth, requir
   const { docId, versionId } = req.params;
 
   // Verify editor access
-  const access = await query<{ permission: string }>(
-    `SELECT ns.permission FROM cloud_documents cd
-     JOIN notebook_shares ns ON cd.notebook_id = ns.notebook_id
-     WHERE cd.id = $1 AND ns.shared_with_user_id = $2 AND ns.revoked_at IS NULL`,
-    [docId, req.userId!],
-  );
-
-  if (access.rows.length === 0) {
+  const { hasAccess, permission } = await hasDocumentAccess(docId, req.userId!);
+  if (!hasAccess) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
 
-  if (access.rows[0].permission === 'viewer') {
+  if (permission === 'viewer') {
     res.status(403).json({ error: 'Viewers cannot restore versions' });
     return;
   }
