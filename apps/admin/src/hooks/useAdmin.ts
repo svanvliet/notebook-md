@@ -88,6 +88,7 @@ interface Flight {
   rolloutPercentage: number;
   showBadge: boolean;
   badgeLabel: string;
+  isPermanent: boolean;
   createdAt: string;
   flagCount: number;
   assignmentCount: number;
