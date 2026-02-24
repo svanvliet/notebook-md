@@ -335,4 +335,65 @@ describe('Flighting — Resolution Engine', () => {
       clearFlagCache();
     });
   });
+
+  describe('Self-enrollment groups', () => {
+    it('GET /api/groups/joinable returns self-enroll groups', async () => {
+      await query(
+        "INSERT INTO user_groups (name, description, allow_self_enroll) VALUES ('Open Beta', 'Join for beta features', true)",
+      );
+      await query(
+        "INSERT INTO user_groups (name, description, allow_self_enroll) VALUES ('Closed Group', 'Admin only', false)",
+      );
+
+      const res = await request.get('/api/groups/joinable').set('Cookie', userACookies);
+      expect(res.status).toBe(200);
+      expect(res.body.groups).toHaveLength(1);
+      expect(res.body.groups[0].name).toBe('Open Beta');
+      expect(res.body.groups[0].isMember).toBe(false);
+
+      // Clean up
+      await query('DELETE FROM user_groups');
+    });
+
+    it('POST /api/groups/:id/join and leave', async () => {
+      const groupRes = await query<{ id: string }>(
+        "INSERT INTO user_groups (name, allow_self_enroll) VALUES ('Joinable', true) RETURNING id",
+      );
+      const groupId = groupRes.rows[0].id;
+
+      // Join
+      const joinRes = await request.post(`/api/groups/${groupId}/join`).set('Cookie', userACookies).send({});
+      expect(joinRes.status).toBe(200);
+
+      // Verify membership
+      let listRes = await request.get('/api/groups/joinable').set('Cookie', userACookies);
+      expect(listRes.body.groups[0].isMember).toBe(true);
+
+      // Leave
+      const leaveRes = await request.post(`/api/groups/${groupId}/leave`).set('Cookie', userACookies).send({});
+      expect(leaveRes.status).toBe(200);
+
+      listRes = await request.get('/api/groups/joinable').set('Cookie', userACookies);
+      expect(listRes.body.groups[0].isMember).toBe(false);
+
+      await query('DELETE FROM user_groups');
+    });
+
+    it('rejects join on non-self-enroll group', async () => {
+      const groupRes = await query<{ id: string }>(
+        "INSERT INTO user_groups (name, allow_self_enroll) VALUES ('Closed', false) RETURNING id",
+      );
+      const groupId = groupRes.rows[0].id;
+
+      const res = await request.post(`/api/groups/${groupId}/join`).set('Cookie', userACookies).send({});
+      expect(res.status).toBe(403);
+
+      await query('DELETE FROM user_groups');
+    });
+
+    it('requires authentication', async () => {
+      const res = await request.get('/api/groups/joinable');
+      expect(res.status).toBe(401);
+    });
+  });
 });
