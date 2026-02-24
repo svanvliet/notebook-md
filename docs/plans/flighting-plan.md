@@ -3,7 +3,7 @@
 **Requirements:** `docs/requirements/flighting-requirements.md`  
 **Branch:** `feature/flighting` (based on `feature/co-auth`)  
 **Date:** 2026-02-24  
-**Status:** Planning
+**Status:** ✅ Complete (all 5 phases)
 
 ---
 
@@ -126,9 +126,9 @@ CREATE INDEX IF NOT EXISTS idx_flight_assignments_user ON flight_assignments(use
 
 ### Exit Criteria
 
-- [ ] Migration runs cleanly on fresh DB and on existing DB with cloud flags
-- [ ] Existing 277+ API tests pass (no schema breakage)
-- [ ] All 6 existing cloud flags have `rollout_percentage = 100`, `variants = NULL`
+- [x] Migration runs cleanly on fresh DB and on existing DB with cloud flags
+- [x] Existing 277+ API tests pass (no schema breakage)
+- [x] All 6 existing cloud flags have `rollout_percentage = 100`, `variants = NULL`
 
 ---
 
@@ -208,13 +208,13 @@ Test cases:
 
 ### Exit Criteria
 
-- [ ] `resolveAllFlags` returns correct results for all priority levels
-- [ ] `requireFeature` now checks per-user (existing routes still work)
-- [ ] `GET /api/flags` batch endpoint works for auth and unauth users
-- [ ] `GET /api/feature-flags/:key` backward compatible
-- [ ] Deterministic rollout hashing verified
-- [ ] DEV_FLIGHTING toggle works
-- [ ] All new tests pass + all existing 277+ tests pass
+- [x] `resolveAllFlags` returns correct results for all priority levels
+- [x] `requireFeature` now checks per-user (existing routes still work)
+- [x] `GET /api/flags` batch endpoint works for auth and unauth users
+- [x] `GET /api/feature-flags/:key` backward compatible
+- [x] Deterministic rollout hashing verified
+- [x] DEV_FLIGHTING toggle works
+- [x] All new tests pass + all existing 277+ tests pass
 
 ---
 
@@ -297,14 +297,14 @@ Test CRUD operations for groups, flights, overrides. Verify audit log entries. T
 
 ### Exit Criteria
 
-- [ ] Groups CRUD works (create, list, detail, update, delete, add/remove members)
-- [ ] Flights CRUD works (create, list, detail, update, delete, add/remove flags, assign/unassign)
-- [ ] Overrides CRUD works (create, list, delete per flag+user)
-- [ ] Enhanced flag update accepts rolloutPercentage
-- [ ] User flag resolution diagnostic returns sources
-- [ ] All mutations logged to audit log
-- [ ] Cache invalidation works (flag change → immediate effect on next resolve)
-- [ ] All tests pass
+- [x] Groups CRUD works (create, list, detail, update, delete, add/remove members)
+- [x] Flights CRUD works (create, list, detail, update, delete, add/remove flags, assign/unassign)
+- [x] Overrides CRUD works (create, list, delete per flag+user)
+- [x] Enhanced flag update accepts rolloutPercentage
+- [x] User flag resolution diagnostic returns sources
+- [x] All mutations logged to audit log
+- [x] Cache invalidation works (flag change → immediate effect on next resolve)
+- [x] All tests pass
 
 ---
 
@@ -386,11 +386,11 @@ Add routes:
 
 ### Exit Criteria
 
-- [ ] Groups page: list, create, view detail, add/remove members
-- [ ] Flights page: list, create, view detail, manage flags and assignments
-- [ ] Feature flags page: rollout percentage editable, overrides visible
-- [ ] User detail: shows resolved flags with sources
-- [ ] All admin actions work end-to-end (UI → API → DB → resolution change)
+- [x] Groups page: list, create, view detail, add/remove members
+- [x] Flights page: list, create, view detail, manage flags and assignments
+- [x] Feature flags page: rollout percentage editable, overrides visible
+- [x] User detail: shows resolved flags with sources
+- [x] All admin actions work end-to-end (UI → API → DB → resolution change)
 
 ---
 
@@ -458,13 +458,13 @@ This is opt-in per component — no automatic badge injection.
 
 ### Exit Criteria
 
-- [ ] FlagProvider fetches all flags in a single API call
-- [ ] `useFeatureFlag` works from context (no per-flag API calls)
-- [ ] `useFeatureVariant` returns badge and variant data
-- [ ] Self-enrollment API works (join/leave groups)
-- [ ] Account settings shows joinable groups
-- [ ] Existing `useFeatureFlag` call sites work unchanged
-- [ ] All tests pass
+- [x] FlagProvider fetches all flags in a single API call
+- [x] `useFeatureFlag` works from context (no per-flag API calls)
+- [x] `useFeatureVariant` returns badge and variant data
+- [x] Self-enrollment API works (join/leave groups)
+- [x] Account settings shows joinable groups
+- [x] Existing `useFeatureFlag` call sites work unchanged
+- [x] All tests pass
 
 ---
 

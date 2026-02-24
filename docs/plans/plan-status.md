@@ -4456,3 +4456,82 @@ Added 10 new API tests for the in-app invite flow:
 | `apps/web/src/api/cloud.ts` | HTTP status attached to errors |
 
 **Status:** ✅ All Phase 3 exit criteria met except "Account sharing management page" (deferred to Phase 6). Phases 4 and 5 were completed in prior sessions. **All Phases 0–5 are functionally complete.**
+
+---
+
+## Flighting System Implementation
+
+**Branch:** `feature/flighting` (based on `feature/co-auth`)  
+**Plan:** `docs/plans/flighting-plan.md`  
+**Requirements:** `docs/requirements/flighting-requirements.md`  
+**Date:** 2026-02-24
+
+### Overview
+
+Evolved the basic boolean feature flag system into a full flighting platform with per-user resolution, groups, flights, percentage rollout, admin UI, and self-enrollment — maintaining backward compatibility with all existing call sites.
+
+### Phase 1 — Database Schema ✅
+
+Created migration `007_flighting.sql` with 6 new tables: `flag_overrides`, `user_groups`, `user_group_members`, `flights`, `flight_flags`, `flight_assignments`. Extended `feature_flags` with `rollout_percentage`, `variants`, `stale_at`.
+
+| Commit | Description |
+|--------|-------------|
+| `6f24dda` | Phase 1: Add flighting database schema |
+
+### Phase 2 — Resolution Engine ✅
+
+Rewrote `featureFlags.ts` with a 5-step priority resolution algorithm: kill switch → per-user override → flight assignment → rollout % → global default. Added FNV-1a hash for deterministic rollout bucketing, batch `GET /api/flags` endpoint, `optionalAuth` on flag endpoints for per-user resolution, server-side cache with 30s TTL. 20 test cases.
+
+| Commit | Description |
+|--------|-------------|
+| `dd30511` | Phase 2: Add flighting resolution engine with batch API |
+
+### Phase 3 — Admin API ✅
+
+Added comprehensive CRUD endpoints for groups, flights, overrides behind admin auth. Enhanced feature flag listing/creation with rollout percentage and variants. User flag resolution diagnostic (`GET /admin/users/:id/flags`). Cache invalidation on all mutations. Full audit logging. 28 new admin tests.
+
+| Commit | Description |
+|--------|-------------|
+| `a7739b6` | Phase 3: Add flighting admin API |
+
+### Phase 4 — Admin UI ✅
+
+Created `GroupsPage.tsx` and `FlightsPage.tsx` with full CRUD, detail panels, and assignment management. Enhanced `FeatureFlagsPage.tsx` with rollout % selector and overrides panel. Added Groups and Flights to sidebar navigation. Extended `useAdmin.ts` with 15 new API functions and 6 new types.
+
+| Commit | Description |
+|--------|-------------|
+| `a1c19d5` | Phase 4: Add admin UI for groups, flights, and enhanced feature flags |
+
+### Phase 5 — Frontend & User-Facing ✅
+
+Created `FlagProvider` context replacing per-flag API calls with batch resolution and 90s polling. `useFlag()` and `useFlagBadge()` hooks. Self-enrollment API endpoints (`/api/groups/joinable`, `join`, `leave`). "Beta Programs" section in AccountModal. 4 new self-enrollment tests (329 total, all pass).
+
+| Commit | Description |
+|--------|-------------|
+| `8706435` | Phase 5: Add FlagProvider, self-enrollment, and Beta Programs UI |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `apps/api/migrations/007_flighting.sql` | Migration for all flighting tables |
+| `apps/api/src/services/featureFlags.ts` | Core resolution engine (5-step algorithm) |
+| `apps/api/src/routes/admin.ts` | Groups, flights, overrides CRUD endpoints |
+| `apps/api/src/app.ts` | Batch flags endpoint, self-enrollment endpoints |
+| `apps/api/src/tests/flighting.test.ts` | Resolution engine + self-enrollment tests |
+| `apps/api/src/tests/flighting-admin.test.ts` | Admin API tests |
+| `apps/web/src/hooks/useFlagProvider.tsx` | FlagProvider context + hooks |
+| `apps/web/src/hooks/useFeatureFlag.ts` | Backward-compatible wrapper |
+| `apps/web/src/components/account/AccountModal.tsx` | Beta Programs section |
+| `apps/admin/src/pages/GroupsPage.tsx` | Groups management page |
+| `apps/admin/src/pages/FlightsPage.tsx` | Flights management page |
+| `apps/admin/src/pages/FeatureFlagsPage.tsx` | Enhanced with rollout % and overrides |
+| `apps/admin/src/hooks/useAdmin.ts` | Extended with 15 new API functions |
+
+### Test Summary
+
+- 329 total API tests (all pass)
+- 52 flighting-specific tests (24 resolution + 28 admin)
+- Admin app type checks clean
+
+**Status:** ✅ All 5 phases complete. Flighting system is ready for use.
