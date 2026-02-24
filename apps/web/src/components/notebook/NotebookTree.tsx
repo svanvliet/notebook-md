@@ -167,7 +167,7 @@ export function NotebookTree({
   onLeaveNotebook,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
-  const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string; initialTab?: 'invite' | 'members' | 'links' } | null>(null);
   const [leaveConfirm, setLeaveConfirm] = useState<{ id: string; name: string } | null>(null);
   // Restore tree expansion state from sessionStorage
   const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(() => {
@@ -665,7 +665,7 @@ export function NotebookTree({
               )}
               {nb.sourceType === 'cloud' && nb.hasShares && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); setShareTarget({ id: nb.id, name: nb.name }); }}
+                  onClick={(e) => { e.stopPropagation(); setShareTarget({ id: nb.id, name: nb.name, initialTab: 'members' }); }}
                   className="shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
                   title="Manage sharing"
                 >
@@ -725,7 +725,7 @@ export function NotebookTree({
                   <ChevronRightIcon className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                   <SourceIcon sourceType={nb.sourceType ?? 'local'} className="w-4 h-4 shrink-0" />
                   <span className="truncate flex-1">{nb.name}</span>
-                  <span className="shrink-0 text-[10px] font-medium text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1 py-0.5 rounded cursor-default" title={`Owner: ${nb.sharedBy}`}>
+                  <span className="shrink-0 text-[10px] font-medium text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded cursor-default" title={`Owner: ${nb.sharedBy}`}>
                     {nb.sharedPermission === 'viewer' ? 'Viewer' : 'Editor'}
                   </span>
                 </div>
@@ -834,6 +834,7 @@ export function NotebookTree({
           <ShareNotebookModal
             notebookId={shareTarget.id}
             notebookName={shareTarget.name}
+            initialTab={shareTarget.initialTab}
             onClose={() => setShareTarget(null)}
           />
         </Suspense>
