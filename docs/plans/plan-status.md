@@ -4563,3 +4563,9 @@ Moved rollout_percentage from feature_flags to flights. Rewrote resolution engin
 Commit: 6e4785e
 
 Status: All flighting phases (1-6) complete. Ready for production deployment planning.
+
+### Permanent Flights Guard
+
+Added is_permanent column to flights table (migration 009). GA flight marked as permanent. API returns 403 on delete attempts, admin UI hides Delete button for permanent flights. 32 admin tests pass.
+
+Commit: b7c689f
