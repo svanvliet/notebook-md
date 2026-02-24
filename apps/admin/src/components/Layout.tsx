@@ -4,9 +4,11 @@ import type { AdminUser } from '../hooks/useAdmin';
 const navItems = [
   { to: '/', label: 'Dashboard', icon: '📊' },
   { to: '/users', label: 'Users', icon: '👤' },
-  { to: '/audit-log', label: 'Audit Log', icon: '📋' },
   { to: '/feature-flags', label: 'Feature Flags', icon: '🚩' },
+  { to: '/groups', label: 'Groups', icon: '👥' },
+  { to: '/flights', label: 'Flights', icon: '✈️' },
   { to: '/announcements', label: 'Announcements', icon: '📢' },
+  { to: '/audit-log', label: 'Audit Log', icon: '📋' },
 ];
 
 export default function Layout({
