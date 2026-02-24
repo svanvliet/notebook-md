@@ -11,7 +11,11 @@ export interface CloudFileEntry {
 export async function listCloudTree(notebookId: string): Promise<CloudFileEntry[]> {
   const params = new URLSearchParams({ root: notebookId });
   const res = await apiFetch(`/api/sources/cloud/tree?${params.toString()}`);
-  if (!res.ok) throw new Error('Failed to load cloud files');
+  if (!res.ok) {
+    const err = new Error('Failed to load cloud files');
+    (err as any).status = res.status;
+    throw err;
+  }
   const data = await res.json();
   return data.entries ?? [];
 }
