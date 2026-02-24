@@ -377,7 +377,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         // Silently ignore access denied for shared notebooks (revoked access)
         const msg = (err as Error).message;
         if (nb.sharedBy && (msg.includes('403') || msg.includes('Access denied'))) {
-          setFiles((prev) => ({ ...prev, [notebookId]: [] }));
+          // Revoked access — remove the stale notebook entirely
+          await deleteNb(notebookId);
+          setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
+          setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
+          setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
         } else {
           toast?.(`Failed to load files: ${msg}`, 'error');
         }
@@ -944,7 +948,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           setTabs((prev) => prev.filter((t) => t.id !== tabId));
           // Silently handle access denied for shared notebooks (revoked access)
           const msg = (err as Error).message;
-          if (!(nb.sharedBy && (msg.includes('403') || msg.includes('Access denied')))) {
+          if (nb.sharedBy && (msg.includes('403') || msg.includes('Access denied'))) {
+            // Revoked — remove notebook from state
+            await deleteNb(notebookId);
+            setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
+            setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
+            setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
+          } else {
             toast?.(`Failed to open file: ${msg}`, 'error');
           }
         }
