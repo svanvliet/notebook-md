@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { request, cleanDb, closeDb, signUp } from './helpers.js';
 import { query } from '../db/pool.js';
+import { clearFlagCache } from '../services/featureFlags.js';
 
 describe('Feature Flags', () => {
   beforeAll(async () => {
@@ -9,6 +10,7 @@ describe('Feature Flags', () => {
 
   beforeEach(async () => {
     await query('DELETE FROM feature_flags');
+    clearFlagCache();
   });
 
   afterAll(async () => {

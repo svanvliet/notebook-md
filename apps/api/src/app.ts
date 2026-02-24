@@ -151,7 +151,8 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 });
 
-import { isFeatureEnabled } from './services/featureFlags.js';
+import { isFeatureEnabled, resolveAllFlags } from './services/featureFlags.js';
+import { optionalAuth } from './middleware/auth.js';
 
 app.use('/auth', authRoutes);
 app.use('/auth/2fa', twoFactorRoutes);
@@ -202,10 +203,22 @@ app.use('/api/public', publicShareRouter);
 app.use('/admin', adminRoutes);
 
 // Feature flag check (public — used by web client to gate UI)
-app.get('/api/feature-flags/:key', async (req, res) => {
+app.get('/api/feature-flags/:key', optionalAuth, async (req, res) => {
   const key = req.params.key as string;
-  const enabled = await isFeatureEnabled(key);
+  const enabled = await isFeatureEnabled(key, req.userId ?? null);
   res.json({ key, enabled });
+});
+
+// Batch flag resolution (returns all flags for the current user)
+app.get('/api/flags', optionalAuth, async (req, res) => {
+  const userId = req.userId ?? null;
+  const allFlags = await resolveAllFlags(userId);
+  // Only return enabled flags and their metadata (omit disabled flags for security)
+  const flags: Record<string, { enabled: boolean; variant: string | null; badge: string | null }> = {};
+  for (const [key, resolved] of Object.entries(allFlags)) {
+    flags[key] = { enabled: resolved.enabled, variant: resolved.variant, badge: resolved.badge };
+  }
+  res.json({ flags });
 });
 
 // Error handler (must be last)
