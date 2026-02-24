@@ -20,6 +20,7 @@ describe('Sharing & Permissions (Phase 3)', () => {
     await seedFlagsWithGAFlight([
       { key: 'cloud_notebooks' },
       { key: 'cloud_sharing' },
+      { key: 'cloud_collab' },
     ]);
     clearFlagCache();
 

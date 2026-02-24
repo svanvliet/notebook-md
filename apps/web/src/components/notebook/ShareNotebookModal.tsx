@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { XIcon } from '../icons/Icons';
+import { useFlag } from '../../hooks/useFlagProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -29,9 +30,10 @@ interface ShareLink {
 }
 
 export default function ShareNotebookModal({ notebookId, notebookName, onClose, initialTab }: ShareNotebookModalProps) {
+  const collabEnabled = useFlag('cloud_collab');
   const [tab, setTab] = useState<Tab>(initialTab ?? 'invite');
   const [email, setEmail] = useState('');
-  const [permission, setPermission] = useState<'editor' | 'viewer'>('editor');
+  const [permission, setPermission] = useState<'editor' | 'viewer'>(collabEnabled ? 'editor' : 'viewer');
   const [members, setMembers] = useState<Member[]>([]);
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [sending, setSending] = useState(false);
@@ -164,11 +166,12 @@ export default function ShareNotebookModal({ notebookId, notebookName, onClose, 
                 className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
               <select
-                value={permission}
+                value={collabEnabled ? permission : 'viewer'}
                 onChange={e => setPermission(e.target.value as 'editor' | 'viewer')}
-                className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={!collabEnabled}
+                className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
               >
-                <option value="editor">Editor</option>
+                {collabEnabled && <option value="editor">Editor</option>}
                 <option value="viewer">Viewer</option>
               </select>
               <button
@@ -200,9 +203,10 @@ export default function ShareNotebookModal({ notebookId, notebookName, onClose, 
                       <select
                         value={m.permission}
                         onChange={e => changeRole(m.userId, e.target.value)}
-                        className="text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-1 py-0.5"
+                        disabled={!collabEnabled}
+                        className="text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-1 py-0.5 disabled:opacity-50"
                       >
-                        <option value="editor">Editor</option>
+                        {collabEnabled && <option value="editor">Editor</option>}
                         <option value="viewer">Viewer</option>
                       </select>
                       <button
