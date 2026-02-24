@@ -247,7 +247,7 @@ export function DocumentPane({
                 <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
               </div>
             </div>
-          ) : cloudDoc && !collab.provider ? (
+          ) : collab.isAttempting && !collab.provider ? (
             /* Cloud doc — wait for collab provider to connect before mounting editor */
             <div
               className="py-10 animate-pulse"
