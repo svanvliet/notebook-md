@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import * as Y from 'yjs';
+import { useFlag } from './useFlagProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -30,6 +31,7 @@ export function useCollaboration(
   documentPath: string | null,
   currentUser?: { name: string; color?: string },
 ): UseCollaborationResult {
+  const collabEnabled = useFlag('cloud_collab');
   const [isConnected, setIsConnected] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
   const [connectedUsers, setConnectedUsers] = useState<CollabUser[]>([]);
@@ -38,7 +40,7 @@ export function useCollaboration(
   const ydocRef = useRef<Y.Doc | null>(null);
 
   useEffect(() => {
-    if (!notebookId || !documentPath) {
+    if (!notebookId || !documentPath || !collabEnabled) {
       return;
     }
 
@@ -134,7 +136,7 @@ export function useCollaboration(
       setConnectedUsers([]);
       setError(null);
     };
-  }, [notebookId, documentPath]);
+  }, [notebookId, documentPath, collabEnabled]);
 
   return {
     provider: providerRef.current,
