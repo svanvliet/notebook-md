@@ -5,7 +5,7 @@ interface FlightsPageProps {
   getFlights: () => Promise<{ flights: Flight[] }>;
   createFlight: (data: { name: string; description?: string; flagKeys?: string[]; showBadge?: boolean; badgeLabel?: string }) => Promise<{ id: string }>;
   getFlight: (id: string) => Promise<{ flight: Flight; flags: string[]; assignments: FlightAssignment[] }>;
-  updateFlight: (id: string, data: { name?: string; description?: string; enabled?: boolean; showBadge?: boolean; badgeLabel?: string }) => Promise<{ message: string }>;
+  updateFlight: (id: string, data: { name?: string; description?: string; enabled?: boolean; showBadge?: boolean; badgeLabel?: string; rolloutPercentage?: number }) => Promise<{ message: string }>;
   deleteFlight: (id: string) => Promise<{ message: string }>;
   addFlightFlags: (id: string, flagKeys: string[]) => Promise<{ message: string }>;
   removeFlightFlag: (flightId: string, flagKey: string) => Promise<{ message: string }>;
@@ -149,6 +149,7 @@ export default function FlightsPage({
                   <tr>
                     <th className="text-left px-4 py-2 font-medium">Name</th>
                     <th className="text-left px-4 py-2 font-medium">Status</th>
+                    <th className="text-left px-4 py-2 font-medium">Rollout</th>
                     <th className="text-left px-4 py-2 font-medium">Flags</th>
                     <th className="text-left px-4 py-2 font-medium">Assignments</th>
                     <th className="text-left px-4 py-2 font-medium">Badge</th>
@@ -164,6 +165,7 @@ export default function FlightsPage({
                           {f.enabled ? 'Active' : 'Disabled'}
                         </span>
                       </td>
+                      <td className="px-4 py-2 text-xs font-mono">{f.rolloutPercentage}%</td>
                       <td className="px-4 py-2">{f.flagCount}</td>
                       <td className="px-4 py-2">{f.assignmentCount}</td>
                       <td className="px-4 py-2">
@@ -189,6 +191,25 @@ export default function FlightsPage({
             <div>
               <h3 className="font-semibold">{detail.flight.name}</h3>
               {detail.flight.description && <p className="text-sm text-gray-500">{detail.flight.description}</p>}
+            </div>
+
+            {/* Rollout % */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">Rollout Percentage</h4>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range" min={0} max={100} step={5}
+                  value={detail.flight.rolloutPercentage}
+                  onChange={e => {
+                    const pct = Number(e.target.value);
+                    setDetail(prev => prev ? { ...prev, flight: { ...prev.flight, rolloutPercentage: pct } } : prev);
+                  }}
+                  onMouseUp={() => { if (selectedId) updateFlight(selectedId, { rolloutPercentage: detail.flight.rolloutPercentage }).then(() => load()); }}
+                  className="flex-1"
+                />
+                <span className="text-sm font-mono w-10 text-right">{detail.flight.rolloutPercentage}%</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">0% = group-assigned only · 100% = all users</p>
             </div>
 
             {/* Flags */}

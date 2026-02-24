@@ -7,7 +7,7 @@ export interface ResolvedFlag {
   enabled: boolean;
   variant: string | null;
   badge: string | null;
-  source: 'kill_switch' | 'override' | 'flight' | 'rollout' | 'rollout_excluded' | 'global' | 'dev_default';
+  source: 'kill_switch' | 'override' | 'flight' | 'rollout' | 'not_delivered' | 'dev_default';
 }
 
 // ── In-memory cache ──────────────────────────────────────────────────────
@@ -27,8 +27,8 @@ export function clearFlagCache(userId?: string) {
 // ── Deterministic hash for rollout bucketing ─────────────────────────────
 
 /** FNV-1a 32-bit hash → bucket 0–99 */
-function getUserBucket(flagKey: string, userId: string): number {
-  const str = `${flagKey}:${userId}`;
+function getUserBucket(key: string, userId: string): number {
+  const str = `${key}:${userId}`;
   let hash = 0x811c9dc5; // FNV offset basis
   for (let i = 0; i < str.length; i++) {
     hash ^= str.charCodeAt(i);
@@ -52,7 +52,8 @@ function isDevAutoEnable(): boolean {
 
 /**
  * Resolve all feature flags for a given user.
- * When userId is null/undefined, only global resolution is performed.
+ * Flags are OFF by default unless delivered through a flight.
+ * When userId is null/undefined, only dev-default or not_delivered is returned.
  */
 export async function resolveAllFlags(userId?: string | null, userEmail?: string | null): Promise<Record<string, ResolvedFlag>> {
   // Check cache
@@ -66,29 +67,26 @@ export async function resolveAllFlags(userId?: string | null, userEmail?: string
   const flagsResult = await query<{
     key: string;
     enabled: boolean;
-    rollout_percentage: number;
-    variants: string[] | null;
-  }>('SELECT key, enabled, rollout_percentage, variants FROM feature_flags ORDER BY key');
+  }>('SELECT key, enabled FROM feature_flags ORDER BY key');
 
   const result: Record<string, ResolvedFlag> = {};
 
-  if (!userId) {
-    // Anonymous: only globally-enabled flags at 100% rollout
+  // Dev auto-enable: all flags ON
+  if (isDevAutoEnable()) {
     for (const f of flagsResult.rows) {
-      if (isDevAutoEnable()) {
-        result[f.key] = { enabled: true, variant: null, badge: null, source: 'dev_default' };
-      } else if (f.enabled && f.rollout_percentage === 100) {
-        result[f.key] = { enabled: true, variant: null, badge: null, source: 'global' };
-      }
+      result[f.key] = { enabled: true, variant: null, badge: null, source: 'dev_default' };
     }
     resolvedCache.set(cacheKey, { result, fetchedAt: Date.now() });
     return result;
   }
 
-  // Dev auto-enable: skip full resolution
-  if (isDevAutoEnable()) {
+  if (!userId) {
+    // Anonymous: no flags delivered (no user to resolve against)
     for (const f of flagsResult.rows) {
-      result[f.key] = { enabled: true, variant: null, badge: null, source: 'dev_default' };
+      if (!f.enabled) {
+        result[f.key] = { enabled: false, variant: null, badge: null, source: 'kill_switch' };
+      }
+      // Don't include not_delivered flags for anon — they just won't appear
     }
     resolvedCache.set(cacheKey, { result, fetchedAt: Date.now() });
     return result;
@@ -109,28 +107,51 @@ export async function resolveAllFlags(userId?: string | null, userEmail?: string
   // Resolve user email if not provided
   const resolvedEmail = userEmail ?? (await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [userId])).rows[0]?.email;
 
-  // Fetch flight-enabled flags for this user (via direct assignment, group membership, or domain match)
+  // Fetch all flights that deliver flags to this user
+  // A flight delivers to a user if:
+  //   (a) user is directly assigned, OR
+  //   (b) user is in an assigned group (explicit membership or domain match), OR
+  //   (c) flight has rollout_percentage > 0 and user hashes into the bucket
   const flightResult = await query<{
     flag_key: string;
+    flight_name: string;
     show_badge: boolean;
     badge_label: string;
+    rollout_percentage: number;
+    is_assigned: boolean;
   }>(
-    `SELECT DISTINCT ON (ff.flag_key) ff.flag_key, f.show_badge, f.badge_label
+    `SELECT
+       ff.flag_key,
+       f.name as flight_name,
+       f.show_badge,
+       f.badge_label,
+       f.rollout_percentage,
+       EXISTS(
+         SELECT 1 FROM flight_assignments fa
+         WHERE fa.flight_id = f.id
+           AND (
+             fa.user_id = $1
+             OR fa.group_id IN (
+               SELECT group_id FROM user_group_members WHERE user_id = $1
+               UNION
+               SELECT id FROM user_groups WHERE email_domain IS NOT NULL AND $2 LIKE '%@' || email_domain
+             )
+           )
+       ) as is_assigned
      FROM flight_flags ff
      JOIN flights f ON ff.flight_id = f.id
-     JOIN flight_assignments fa ON fa.flight_id = f.id
      WHERE f.enabled = true
-       AND (
-         fa.user_id = $1
-         OR fa.group_id IN (
-           SELECT group_id FROM user_group_members WHERE user_id = $1
-           UNION
-           SELECT id FROM user_groups WHERE email_domain IS NOT NULL AND $2 LIKE '%@' || email_domain
-         )
-       )`,
+     ORDER BY ff.flag_key, f.name`,
     [userId, resolvedEmail ?? ''],
   );
-  const flightFlags = new Map(flightResult.rows.map(r => [r.flag_key, r]));
+
+  // Group flight entries by flag_key
+  const flightsByFlag = new Map<string, typeof flightResult.rows>();
+  for (const row of flightResult.rows) {
+    const arr = flightsByFlag.get(row.flag_key) ?? [];
+    arr.push(row);
+    flightsByFlag.set(row.flag_key, arr);
+  }
 
   // Resolve each flag
   for (const f of flagsResult.rows) {
@@ -147,31 +168,43 @@ export async function resolveAllFlags(userId?: string | null, userEmail?: string
       continue;
     }
 
-    // Step 3: Flight assignment (bypasses rollout per D1)
-    const flight = flightFlags.get(f.key);
-    if (flight) {
-      result[f.key] = {
-        enabled: true,
-        variant: null,
-        badge: flight.show_badge ? flight.badge_label : null,
-        source: 'flight',
-      };
-      continue;
-    }
+    // Step 3: Flight delivery
+    const flights = flightsByFlag.get(f.key);
+    if (flights) {
+      let delivered = false;
+      for (const flight of flights) {
+        // 3a: Targeted assignment (group/user/domain)
+        if (flight.is_assigned) {
+          result[f.key] = {
+            enabled: true,
+            variant: null,
+            badge: flight.show_badge ? flight.badge_label : null,
+            source: 'flight',
+          };
+          delivered = true;
+          break;
+        }
 
-    // Step 4: Percentage rollout
-    if (f.rollout_percentage < 100) {
-      const bucket = getUserBucket(f.key, userId);
-      if (bucket < f.rollout_percentage) {
-        result[f.key] = { enabled: true, variant: null, badge: null, source: 'rollout' };
-      } else {
-        result[f.key] = { enabled: false, variant: null, badge: null, source: 'rollout_excluded' };
+        // 3b: Flight rollout percentage
+        if (flight.rollout_percentage > 0) {
+          const bucket = getUserBucket(flight.flight_name, userId);
+          if (bucket < flight.rollout_percentage) {
+            result[f.key] = {
+              enabled: true,
+              variant: null,
+              badge: flight.show_badge ? flight.badge_label : null,
+              source: 'rollout',
+            };
+            delivered = true;
+            break;
+          }
+        }
       }
-      continue;
+      if (delivered) continue;
     }
 
-    // Step 5: Global default (enabled + 100% rollout)
-    result[f.key] = { enabled: true, variant: null, badge: null, source: 'global' };
+    // Step 4: Not delivered
+    result[f.key] = { enabled: false, variant: null, badge: null, source: 'not_delivered' };
   }
 
   resolvedCache.set(cacheKey, { result, fetchedAt: Date.now() });

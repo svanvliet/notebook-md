@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { request, signUp, cleanDb, closeDb } from './helpers.js';
+import { request, signUp, cleanDb, closeDb, seedFlagsWithGAFlight } from './helpers.js';
 import { query } from '../db/pool.js';
 import JSZip from 'jszip';
+import { clearFlagCache } from '../services/featureFlags.js';
 
 describe('Cloud Export (Phase 4)', () => {
   let ownerCookies: string;
@@ -10,13 +11,12 @@ describe('Cloud Export (Phase 4)', () => {
   beforeAll(async () => {
     await cleanDb();
 
-    // Seed feature flags
-    await query(
-      `INSERT INTO feature_flags (key, enabled, description) VALUES
-       ('cloud_notebooks', true, 'test'),
-       ('cloud_sharing', true, 'test')
-       ON CONFLICT (key) DO UPDATE SET enabled = true`
-    );
+    // Seed feature flags (with GA flight for delivery)
+    await seedFlagsWithGAFlight([
+      { key: 'cloud_notebooks' },
+      { key: 'cloud_sharing' },
+    ]);
+    clearFlagCache();
 
     // Create owner
     const owner = await signUp('export-owner@test.com', 'Password1!', 'Exporter');

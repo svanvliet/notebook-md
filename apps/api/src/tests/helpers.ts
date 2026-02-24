@@ -36,6 +36,28 @@ export async function cleanDb() {
   await query('DELETE FROM users');
 }
 
+/**
+ * Seed feature flags and put them in a 100% GA flight so they're delivered to all users.
+ * Use in test beforeAll after cleanDb().
+ */
+export async function seedFlagsWithGAFlight(flags: Array<{ key: string; enabled?: boolean; description?: string }>) {
+  for (const f of flags) {
+    await query(
+      `INSERT INTO feature_flags (key, enabled, description) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET enabled = $2`,
+      [f.key, f.enabled ?? true, f.description ?? 'test'],
+    );
+  }
+  const fRes = await query<{ id: string }>(
+    `INSERT INTO flights (name, rollout_percentage, enabled) VALUES ('test-ga', 100, true) ON CONFLICT (name) DO UPDATE SET rollout_percentage = 100 RETURNING id`,
+  );
+  const flightId = fRes.rows[0].id;
+  for (const f of flags) {
+    if (f.enabled !== false) {
+      await query('INSERT INTO flight_flags (flight_id, flag_key) VALUES ($1, $2) ON CONFLICT DO NOTHING', [flightId, f.key]);
+    }
+  }
+}
+
 /** Delete all messages from Mailpit. */
 export async function clearMailpit() {
   await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE' });

@@ -335,18 +335,16 @@ router.get('/feature-flags', async (_req: Request, res: Response) => {
     key: string;
     enabled: boolean;
     description: string | null;
-    rollout_percentage: number;
     variants: string[] | null;
     stale_at: Date | null;
     updated_at: Date;
-  }>('SELECT key, enabled, description, rollout_percentage, variants, stale_at, updated_at FROM feature_flags ORDER BY key');
+  }>('SELECT key, enabled, description, variants, stale_at, updated_at FROM feature_flags ORDER BY key');
 
   res.json({
     flags: result.rows.map(f => ({
       key: f.key,
       enabled: f.enabled,
       description: f.description,
-      rolloutPercentage: f.rollout_percentage,
       variants: f.variants,
       staleAt: f.stale_at,
       updatedAt: f.updated_at,
@@ -355,20 +353,18 @@ router.get('/feature-flags', async (_req: Request, res: Response) => {
 });
 
 router.post('/feature-flags', async (req: Request, res: Response) => {
-  const { key, enabled, description, rolloutPercentage, variants, staleAt } = req.body;
+  const { key, enabled, description, variants, staleAt } = req.body;
 
   if (!key || typeof key !== 'string') {
     res.status(400).json({ error: 'Key is required' });
     return;
   }
 
-  const pct = rolloutPercentage !== undefined ? Math.min(100, Math.max(0, Number(rolloutPercentage))) : 100;
-
   await query(
-    `INSERT INTO feature_flags (key, enabled, description, rollout_percentage, variants, stale_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (key) DO UPDATE SET enabled = $2, description = $3, rollout_percentage = $4, variants = $5, stale_at = $6, updated_at = now()`,
-    [key, enabled ?? false, description ?? null, pct, variants ?? null, staleAt ?? null],
+    `INSERT INTO feature_flags (key, enabled, description, variants, stale_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (key) DO UPDATE SET enabled = $2, description = $3, variants = $4, stale_at = $5, updated_at = now()`,
+    [key, enabled ?? false, description ?? null, variants ?? null, staleAt ?? null],
   );
 
   clearFlagCache();
@@ -376,7 +372,7 @@ router.post('/feature-flags', async (req: Request, res: Response) => {
   await auditLog({
     userId: req.userId!,
     action: 'admin_action',
-    details: { type: 'feature_flag_updated', key, enabled: enabled ?? false, rolloutPercentage: pct },
+    details: { type: 'feature_flag_updated', key, enabled: enabled ?? false },
     ipAddress: getClientIp(req),
     userAgent: req.headers['user-agent'],
   });
@@ -723,13 +719,14 @@ router.get('/flights', async (_req: Request, res: Response) => {
     name: string;
     description: string | null;
     enabled: boolean;
+    rollout_percentage: number;
     show_badge: boolean;
     badge_label: string;
     created_at: Date;
     flag_count: string;
     assignment_count: string;
   }>(
-    `SELECT f.id, f.name, f.description, f.enabled, f.show_badge, f.badge_label, f.created_at,
+    `SELECT f.id, f.name, f.description, f.enabled, f.rollout_percentage, f.show_badge, f.badge_label, f.created_at,
             (SELECT count(*) FROM flight_flags ff WHERE ff.flight_id = f.id) as flag_count,
             (SELECT count(*) FROM flight_assignments fa WHERE fa.flight_id = f.id) as assignment_count
      FROM flights f
@@ -742,6 +739,7 @@ router.get('/flights', async (_req: Request, res: Response) => {
       name: f.name,
       description: f.description,
       enabled: f.enabled,
+      rolloutPercentage: f.rollout_percentage,
       showBadge: f.show_badge,
       badgeLabel: f.badge_label,
       createdAt: f.created_at,
@@ -752,17 +750,19 @@ router.get('/flights', async (_req: Request, res: Response) => {
 });
 
 router.post('/flights', async (req: Request, res: Response) => {
-  const { name, description, flagKeys, showBadge, badgeLabel } = req.body;
+  const { name, description, flagKeys, showBadge, badgeLabel, rolloutPercentage } = req.body;
 
   if (!name || typeof name !== 'string') {
     res.status(400).json({ error: 'Name is required' });
     return;
   }
 
+  const pct = rolloutPercentage !== undefined ? Math.min(100, Math.max(0, Number(rolloutPercentage))) : 0;
+
   const result = await query<{ id: string }>(
-    `INSERT INTO flights (name, description, show_badge, badge_label, created_by)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [name, description ?? null, showBadge ?? false, badgeLabel ?? 'Beta', req.userId],
+    `INSERT INTO flights (name, description, rollout_percentage, show_badge, badge_label, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [name, description ?? null, pct, showBadge ?? false, badgeLabel ?? 'Beta', req.userId],
   );
 
   const flightId = result.rows[0].id;
@@ -796,10 +796,11 @@ router.get('/flights/:id', async (req: Request, res: Response) => {
     name: string;
     description: string | null;
     enabled: boolean;
+    rollout_percentage: number;
     show_badge: boolean;
     badge_label: string;
     created_at: Date;
-  }>('SELECT id, name, description, enabled, show_badge, badge_label, created_at FROM flights WHERE id = $1', [req.params.id]);
+  }>('SELECT id, name, description, enabled, rollout_percentage, show_badge, badge_label, created_at FROM flights WHERE id = $1', [req.params.id]);
 
   if (flight.rows.length === 0) {
     res.status(404).json({ error: 'Flight not found' });
@@ -836,6 +837,7 @@ router.get('/flights/:id', async (req: Request, res: Response) => {
       name: f.name,
       description: f.description,
       enabled: f.enabled,
+      rolloutPercentage: f.rollout_percentage,
       showBadge: f.show_badge,
       badgeLabel: f.badge_label,
       createdAt: f.created_at,
@@ -853,7 +855,7 @@ router.get('/flights/:id', async (req: Request, res: Response) => {
 });
 
 router.patch('/flights/:id', async (req: Request, res: Response) => {
-  const { name, description, enabled, showBadge, badgeLabel } = req.body;
+  const { name, description, enabled, showBadge, badgeLabel, rolloutPercentage } = req.body;
 
   const existing = await query('SELECT id FROM flights WHERE id = $1', [req.params.id]);
   if (existing.rows.length === 0) {
@@ -861,16 +863,19 @@ router.patch('/flights/:id', async (req: Request, res: Response) => {
     return;
   }
 
+  const pct = rolloutPercentage !== undefined ? Math.min(100, Math.max(0, Number(rolloutPercentage))) : null;
+
   await query(
     `UPDATE flights SET
        name = COALESCE($1, name),
        description = COALESCE($2, description),
        enabled = COALESCE($3, enabled),
-       show_badge = COALESCE($4, show_badge),
-       badge_label = COALESCE($5, badge_label),
+       rollout_percentage = COALESCE($4, rollout_percentage),
+       show_badge = COALESCE($5, show_badge),
+       badge_label = COALESCE($6, badge_label),
        updated_at = now()
-     WHERE id = $6`,
-    [name ?? null, description ?? null, enabled ?? null, showBadge ?? null, badgeLabel ?? null, req.params.id],
+     WHERE id = $7`,
+    [name ?? null, description ?? null, enabled ?? null, pct, showBadge ?? null, badgeLabel ?? null, req.params.id],
   );
 
   clearFlagCache();

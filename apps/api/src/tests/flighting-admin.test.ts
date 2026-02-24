@@ -242,6 +242,35 @@ describe('Flighting Admin API', () => {
       const detail = await request.get(`/admin/flights/${flightId}`).set('Cookie', adminCookies);
       expect(detail.body.assignments).toHaveLength(0);
     });
+
+    it('creates a flight with rolloutPercentage', async () => {
+      const res = await request.post('/admin/flights').set('Cookie', adminCookies)
+        .send({ name: 'Rollout Flight', rolloutPercentage: 50 });
+      expect(res.status).toBe(201);
+
+      const detail = await request.get(`/admin/flights/${res.body.id}`).set('Cookie', adminCookies);
+      expect(detail.body.flight.rolloutPercentage).toBe(50);
+    });
+
+    it('updates flight rolloutPercentage', async () => {
+      const createRes = await request.post('/admin/flights').set('Cookie', adminCookies)
+        .send({ name: 'Pct Flight', rolloutPercentage: 10 });
+
+      await request.patch(`/admin/flights/${createRes.body.id}`).set('Cookie', adminCookies)
+        .send({ rolloutPercentage: 75 }).expect(200);
+
+      const detail = await request.get(`/admin/flights/${createRes.body.id}`).set('Cookie', adminCookies);
+      expect(detail.body.flight.rolloutPercentage).toBe(75);
+    });
+
+    it('lists flights with rolloutPercentage', async () => {
+      await request.post('/admin/flights').set('Cookie', adminCookies)
+        .send({ name: 'Pct List Flight', rolloutPercentage: 42 });
+
+      const res = await request.get('/admin/flights').set('Cookie', adminCookies);
+      const flight = res.body.flights.find((f: any) => f.name === 'Pct List Flight');
+      expect(flight.rolloutPercentage).toBe(42);
+    });
   });
 
   // ── Overrides ───────────────────────────────────────────────────────────
@@ -291,24 +320,24 @@ describe('Flighting Admin API', () => {
   // ── Enhanced Feature Flags ──────────────────────────────────────────────
 
   describe('Enhanced Feature Flags', () => {
-    it('lists flags with rolloutPercentage and variants', async () => {
+    it('lists flags with variants', async () => {
       await query(
-        `INSERT INTO feature_flags (key, enabled, rollout_percentage, variants) VALUES ('pct_flag', true, 50, '["a","b"]')`,
+        `INSERT INTO feature_flags (key, enabled, variants) VALUES ('var_flag', true, '["a","b"]')`,
       );
 
       const res = await request.get('/admin/feature-flags').set('Cookie', adminCookies);
-      const flag = res.body.flags.find((f: any) => f.key === 'pct_flag');
-      expect(flag.rolloutPercentage).toBe(50);
+      const flag = res.body.flags.find((f: any) => f.key === 'var_flag');
       expect(flag.variants).toEqual(['a', 'b']);
     });
 
-    it('creates a flag with rolloutPercentage', async () => {
+    it('creates a flag without rolloutPercentage', async () => {
       await request.post('/admin/feature-flags').set('Cookie', adminCookies)
-        .send({ key: 'new_pct', enabled: true, rolloutPercentage: 25 }).expect(200);
+        .send({ key: 'new_flag', enabled: true }).expect(200);
 
       const res = await request.get('/admin/feature-flags').set('Cookie', adminCookies);
-      const flag = res.body.flags.find((f: any) => f.key === 'new_pct');
-      expect(flag.rolloutPercentage).toBe(25);
+      const flag = res.body.flags.find((f: any) => f.key === 'new_flag');
+      expect(flag).toBeDefined();
+      expect(flag.enabled).toBe(true);
     });
   });
 
@@ -322,8 +351,9 @@ describe('Flighting Admin API', () => {
 
       const res = await request.get(`/admin/users/${userId}/flags`).set('Cookie', adminCookies);
       expect(res.status).toBe(200);
-      expect(res.body.flags.on_flag.enabled).toBe(true);
-      expect(res.body.flags.on_flag.source).toBe('global');
+      // on_flag has no flight → not_delivered
+      expect(res.body.flags.on_flag.enabled).toBe(false);
+      expect(res.body.flags.on_flag.source).toBe('not_delivered');
       expect(res.body.flags.off_flag.enabled).toBe(false);
       expect(res.body.flags.off_flag.source).toBe('kill_switch');
     });
@@ -350,16 +380,19 @@ describe('Flighting Admin API', () => {
     it('flag update immediately affects resolution', async () => {
       const { userId } = await createUser('cache@test.com');
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('cache_flag', true)");
+      // Put flag in a 100% flight so it's delivered
+      const fRes = await query<{ id: string }>("INSERT INTO flights (name, rollout_percentage) VALUES ('cache-ga', 100) RETURNING id");
+      await query("INSERT INTO flight_flags (flight_id, flag_key) VALUES ($1, 'cache_flag')", [fRes.rows[0].id]);
 
-      // First resolve: should be enabled
+      // First resolve: should be enabled (via 100% flight)
       let res = await request.get(`/admin/users/${userId}/flags`).set('Cookie', adminCookies);
       expect(res.body.flags.cache_flag.enabled).toBe(true);
 
-      // Update flag to disabled (admin POST clears cache)
+      // Update flag to disabled (admin POST clears cache) — this is a kill switch
       await request.post('/admin/feature-flags').set('Cookie', adminCookies)
         .send({ key: 'cache_flag', enabled: false });
 
-      // Resolve again: should now be disabled
+      // Resolve again: should now be disabled (kill switch)
       res = await request.get(`/admin/users/${userId}/flags`).set('Cookie', adminCookies);
       expect(res.body.flags.cache_flag.enabled).toBe(false);
     });
@@ -367,8 +400,11 @@ describe('Flighting Admin API', () => {
     it('override creation immediately affects resolution', async () => {
       const { userId } = await createUser('cache-ov@test.com');
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('cov_flag', true)");
+      // Put flag in a 100% flight so it's delivered
+      const fRes = await query<{ id: string }>("INSERT INTO flights (name, rollout_percentage) VALUES ('cov-ga', 100) RETURNING id");
+      await query("INSERT INTO flight_flags (flight_id, flag_key) VALUES ($1, 'cov_flag')", [fRes.rows[0].id]);
 
-      // First: enabled globally
+      // First: enabled via 100% flight
       let res = await request.get(`/admin/users/${userId}/flags`).set('Cookie', adminCookies);
       expect(res.body.flags.cov_flag.enabled).toBe(true);
 

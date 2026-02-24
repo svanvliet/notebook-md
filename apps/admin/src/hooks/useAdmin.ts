@@ -47,7 +47,6 @@ interface FeatureFlag {
   key: string;
   enabled: boolean;
   description: string | null;
-  rolloutPercentage: number;
   variants: string[] | null;
   staleAt: string | null;
   updatedAt: string;
@@ -86,6 +85,7 @@ interface Flight {
   name: string;
   description: string | null;
   enabled: boolean;
+  rolloutPercentage: number;
   showBadge: boolean;
   badgeLabel: string;
   createdAt: string;
@@ -198,7 +198,7 @@ export function useAdmin() {
   const getFeatureFlags = useCallback(() => api<{ flags: FeatureFlag[] }>('/admin/feature-flags'), []);
 
   const saveFeatureFlag = useCallback(
-    (data: { key: string; enabled: boolean; description?: string; rolloutPercentage?: number; variants?: string[] | null; staleAt?: string | null }) =>
+    (data: { key: string; enabled: boolean; description?: string; variants?: string[] | null; staleAt?: string | null }) =>
       api<{ message: string }>('/admin/feature-flags', { method: 'POST', body: JSON.stringify(data) }),
     [],
   );
@@ -263,7 +263,7 @@ export function useAdmin() {
   const getFlights = useCallback(() => api<{ flights: Flight[] }>('/admin/flights'), []);
 
   const createFlight = useCallback(
-    (data: { name: string; description?: string; flagKeys?: string[]; showBadge?: boolean; badgeLabel?: string }) =>
+    (data: { name: string; description?: string; flagKeys?: string[]; showBadge?: boolean; badgeLabel?: string; rolloutPercentage?: number }) =>
       api<{ id: string; message: string }>('/admin/flights', { method: 'POST', body: JSON.stringify(data) }),
     [],
   );
@@ -274,7 +274,7 @@ export function useAdmin() {
   );
 
   const updateFlight = useCallback(
-    (id: string, data: { name?: string; description?: string; enabled?: boolean; showBadge?: boolean; badgeLabel?: string }) =>
+    (id: string, data: { name?: string; description?: string; enabled?: boolean; showBadge?: boolean; badgeLabel?: string; rolloutPercentage?: number }) =>
       api<{ message: string }>(`/admin/flights/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     [],
   );
