@@ -430,10 +430,30 @@ LEFT JOIN user_flights uf ON uf.flag_key = f.key;
 
 ### 6.3 Dev Mode Behavior
 
-Preserve the current behavior where flags default to `true` in development:
+Dev mode (`NODE_ENV !== 'production'`) supports two operational modes, controlled by a `DEV_FLIGHTING` environment variable:
 
-- In dev mode (`NODE_ENV !== 'production'`), all flags resolve to `enabled: true` regardless of rollout, groups, or flights — **unless** the flag is explicitly set to `enabled = false` in the database
+**Default mode (`DEV_FLIGHTING` unset or `false`):**
+
+- All flags resolve to `enabled: true` regardless of rollout, groups, or flights — **unless** the flag is explicitly set to `enabled = false` in the database
 - This keeps local development frictionless (no need to set up groups/flights)
+- This is the current behavior, preserved for backward compatibility
+
+**Flighting mode (`DEV_FLIGHTING=true`):**
+
+- The full resolution algorithm runs exactly as it would in production (overrides → flights → rollout → global default)
+- Flags do NOT auto-enable — they must be explicitly enabled via the admin console, flight assignments, or overrides
+- This allows developers to test the flighting system itself: create groups, assign flights, verify that the right users see the right features
+- Use this mode when validating the flighting UX before deploying to production
+
+To switch between modes during local development:
+
+```bash
+# Normal development — all features enabled
+npm run dev
+
+# Test flighting behavior — flags follow production resolution rules
+DEV_FLIGHTING=true npm run dev
+```
 
 ---
 
