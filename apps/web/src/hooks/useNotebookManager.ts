@@ -656,18 +656,33 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           const fileName = file.name;
           if (notebookId) {
             // Direct import to a known location
-            const entry = await createFile(notebookId, parentPath ?? '', fileName, 'file', content);
-            await refreshFiles(notebookId);
-            toast?.(`Imported "${fileName}"`, 'success');
-            // Auto-open the imported file
-            const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
-            const tabId = `${notebookId}:${entry.path}`;
-            setTabs((prev) => [...prev, {
-              id: tabId, notebookId, path: entry.path, name: entry.name,
-              content: htmlContent, savedContent: content,
-              hasUnsavedChanges: false, lastSaved: entry.updatedAt,
-            }]);
-            setActiveTabId(tabId);
+            const nb = notebooks.find((n) => n.id === notebookId);
+            const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
+            if (nb?.sourceType === 'cloud') {
+              await createCloudFile(notebookId, filePath, content);
+              await refreshFiles(notebookId);
+              toast?.(`Imported "${fileName}"`, 'success');
+              const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+              const tabId = `${notebookId}:${filePath}`;
+              setTabs((prev) => [...prev, {
+                id: tabId, notebookId, path: filePath, name: fileName,
+                content: htmlContent, savedContent: content,
+                hasUnsavedChanges: false, lastSaved: Date.now(),
+              }]);
+              setActiveTabId(tabId);
+            } else {
+              const entry = await createFile(notebookId, parentPath ?? '', fileName, 'file', content);
+              await refreshFiles(notebookId);
+              toast?.(`Imported "${fileName}"`, 'success');
+              const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+              const tabId = `${notebookId}:${entry.path}`;
+              setTabs((prev) => [...prev, {
+                id: tabId, notebookId, path: entry.path, name: entry.name,
+                content: htmlContent, savedContent: content,
+                hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+              }]);
+              setActiveTabId(tabId);
+            }
           } else {
             // Show save location picker
             setSaveLocationRequest({
@@ -675,18 +690,33 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
               content,
               onSave: async (nbId: string, savePath: string) => {
                 setSaveLocationRequest(null);
-                const entry = await createFile(nbId, savePath, fileName, 'file', content);
-                await refreshFiles(nbId);
-                toast?.(`Imported "${fileName}"`, 'success');
-                // Auto-open the imported file
-                const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
-                const tabId = `${nbId}:${entry.path}`;
-                setTabs((prev) => [...prev, {
-                  id: tabId, notebookId: nbId, path: entry.path, name: entry.name,
-                  content: htmlContent, savedContent: content,
-                  hasUnsavedChanges: false, lastSaved: entry.updatedAt,
-                }]);
-                setActiveTabId(tabId);
+                const nb = notebooks.find((n) => n.id === nbId);
+                const filePath = savePath ? `${savePath}/${fileName}` : fileName;
+                if (nb?.sourceType === 'cloud') {
+                  await createCloudFile(nbId, filePath, content);
+                  await refreshFiles(nbId);
+                  toast?.(`Imported "${fileName}"`, 'success');
+                  const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+                  const tabId = `${nbId}:${filePath}`;
+                  setTabs((prev) => [...prev, {
+                    id: tabId, notebookId: nbId, path: filePath, name: fileName,
+                    content: htmlContent, savedContent: content,
+                    hasUnsavedChanges: false, lastSaved: Date.now(),
+                  }]);
+                  setActiveTabId(tabId);
+                } else {
+                  const entry = await createFile(nbId, savePath, fileName, 'file', content);
+                  await refreshFiles(nbId);
+                  toast?.(`Imported "${fileName}"`, 'success');
+                  const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+                  const tabId = `${nbId}:${entry.path}`;
+                  setTabs((prev) => [...prev, {
+                    id: tabId, notebookId: nbId, path: entry.path, name: entry.name,
+                    content: htmlContent, savedContent: content,
+                    hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+                  }]);
+                  setActiveTabId(tabId);
+                }
               },
             });
           }
@@ -705,18 +735,33 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         content,
         onSave: async (nbId: string, savePath: string) => {
           setSaveLocationRequest(null);
-          const entry = await createFile(nbId, savePath, fileName, 'file', content);
-          await refreshFiles(nbId);
-          toast?.(`Imported "${fileName}"`, 'success');
-          // Auto-open the imported file
-          const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
-          const tabId = `${nbId}:${entry.path}`;
-          setTabs((prev) => [...prev, {
-            id: tabId, notebookId: nbId, path: entry.path, name: entry.name,
-            content: htmlContent, savedContent: content,
-            hasUnsavedChanges: false, lastSaved: entry.updatedAt,
-          }]);
-          setActiveTabId(tabId);
+          const nb = notebooks.find((n) => n.id === nbId);
+          const filePath = savePath ? `${savePath}/${fileName}` : fileName;
+          if (nb?.sourceType === 'cloud') {
+            await createCloudFile(nbId, filePath, content);
+            await refreshFiles(nbId);
+            toast?.(`Imported "${fileName}"`, 'success');
+            const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+            const tabId = `${nbId}:${filePath}`;
+            setTabs((prev) => [...prev, {
+              id: tabId, notebookId: nbId, path: filePath, name: fileName,
+              content: htmlContent, savedContent: content,
+              hasUnsavedChanges: false, lastSaved: Date.now(),
+            }]);
+            setActiveTabId(tabId);
+          } else {
+            const entry = await createFile(nbId, savePath, fileName, 'file', content);
+            await refreshFiles(nbId);
+            toast?.(`Imported "${fileName}"`, 'success');
+            const htmlContent = isMarkdownContent(content) ? markdownToHtml(content) : content;
+            const tabId = `${nbId}:${entry.path}`;
+            setTabs((prev) => [...prev, {
+              id: tabId, notebookId: nbId, path: entry.path, name: entry.name,
+              content: htmlContent, savedContent: content,
+              hasUnsavedChanges: false, lastSaved: entry.updatedAt,
+            }]);
+            setActiveTabId(tabId);
+          }
         },
       });
     },
@@ -743,6 +788,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         } else if (notebook?.sourceType === 'google-drive') {
           const rootFolderId = notebook.sourceConfig.rootPath as string;
           await createGoogleDriveFile(rootFolderId, filePath, content);
+        } else if (notebook?.sourceType === 'cloud') {
+          await createCloudFile(notebookId, filePath, content);
         } else {
           const entry = await createFile(notebookId, parentPath, fileName, 'file', content);
           entryPath = entry.path;
@@ -1479,7 +1526,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       if (!sourceFile) return;
 
       const fileName = sourcePath.split('/').pop() || sourcePath;
-      await createFile(targetNotebookId, targetParentPath, fileName, sourceFile.type, sourceFile.content ?? '');
+      const filePath = targetParentPath ? `${targetParentPath}/${fileName}` : fileName;
+
+      if (tgtCloud) {
+        await createCloudFile(targetNotebookId, filePath, sourceFile.content ?? '', sourceFile.type);
+      } else {
+        await createFile(targetNotebookId, targetParentPath, fileName, sourceFile.type, sourceFile.content ?? '');
+      }
 
       // If the source is a folder, copy children recursively
       if (sourceFile.type === 'folder') {
@@ -1491,7 +1544,12 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           const parts = relativePath.split('/');
           const childName = parts.pop() || relativePath;
           const childParent = parts.length > 0 ? `${newParent}/${parts.join('/')}` : newParent;
-          await createFile(targetNotebookId, childParent, childName, child.type, child.content ?? '');
+          const childPath = `${childParent}/${childName}`;
+          if (tgtCloud) {
+            await createCloudFile(targetNotebookId, childPath, child.content ?? '', child.type);
+          } else {
+            await createFile(targetNotebookId, childParent, childName, child.type, child.content ?? '');
+          }
         }
       }
 
