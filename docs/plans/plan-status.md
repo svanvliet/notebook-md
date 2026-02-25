@@ -4601,3 +4601,13 @@ Both remaining bugs verified fixed:
 - **File listing**: Confirmed working. Shared cloud notebooks show files on initial load after clearing stale IndexedDB cache.
 
 All flighting and cloud_collab gating work is complete.
+
+### cloud_public_links Flag Wired (2026-02-25)
+
+The cloud_public_links flag was created in migration 004 but never enforced. Now wired:
+- API share-link endpoints (create, list, toggle, revoke): Added requireFeature middleware
+- Public viewer endpoints (resolve, document fetch): Check kill switch via new isKillSwitched() helper
+- UI ShareNotebookModal: Links tab hidden when flag is off
+- Added isKillSwitched() to featureFlags.ts for anonymous endpoint checks
+
+Commit: 28e0ee7
