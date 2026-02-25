@@ -56,7 +56,7 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
   // Fetch cloud notebook warning data when delete panel opens
   useEffect(() => {
     if (!showDelete) return;
-    apiFetch(`${API_BASE}/api/usage/me`)
+    apiFetch(`/api/usage/me`)
       .then(r => r.json())
       .then(data => {
         const nbCount = data.cloudNotebooks ?? 0;
