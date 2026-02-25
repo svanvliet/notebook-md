@@ -30,7 +30,7 @@ export default function VersionHistoryPanel({ documentId: propDocId, notebookId,
   useEffect(() => {
     if (propDocId) { setResolvedDocId(propDocId); return; }
     if (!notebookId || !documentPath) return;
-    fetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(documentPath)}?root=${notebookId}&meta=true`, { credentials: 'include' })
+    fetch(`${API_BASE}/api/sources/cloud/files/${documentPath.split('/').map(encodeURIComponent).join('/')}?root=${notebookId}&meta=true`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => { if (data.documentId) setResolvedDocId(data.documentId); })
       .catch(() => {});
