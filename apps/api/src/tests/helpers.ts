@@ -1,39 +1,51 @@
 import supertest from 'supertest';
+import bcrypt from 'bcryptjs';
 import app from '../app.js';
 import { pool, query } from '../db/pool.js';
 import { createSession } from '../services/session.js';
 
 export const request = supertest(app);
 
+// Pre-hashed password for 'Password123!' — avoids bcrypt cost on every test
+let cachedHash: string | null = null;
+async function getTestPasswordHash(): Promise<string> {
+  if (!cachedHash) cachedHash = await bcrypt.hash('Password123!', 4); // cost 4 for speed
+  return cachedHash;
+}
+
 const MAILPIT_API = process.env.MAILPIT_API ?? 'http://localhost:8025/api/v1';
 
-/** Clean all user-created data between tests. Preserves schema. */
+/** Clean all user-created data between tests. Preserves schema.
+ *  Uses a single multi-statement query to minimize round-trips. */
 export async function cleanDb() {
-  await query('DELETE FROM announcements');
-  await query('DELETE FROM flight_assignments');
-  await query('DELETE FROM flight_flags');
-  await query('DELETE FROM flights');
-  await query('DELETE FROM user_group_members');
-  await query('DELETE FROM user_groups');
-  await query('DELETE FROM flag_overrides');
-  await query('DELETE FROM feature_flags');
-  await query('DELETE FROM audit_log');
-  await query('DELETE FROM email_verification_tokens');
-  await query('DELETE FROM magic_link_tokens');
-  await query('DELETE FROM password_reset_tokens');
-  await query('DELETE FROM user_settings');
-  await query('DELETE FROM github_installations');
-  await query('DELETE FROM collab_sessions');
-  await query('DELETE FROM document_versions');
-  await query('DELETE FROM cloud_documents');
-  await query('DELETE FROM notebook_shares');
-  await query('DELETE FROM notebook_public_links');
-  await query('DELETE FROM notebooks');
-  await query('DELETE FROM user_usage_counters');
-  await query('DELETE FROM user_plan_subscriptions');
-  await query('DELETE FROM sessions');
-  await query('DELETE FROM identity_links');
-  await query('DELETE FROM users');
+  await query(`
+    DELETE FROM announcements;
+    DELETE FROM flight_assignments;
+    DELETE FROM flight_flags;
+    DELETE FROM flights WHERE is_permanent IS NOT TRUE;
+    DELETE FROM user_group_members;
+    DELETE FROM user_groups;
+    DELETE FROM flag_overrides;
+    DELETE FROM feature_flags;
+    DELETE FROM audit_log;
+    DELETE FROM email_verification_tokens;
+    DELETE FROM magic_link_tokens;
+    DELETE FROM password_reset_tokens;
+    DELETE FROM user_settings;
+    DELETE FROM github_installations;
+    DELETE FROM collab_sessions;
+    DELETE FROM document_versions;
+    DELETE FROM cloud_documents;
+    DELETE FROM notebook_shares;
+    DELETE FROM notebook_public_links;
+    DELETE FROM notebooks;
+    DELETE FROM user_usage_counters;
+    DELETE FROM user_plan_subscriptions;
+    DELETE FROM sessions;
+    DELETE FROM identity_links;
+    DELETE FROM users;
+    DELETE FROM flights;
+  `);
 }
 
 /**
@@ -81,6 +93,39 @@ export async function getMailpitMessageBody(id: string): Promise<string> {
 /** Close the DB pool (call in afterAll). */
 export async function closeDb() {
   await pool.end();
+}
+
+/**
+ * Create a test user directly via SQL — no HTTP, no email, ~1ms.
+ * Use when you need an authenticated user but aren't testing the signup flow.
+ * Password is always 'Password123!' (can be used with signIn() if needed).
+ */
+export async function createTestUser(
+  email: string,
+  displayName = 'Test User',
+  opts?: { isAdmin?: boolean; twoFactorEnabled?: boolean },
+): Promise<{ userId: string; cookies: string }> {
+  const hash = await getTestPasswordHash();
+  const result = await query<{ id: string }>(
+    `INSERT INTO users (id, email, display_name, password_hash, email_verified, is_admin, totp_enabled)
+     VALUES (gen_random_uuid(), $1, $2, $3, true, $4, $5) RETURNING id`,
+    [email, displayName, hash, opts?.isAdmin ?? false, opts?.twoFactorEnabled ?? false],
+  );
+  const userId = result.rows[0].id;
+  const session = await createSession(userId, {});
+  const cookieVal = `refresh_token=${session.refreshToken}`;
+  return { userId, cookies: cookieVal };
+}
+
+/**
+ * Create an admin user directly via SQL — no HTTP, no email, ~1ms.
+ * Has is_admin=true and totp_enabled=true (satisfies admin middleware MFA check).
+ */
+export async function createTestAdmin(
+  email = 'admin@test.com',
+  displayName = 'Admin User',
+): Promise<{ userId: string; cookies: string }> {
+  return createTestUser(email, displayName, { isAdmin: true, twoFactorEnabled: true });
 }
 
 /** Sign up a user and return the response + cookie. */

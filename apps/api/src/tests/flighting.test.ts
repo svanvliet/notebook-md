@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { request, signUp, cleanDb, closeDb, clearMailpit } from './helpers.js';
+import { request, cleanDb, closeDb, clearMailpit, createTestUser } from './helpers.js';
 import { query } from '../db/pool.js';
 import { resolveAllFlags, clearFlagCache, _getUserBucket } from '../services/featureFlags.js';
 
@@ -13,13 +13,13 @@ describe('Flighting — Resolution Engine (v2: flight-level rollout)', () => {
     await cleanDb();
     await clearMailpit();
 
-    const a = await signUp('alice@test.com', 'Password1!', 'Alice');
+    const a = await createTestUser('alice@test.com', 'Alice');
     userACookies = a.cookies;
-    userAId = a.res.body.user.id;
+    userAId = a.userId;
 
-    const b = await signUp('bob@example.com', 'Password1!', 'Bob');
+    const b = await createTestUser('bob@example.com', 'Bob');
     userBCookies = b.cookies;
-    userBId = b.res.body.user.id;
+    userBId = b.userId;
 
     // Seed test flags (no rollout_percentage on flags anymore)
     await query(

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import { cleanDb, closeDb, signUp, request } from './helpers.js';
+import { cleanDb, closeDb, request, createTestAdmin, createTestUser } from './helpers.js';
 import { query } from '../db/pool.js';
 import { clearFlagCache } from '../services/featureFlags.js';
 
@@ -9,26 +9,14 @@ beforeAll(() => {
   }
 });
 
-async function createAdmin(email = 'admin@test.com', password = 'Password123!') {
-  const { cookies } = await signUp(email, password, 'Admin User');
-  await request.post('/auth/2fa/enable').set('Cookie', cookies).send({ method: 'email' });
-  await query('UPDATE users SET is_admin = true WHERE email = $1', [email]);
-  return cookies;
-}
-
-async function createUser(email: string, name = 'Test User') {
-  const { cookies, res } = await signUp(email, 'Password123!', name);
-  const userId = (await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email])).rows[0].id;
-  return { cookies, userId };
-}
-
 describe('Flighting Admin API', () => {
   let adminCookies: string;
 
   beforeEach(async () => {
     await cleanDb();
     clearFlagCache();
-    adminCookies = await createAdmin();
+    const admin = await createTestAdmin();
+    adminCookies = admin.cookies;
   });
 
   afterAll(async () => {
@@ -95,7 +83,7 @@ describe('Flighting Admin API', () => {
         .send({ name: 'Members Group' });
       const groupId = createRes.body.id;
 
-      const { userId } = await createUser('member@test.com');
+      const { userId } = await createTestUser('member@test.com');
 
       // Add member
       const addRes = await request.post(`/admin/groups/${groupId}/members`)
@@ -209,7 +197,7 @@ describe('Flighting Admin API', () => {
       const createRes = await request.post('/admin/flights').set('Cookie', adminCookies)
         .send({ name: 'Assign Flight' });
       const flightId = createRes.body.id;
-      const { userId } = await createUser('flyer@test.com');
+      const { userId } = await createTestUser('flyer@test.com');
 
       const assignRes = await request.post(`/admin/flights/${flightId}/assign`)
         .set('Cookie', adminCookies).send({ userId });
@@ -243,7 +231,7 @@ describe('Flighting Admin API', () => {
       const flightRes = await request.post('/admin/flights').set('Cookie', adminCookies)
         .send({ name: 'Unassign Flight' });
       const flightId = flightRes.body.id;
-      const { userId } = await createUser('unassign@test.com');
+      const { userId } = await createTestUser('unassign@test.com');
 
       const assignRes = await request.post(`/admin/flights/${flightId}/assign`)
         .set('Cookie', adminCookies).send({ userId });
@@ -290,7 +278,7 @@ describe('Flighting Admin API', () => {
   describe('Overrides CRUD', () => {
     it('creates and lists overrides for a flag', async () => {
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('override_flag', true)");
-      const { userId } = await createUser('override@test.com');
+      const { userId } = await createTestUser('override@test.com');
 
       // Create override
       const createRes = await request.post('/admin/feature-flags/override_flag/overrides')
@@ -309,7 +297,7 @@ describe('Flighting Admin API', () => {
 
     it('deletes an override', async () => {
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('del_flag', true)");
-      const { userId } = await createUser('del-override@test.com');
+      const { userId } = await createTestUser('del-override@test.com');
 
       await request.post('/admin/feature-flags/del_flag/overrides')
         .set('Cookie', adminCookies).send({ userId, enabled: true });
@@ -323,7 +311,7 @@ describe('Flighting Admin API', () => {
     });
 
     it('returns 404 for override on non-existent flag', async () => {
-      const { userId } = await createUser('no-flag@test.com');
+      const { userId } = await createTestUser('no-flag@test.com');
       await request.post('/admin/feature-flags/no_such_flag/overrides')
         .set('Cookie', adminCookies).send({ userId, enabled: true }).expect(404);
     });
@@ -357,7 +345,7 @@ describe('Flighting Admin API', () => {
 
   describe('User Flag Resolution', () => {
     it('returns resolved flags for a user with sources', async () => {
-      const { userId } = await createUser('resolve@test.com');
+      const { userId } = await createTestUser('resolve@test.com');
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('on_flag', true)");
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('off_flag', false)");
 
@@ -371,7 +359,7 @@ describe('Flighting Admin API', () => {
     });
 
     it('shows override source for user with override', async () => {
-      const { userId } = await createUser('overridden@test.com');
+      const { userId } = await createTestUser('overridden@test.com');
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('ov_flag', true)");
       await query('INSERT INTO flag_overrides (flag_key, user_id, enabled) VALUES ($1, $2, false)', ['ov_flag', userId]);
 
@@ -390,7 +378,7 @@ describe('Flighting Admin API', () => {
 
   describe('Cache Invalidation', () => {
     it('flag update immediately affects resolution', async () => {
-      const { userId } = await createUser('cache@test.com');
+      const { userId } = await createTestUser('cache@test.com');
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('cache_flag', true)");
       // Put flag in a 100% flight so it's delivered
       const fRes = await query<{ id: string }>("INSERT INTO flights (name, rollout_percentage) VALUES ('cache-ga', 100) RETURNING id");
@@ -410,7 +398,7 @@ describe('Flighting Admin API', () => {
     });
 
     it('override creation immediately affects resolution', async () => {
-      const { userId } = await createUser('cache-ov@test.com');
+      const { userId } = await createTestUser('cache-ov@test.com');
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('cov_flag', true)");
       // Put flag in a 100% flight so it's delivered
       const fRes = await query<{ id: string }>("INSERT INTO flights (name, rollout_percentage) VALUES ('cov-ga', 100) RETURNING id");
@@ -455,7 +443,7 @@ describe('Flighting Admin API', () => {
 
     it('logs override creation', async () => {
       await query("INSERT INTO feature_flags (key, enabled) VALUES ('audit_flag', true)");
-      const { userId } = await createUser('audit-ov@test.com');
+      const { userId } = await createTestUser('audit-ov@test.com');
       await request.post('/admin/feature-flags/audit_flag/overrides')
         .set('Cookie', adminCookies).send({ userId, enabled: false });
 
