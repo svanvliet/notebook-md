@@ -365,6 +365,12 @@ jobs:
       - name: Start production stack
         run: docker compose -f docker-compose.prod.yml up -d --wait
 
+      - name: Enable feature flags for E2E tests
+        run: |
+          docker compose -f docker-compose.prod.yml exec -T db \
+            psql -U notebookmd -d notebookmd -c \
+            "UPDATE feature_flags SET enabled = true;"
+
       - name: Run E2E smoke tests
         run: npm run test:e2e
         env:
