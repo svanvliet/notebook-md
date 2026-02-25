@@ -336,12 +336,8 @@ resource "azurerm_container_app" "collab" {
         secret_name = "db-admin-password"
       }
       env {
-        name  = "REDIS_HOST"
-        value = azurerm_redis_cache.main.hostname
-      }
-      env {
-        name  = "REDIS_PORT"
-        value = tostring(azurerm_redis_cache.main.ssl_port)
+        name        = "REDIS_URL"
+        secret_name = "redis-url"
       }
       env {
         name        = "ENCRYPTION_KEY"
@@ -353,6 +349,11 @@ resource "azurerm_container_app" "collab" {
   secret {
     name                = "db-admin-password"
     key_vault_secret_id = azurerm_key_vault_secret.db_admin_password.id
+    identity            = azurerm_user_assigned_identity.container_apps.id
+  }
+  secret {
+    name                = "redis-url"
+    key_vault_secret_id = azurerm_key_vault_secret.redis_connection_string.id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
