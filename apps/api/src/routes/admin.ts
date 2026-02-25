@@ -665,18 +665,42 @@ router.post('/groups/:id/members', async (req: Request, res: Response) => {
     return;
   }
 
-  let added = 0;
-  for (const uid of userIds) {
-    const result = await query(
-      `INSERT INTO user_group_members (group_id, user_id, added_by)
-       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-      [groupId, uid, req.userId],
-    );
-    added += result.rowCount ?? 0;
+  // Resolve emails to user IDs
+  const resolvedIds: string[] = [];
+  const notFound: string[] = [];
+  for (const entry of userIds) {
+    if (entry.includes('@')) {
+      const user = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [entry.toLowerCase()]);
+      if (user.rows.length === 0) { notFound.push(entry); continue; }
+      resolvedIds.push(user.rows[0].id);
+    } else {
+      resolvedIds.push(entry);
+    }
+  }
+  if (notFound.length > 0) {
+    res.status(400).json({ error: `User(s) not found: ${notFound.join(', ')}` });
+    return;
   }
 
-  // Clear cache for all added users
-  for (const uid of userIds) clearFlagCache(uid);
+  let added = 0;
+  try {
+    for (const uid of resolvedIds) {
+      const result = await query(
+        `INSERT INTO user_group_members (group_id, user_id, added_by)
+         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+        [groupId, uid, req.userId],
+      );
+      added += result.rowCount ?? 0;
+    }
+  } catch (err: any) {
+    if (err.code === '23503') {
+      res.status(400).json({ error: 'One or more user IDs are invalid' });
+      return;
+    }
+    throw err;
+  }
+
+  for (const uid of resolvedIds) clearFlagCache(uid);
 
   await auditLog({
     userId: req.userId!,

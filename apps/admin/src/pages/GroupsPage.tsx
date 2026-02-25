@@ -159,7 +159,7 @@ export default function GroupsPage({
             </div>
 
             <form onSubmit={handleAddMember} className="flex gap-2">
-              <input value={addUserId} onChange={e => setAddUserId(e.target.value)} placeholder="User ID" className="border border-gray-300 rounded px-2 py-1 text-xs flex-1" />
+              <input value={addUserId} onChange={e => setAddUserId(e.target.value)} placeholder="Email address" className="border border-gray-300 rounded px-2 py-1 text-xs flex-1" />
               <button type="submit" className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">Add</button>
             </form>
           </div>
