@@ -226,6 +226,17 @@ export async function isFeatureEnabled(key: string, userId?: string | null): Pro
 }
 
 /**
+ * Check if a flag is kill-switched (enabled=false in DB).
+ * Use for anonymous/unauthenticated endpoints where per-user resolution doesn't apply.
+ */
+export async function isKillSwitched(key: string): Promise<boolean> {
+  if (isDevAutoEnable()) return false;
+  const result = await query<{ enabled: boolean }>('SELECT enabled FROM feature_flags WHERE key = $1', [key]);
+  if (result.rows.length === 0) return false;
+  return !result.rows[0].enabled;
+}
+
+/**
  * Express middleware that returns 404 if the feature flag is disabled.
  * Uses req.userId for per-user resolution when available.
  */

@@ -31,6 +31,7 @@ interface ShareLink {
 
 export default function ShareNotebookModal({ notebookId, notebookName, onClose, initialTab }: ShareNotebookModalProps) {
   const collabEnabled = useFlag('cloud_collab');
+  const publicLinksEnabled = useFlag('cloud_public_links');
   const [tab, setTab] = useState<Tab>(initialTab ?? 'invite');
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState<'editor' | 'viewer'>(collabEnabled ? 'editor' : 'viewer');
@@ -139,7 +140,7 @@ export default function ShareNotebookModal({ notebookId, notebookName, onClose, 
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-600 mb-4">
-          {(['invite', 'members', 'links'] as Tab[]).map(t => (
+          {(['invite', 'members', ...(publicLinksEnabled ? ['links'] : [])] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
