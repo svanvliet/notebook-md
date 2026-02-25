@@ -4737,3 +4737,88 @@ The 6 test failures in `flighting-admin.test.ts` (Groups CRUD) were caused by Ma
 
 ### Recommendation
 Test CI first via PR to main (current step). Then plan the infra + deploy changes as a follow-up, since they require Terraform changes and a networking decision for WebSocket routing.
+
+### E2E Test Optimization & New Coverage (2026-02-25)
+
+#### Performance Optimization
+
+Optimized Playwright config for faster E2E execution:
+
+- **`fullyParallel: true`**: Tests within the same file now run concurrently (was serial with `workers: 1`)
+- **Dynamic workers**: Defaults to half CPUs locally (~8 workers), `2` in CI
+- **Smart retries**: `0` locally (fast iteration), `1` in CI (handle flakiness)
+- **CI reporter**: Switched to `github` reporter for native PR annotations
+- **Parallel Docker builds in CI**: E2E job now builds all 4 images (`api`, `web`, `admin`, `collab`) concurrently with `&` + `wait` instead of a sequential for-loop
+
+Commit: 64ac7ec
+
+#### New E2E Tests for Co-Auth Features
+
+Added 3 focused E2E tests covering the new sharing/collab/flighting features:
+
+| Test | Approach | What it validates |
+|------|----------|-------------------|
+| **Cloud notebook creation** | Full UI flow: Add Notebook → Cloud → name → Create | End-to-end cloud notebook CRUD via the Add Notebook dialog |
+| **Public share link (anonymous view)** | API setup (signup + create notebook + create link) + fresh browser context | Anonymous users see the public viewer (validates blank-screen bug fix) |
+| **Feature flag gating** | `page.route()` intercepts `GET /api/flags`, sets `cloud_sharing: false` | Share menu hidden in context menu when flag is disabled |
+
+**Key design decisions:**
+- API setup calls go through Vite proxy (relative URLs) to respect CORS and match production behavior
+- Flag gating test uses Playwright's native `page.route()` network interception instead of DB manipulation — cleaner, no pg dependency, tests the actual UI behavior
+- Anonymous share link test creates a fresh `browser.newContext()` with no cookies to verify true anonymous access
+- Removed low-value marketing page tests (terms, privacy, /about — all static HTML)
+
+**Known product issue noted:** FlagProvider fetches flags once on mount and polls every 90s. It does NOT re-fetch when auth state changes (sign-in/sign-out). This means flag resolution uses the anonymous result until the next poll. Should be fixed by adding a `useEffect` that calls `refreshFlags()` when `auth.user.id` changes.
+
+Result: **24 tests, all passing in 6.5s** (was 21 tests, serial execution)
+
+Commit: 79cc6c4
+
+#### Removed Tests
+- `smoke.spec.ts`: Removed terms page and privacy page tests (static content, no value)
+- `navigation.spec.ts`: Removed `/about` navigation from marketing page test
+
+---
+
+### PR #40: Flighting System → main (2026-02-25)
+
+**Branch:** `feature/flighting` → `main`
+**PR URL:** https://github.com/svanvliet/notebook-md/pull/40
+**Status:** Open, CI running
+
+**What's in this PR:**
+- Full flighting system (v2 flight-level rollout, admin UI, self-enrollment)
+- All 4 co-auth feature flags wired and enforced (API + UI)
+- Bug fixes: flight scoping, group member add, public link error pages, content sync
+- CI: Collab server Dockerfile, change detection, build job, typecheck
+- E2E: Parallel execution, 3 new cloud/sharing/flag tests
+- API test optimization: 207s → 78s (62% faster)
+
+**CI should validate:**
+- Collab typecheck + Docker build
+- API tests (333 tests, ~78s)
+- Web tests
+- E2E smoke tests (24 tests, ~6.5s)
+
+---
+
+## Current Status Summary (2026-02-25)
+
+### What's Complete
+- ✅ Phases 0–5: Co-authoring (local dev)
+- ✅ Flighting system v2: flight-level rollout, groups, overrides, admin UI
+- ✅ Feature flag enforcement: all 4 co-auth flags gated in API + UI
+- ✅ CI pipeline: collab server added (Dockerfile, change detection, typecheck, build)
+- ✅ E2E tests: optimized config + 3 new cloud/sharing/flag tests
+- ✅ API test optimization: 62% faster
+- ✅ PR #40 open to main for CI validation
+
+### What's Next
+1. **Monitor PR #40 CI** — fix any failures
+2. **FlagProvider auth refresh** — re-fetch flags on sign-in/sign-out (product issue)
+3. **Production deployment** (Phase 6) — see "Next Steps: Production Deployment" section above
+   - Terraform: collab Container App
+   - deploy.yml + rollback.yml: collab jobs
+   - WebSocket URL + networking decision
+   - Marketing/legal page updates
+   - Progressive rollout (internal alpha → private beta → public beta → GA)
