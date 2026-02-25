@@ -20,6 +20,19 @@ async function signInUi(page: any, email: string, password: string) {
   await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
 }
 
+/** Intercept /api/flags to enable all cloud flags (overrides API cache). */
+async function enableCloudFlags(page: any) {
+  await page.route('**/api/flags', async (route: any) => {
+    const response = await route.fetch();
+    const json = await response.json();
+    const cloudKeys = ['cloud_notebooks', 'cloud_collab', 'cloud_sharing', 'cloud_public_links'];
+    for (const key of cloudKeys) {
+      if (json.flags?.[key]) json.flags[key].enabled = true;
+    }
+    await route.fulfill({ json });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Test 1: Create a cloud notebook via the full UI flow
 // ---------------------------------------------------------------------------
@@ -28,6 +41,7 @@ test.describe('Cloud Notebooks', () => {
   test('create cloud notebook via Add Notebook dialog', async ({ page, request }) => {
     const email = `e2e-cloud-${Date.now()}@test.local`;
     await signUpApi(request, email, 'TestPass123!');
+    await enableCloudFlags(page);
     await signInUi(page, email, 'TestPass123!');
 
     // Open Add Notebook dialog
@@ -106,10 +120,14 @@ test.describe('Feature Flag Gating', () => {
     // Sign up via API
     await signUpApi(request, email, password);
 
-    // Intercept the flags API to disable cloud_sharing
+    // Intercept the flags API: enable all cloud flags but disable cloud_sharing
     await page.route('**/api/flags', async (route) => {
       const response = await route.fetch();
       const json = await response.json();
+      const cloudKeys = ['cloud_notebooks', 'cloud_collab', 'cloud_public_links'];
+      for (const key of cloudKeys) {
+        if (json.flags?.[key]) json.flags[key].enabled = true;
+      }
       if (json.flags?.cloud_sharing) {
         json.flags.cloud_sharing.enabled = false;
       }
