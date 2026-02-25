@@ -29,7 +29,7 @@ router.post('/notebooks/:id/invites', requireAuth, requireFeature('cloud_sharing
   }
 
   try {
-    const invite = await sendInvite(req.params.id, req.userId!, email, permission);
+    const invite = await sendInvite(req.params.id as string, req.userId!, email, permission);
 
     // Get owner name for email
     const ownerResult = await query<{ display_name: string }>(
@@ -62,7 +62,7 @@ router.get('/notebooks/:id/invites', requireAuth, requireFeature('cloud_sharing'
     res.status(403).json({ error: 'Only the notebook owner can view invites' });
     return;
   }
-  const members = await getMembers(req.params.id);
+  const members = await getMembers(req.params.id as string);
   const pending = members.filter(m => !m.accepted);
   res.json({ invites: pending });
 });
@@ -86,7 +86,7 @@ router.delete('/notebooks/:id/invites/:inviteId', requireAuth, requireFeature('c
 // POST /api/cloud/invites/:token/accept — Accept invite (via email link token)
 router.post('/invites/:token/accept', requireAuth, async (req: Request, res: Response) => {
   try {
-    const result = await acceptInvite(req.params.token, req.userId!);
+    const result = await acceptInvite(req.params.token as string, req.userId!);
     res.json({ notebookId: result.notebookId, message: 'Invite accepted' });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -164,7 +164,7 @@ router.get('/notebooks/:id/members', requireAuth, requireFeature('cloud_sharing'
     if (share.rows.length === 0) { res.status(403).json({ error: 'Access denied' }); return; }
   }
 
-  const members = await getMembers(req.params.id);
+  const members = await getMembers(req.params.id as string);
   const ownerEntry = {
     id: 'owner',
     userId: owner.user_id,
@@ -195,7 +195,7 @@ router.patch('/notebooks/:id/members/:userId', requireAuth, requireFeature('clou
   }
 
   try {
-    await updateMemberRole(req.params.id, req.userId!, req.params.userId, permission);
+    await updateMemberRole(req.params.id as string, req.userId!, req.params.userId as string, permission);
     res.json({ message: 'Role updated' });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -205,7 +205,7 @@ router.patch('/notebooks/:id/members/:userId', requireAuth, requireFeature('clou
 // DELETE /api/cloud/notebooks/:id/members/:userId — Remove member
 router.delete('/notebooks/:id/members/:userId', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
   try {
-    await revokeAccess(req.params.id, req.userId!, req.params.userId);
+    await revokeAccess(req.params.id as string, req.userId!, req.params.userId as string);
     res.json({ message: 'Access revoked' });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -231,7 +231,7 @@ router.post('/notebooks/:id/leave', requireAuth, requireFeature('cloud_sharing')
 // POST /api/cloud/notebooks/:id/share-links — Create share link
 router.post('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
   try {
-    const link = await createShareLink(req.params.id, req.userId!, req.body.visibility);
+    const link = await createShareLink(req.params.id as string, req.userId!, req.body.visibility);
     res.status(201).json({ link });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -240,7 +240,7 @@ router.post('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sha
 
 // GET /api/cloud/notebooks/:id/share-links — List share links
 router.get('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
-  const links = await getShareLinks(req.params.id, req.userId!);
+  const links = await getShareLinks(req.params.id as string, req.userId!);
   res.json({ links });
 });
 
@@ -253,7 +253,7 @@ router.patch('/share-links/:linkId', requireAuth, requireFeature('cloud_sharing'
   }
 
   try {
-    await toggleLinkVisibility(req.params.linkId, req.userId!, visibility);
+    await toggleLinkVisibility(req.params.linkId as string, req.userId!, visibility);
     res.json({ message: 'Visibility updated' });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -263,7 +263,7 @@ router.patch('/share-links/:linkId', requireAuth, requireFeature('cloud_sharing'
 // POST /api/cloud/share-links/:linkId/revoke — Revoke link
 router.post('/share-links/:linkId/revoke', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
   try {
-    await revokeShareLink(req.params.linkId, req.userId!);
+    await revokeShareLink(req.params.linkId as string, req.userId!);
     res.json({ message: 'Link revoked' });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
