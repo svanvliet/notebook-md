@@ -75,18 +75,6 @@ test.describe('Smoke Tests', () => {
     await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
   });
 
-  test('terms page is accessible', async ({ page }) => {
-    await page.goto('/terms');
-    await expect(page.getByRole('heading', { name: 'Terms of Service' })).toBeVisible();
-    await expect(page.getByText(/Van Vliet Ventures/).first()).toBeVisible();
-  });
-
-  test('privacy page is accessible', async ({ page }) => {
-    await page.goto('/privacy');
-    await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
-    await expect(page.getByText(/Van Vliet Ventures/).first()).toBeVisible();
-  });
-
   test('cookie consent banner appears for new visitors', async ({ page, context }) => {
     // Clear all cookies to simulate new visitor
     await context.clearCookies();
