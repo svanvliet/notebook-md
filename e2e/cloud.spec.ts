@@ -20,14 +20,15 @@ async function signInUi(page: any, email: string, password: string) {
   await expect(page.getByRole('button', { name: 'Sign Up' })).not.toBeVisible({ timeout: 10_000 });
 }
 
-/** Intercept /api/flags to enable all cloud flags (overrides API cache). */
+/** Intercept /api/flags to force-enable all cloud flags regardless of API state. */
 async function enableCloudFlags(page: any) {
   await page.route('**/api/flags', async (route: any) => {
     const response = await route.fetch();
     const json = await response.json();
+    if (!json.flags) json.flags = {};
     const cloudKeys = ['cloud_notebooks', 'cloud_collab', 'cloud_sharing', 'cloud_public_links'];
     for (const key of cloudKeys) {
-      if (json.flags?.[key]) json.flags[key].enabled = true;
+      json.flags[key] = { enabled: true, variant: null, badge: null };
     }
     await route.fulfill({ json });
   });
@@ -124,13 +125,12 @@ test.describe('Feature Flag Gating', () => {
     await page.route('**/api/flags', async (route) => {
       const response = await route.fetch();
       const json = await response.json();
+      if (!json.flags) json.flags = {};
       const cloudKeys = ['cloud_notebooks', 'cloud_collab', 'cloud_public_links'];
       for (const key of cloudKeys) {
-        if (json.flags?.[key]) json.flags[key].enabled = true;
+        json.flags[key] = { enabled: true, variant: null, badge: null };
       }
-      if (json.flags?.cloud_sharing) {
-        json.flags.cloud_sharing.enabled = false;
-      }
+      json.flags.cloud_sharing = { enabled: false, variant: null, badge: null };
       await route.fulfill({ json });
     });
 
