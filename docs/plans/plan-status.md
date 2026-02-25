@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated: 2026-02-24
+**Last Updated: 2026-02-25
 
 ---
 
@@ -5002,3 +5002,66 @@ Fixed E2E cloud tests failing in CI (3 tests, 2 retries each = 6 failures per ru
 - Database migrations are purely additive (new tables, inserts, alter add column) — no rollback needed
 - Container images can be rolled back: `./scripts/manual-rollback.sh latest`
 - Old API code ignores new tables; feature flags default to disabled
+
+### Production Hotfixes v0.2.1–v0.2.5 (2026-02-25)
+
+Deployed 5 incremental hotfixes to web and collab services after discovering bugs during production testing. All issues were caused by environmental differences between local dev and production.
+
+#### v0.2.1 — Cloud file path encoding (web only)
+- **Bug:** Cloud files with paths like `Music/Ghost.md` returned 404
+- **Root cause:** `encodeURIComponent(filePath)` encoded `/` as `%2F`, making the whole path a single URL segment. Express `{*filePath}` wildcard expects `/` as path separators. Worked in dev because dev files didn't have folder paths during E2E testing.
+- **Fix:** Created `encodeFilePath()` helper that encodes each segment individually but preserves `/`. Applied to `useNotebookManager.ts` (read + write) and `cloud.ts` (create + delete).
+- **Commit:** `3e032bb`
+
+#### v0.2.2 — Double API_BASE prefix + VersionHistory path (web only)
+- **Bug:** Browser made requests to `https://api.notebookmd.io/https://api.notebookmd.io/api/...` (doubled URL)
+- **Root cause:** `readCloudFile` and `writeCloudFile` prepended `API_BASE` manually, but `apiFetch()` already prepends it. In dev, `VITE_API_URL` is empty string (`''`), so `'' + '/api/...'` works fine — doubling is invisible. In production, `VITE_API_URL = 'https://api.notebookmd.io'`, causing the double prefix.
+- **Additional fixes found via audit:** `AccountModal.tsx` had same double-prefix bug; `VersionHistoryPanel.tsx` used `encodeURIComponent` on full path.
+- **Commit:** `e791532`
+
+#### v0.2.3 — Cloud file import persistence (web only)
+- **Bug:** Drag-dropping a file onto a cloud notebook showed success toast and opened the tab, but file vanished on refresh (502 error)
+- **Root cause:** `handleDirectImport` fell through to `else` branch calling local `createFile()` (IndexedDB) for cloud notebooks instead of `createCloudFile()` (API). Fixed 4 import paths: handleDirectImport, file picker (direct), file picker (save location), handleDropImport.
+- **Commit:** `9d9ccdd`
+
+#### v0.2.4 — Empty collab editor seeding (web + collab)
+- **Bug:** Files showed blank in editor when `cloud_collab` flag was enabled
+- **Root cause:** When collab is enabled, TipTap sets `content: undefined` (trusting Yjs doc as source of truth). But files created via REST API have no `ydoc_state` — collab server fetched NULL, returned empty doc, editor showed blank.
+- **Fix (initial):** Server-side: collab `fetch()` decrypts `content_enc` and seeds a Yjs doc when `ydoc_state` is NULL. Client-side: MarkdownEditor detects when collab syncs with empty doc and seeds from REST content.
+- **Issue:** Server-side seed stored raw markdown as plain text paragraphs (no markdown parser available), causing v0.2.5 bug.
+- **Commit:** `1910160`
+
+#### v0.2.5 — Markdown rendering in collab seed (web + collab)
+- **Bug:** Collab-seeded content showed as raw markdown syntax instead of rendered headings/links/formatting
+- **Root cause:** Server-side seed created Yjs paragraphs from raw markdown text without parsing. Once persisted as `ydoc_state`, client-side seed couldn't fire (doc not empty).
+- **Fix:** (1) Removed server-side content_enc→ydoc seeding — let client handle it. (2) Client-side seed now detects markdown content and converts via `markdownToHtml()` (uses `marked` with full GFM support) before `setContent`. (3) Cleared bad `ydoc_state` from production DB.
+- **Commit:** `b6bf3b7`
+
+#### Production State (v0.2.5)
+| Service | Image | Notes |
+|---------|-------|-------|
+| API | api:v0.2.0 | Unchanged |
+| Web | web:v0.2.5 | 5 hotfixes applied |
+| Admin | admin:v0.2.0 | Unchanged |
+| Collab | collab:v0.2.5 | 2 hotfixes applied |
+
+#### Why These Bugs Weren't Caught in Local Dev
+
+These bugs all stem from **environmental differences** between local dev and production that our test infrastructure didn't cover:
+
+1. **Path encoding (v0.2.1):** Local E2E tests only tested flat files (`test.md`), not files in subfolders (`Music/Ghost.md`). The `%2F` encoding issue only manifests with nested paths.
+
+2. **Double API_BASE (v0.2.2):** In dev, `VITE_API_URL = ''` (empty string). The expression `'' + '/api/sources/...'` produces a correct relative URL. In production, `VITE_API_URL = 'https://api.notebookmd.io'`, doubling the prefix. This is a class of bug that's **invisible in same-origin dev setups** and only appears in cross-origin production deployments.
+
+3. **Cloud file import (v0.2.3):** The import code paths (drag-drop, file picker) branched on notebook source type, but the cloud branch was added for listing/reading — the *create* path still fell through to local storage. Manual testing focused on creating files via the "New File" button (which worked), not drag-drop import (which didn't).
+
+4. **Empty collab editor (v0.2.4):** Local dev didn't have the `cloud_collab` feature flag enabled during E2E testing. The flag was only enabled in production after deploy. The interaction between REST-created files and collab-mode editing was never tested end-to-end.
+
+5. **Markdown rendering (v0.2.5):** Cascading from v0.2.4 — the server-side Yjs seeding assumed HTML content, but imported files store raw markdown. The mismatch only surfaced with real user-imported content.
+
+**Lessons learned / action items:**
+- Add E2E tests for nested folder paths in cloud notebooks
+- Add a production-like E2E environment variable test (set `VITE_API_URL` to a non-empty value)
+- Add E2E coverage for drag-drop file import to cloud notebooks
+- Add E2E test for collab mode with pre-existing REST-created content
+- Consider a pre-deploy integration test that runs against a staging environment with production-like config
