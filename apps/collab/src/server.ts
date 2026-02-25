@@ -13,6 +13,8 @@ dotenv.config({ path: resolve(__dirname, '../../../.env') });
 
 const port = Number(process.env.COLLAB_PORT || 3002);
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Database pool — shared with API config
 const pool = new pg.Pool({
   host: process.env.DB_HOST ?? 'localhost',
@@ -21,6 +23,7 @@ const pool = new pg.Pool({
   user: process.env.DB_USER ?? 'notebookmd',
   password: process.env.DB_PASSWORD ?? 'localdev',
   max: 10,
+  ssl: isProduction ? { rejectUnauthorized: true } : undefined,
 });
 
 // Redis connection for collab token validation
@@ -29,6 +32,7 @@ const redis = new Redis({
   port: Number(process.env.REDIS_PORT ?? 6379),
   maxRetriesPerRequest: 3,
   lazyConnect: true,
+  tls: isProduction ? {} : undefined,
 });
 
 /**
