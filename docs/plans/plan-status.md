@@ -4895,7 +4895,7 @@ Before running `terraform apply` and the first deploy, these manual steps are ne
 
 ---
 
-## Current Status Summary (2026-02-25, updated)
+## Current Status Summary (2026-02-25, final)
 
 ### What's Complete
 - ✅ Phases 0–5: Co-authoring (local dev)
@@ -4904,17 +4904,17 @@ Before running `terraform apply` and the first deploy, these manual steps are ne
 - ✅ CI pipeline: collab server added (Dockerfile, change detection, typecheck, build)
 - ✅ E2E tests: optimized config + 3 new cloud/sharing/flag tests
 - ✅ API test optimization: 62% faster
-- ✅ PR #40 open to main for CI validation
+- ✅ PR #40 merged to main (all 10 CI checks passing)
 - ✅ Production infrastructure: Terraform + deploy.yml + rollback.yml for collab server
+- ✅ v0.2.0 tagged and deployed to production
+- ✅ All 4 services live: API, Web, Admin, Collab
+- ✅ Beta Testers group configured with Collab Features flight
+- ✅ Feature flags enabled in production for beta testers
 
 ### What's Next
-1. **Monitor PR #40 CI** — fix any failures
-2. **Fix collab Redis TLS** — required before production deploy
-3. **FlagProvider auth refresh** — re-fetch flags on sign-in/sign-out
-4. **Terraform apply** — create collab Container App + Front Door route
-5. **First production deploy** — tag + deploy
-6. **Marketing/legal page updates** (Phase 6.5)
-7. **Progressive rollout** — internal alpha → private beta → public beta → GA
+1. **FlagProvider auth refresh** — re-fetch flags on sign-in/sign-out
+2. **Marketing/legal page updates** (Phase 6.5)
+3. **Progressive rollout** — internal alpha → private beta → public beta → GA
 
 ### Collab Server Production Deployment (2026-02-25)
 
@@ -4945,3 +4945,60 @@ Successfully deployed the collab (HocusPocus WebSocket) server to Azure producti
 - ✅ PostgreSQL connected (with SSL)
 
 Commits: `d5344f0` (infra), `ce4a905` (DEPLOY.md), `4dfdbdb` (pg SSL + redis TLS), `f4b38b0` (REDIS_URL fix)
+
+### E2E Test CI Fixes (2026-02-25)
+
+Fixed E2E cloud tests failing in CI (3 tests, 2 retries each = 6 failures per run).
+
+#### Root Causes & Fixes
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Cloud flags not delivered to test users | Migration 004 creates flags as `enabled: false` (kill-switched). `UPDATE feature_flags SET enabled = true` alone doesn't help — the flight system still needs to deliver them. Fresh CI DB has no users in any flight group. | CI step now also runs `UPDATE flights SET enabled = true, rollout_percentage = 100; DELETE FROM flight_assignments;` — makes 100% rollout apply to all authenticated users |
+| API serves stale flag cache after DB update | API has 30s in-memory flag cache (`CACHE_TTL_MS = 30_000`). Enabling flags in DB after stack starts doesn't clear cache. | CI step restarts API container after DB update, then waits for health check |
+| `page.route()` intercept was a no-op | Intercept code did `if (json.flags?.[key]) json.flags[key].enabled = true` — but for users with no flights, the API returns `{}` (flags omitted, not set to false). Conditional was always false. | Changed to force-inject flag entries: `json.flags[key] = { enabled: true, variant: null, badge: null }` |
+
+#### Commits
+- `4111058` — Enable feature flags after migration in CI (first attempt, partial fix)
+- `a9d2f1e` — Add API restart + page.route() intercept (second attempt, close but intercept still conditional)
+- `5b0eff5` — Force-set flags + configure flights for CI (final fix, all 24 tests pass)
+
+### PR #40 Merge & v0.2.0 Release (2026-02-25)
+
+#### PR #40: Flighting system, feature flag wiring, CI collab pipeline
+- **Branch:** `feature/flighting` → `main`
+- **All 10 CI checks passed:** Detect Changes, Install Dependencies, Lint & Type Check, Web Unit Tests, API Integration Tests, Build Web/API/Admin/Collab Images, E2E Smoke Tests
+- **Merged:** commit `d9db886` on main
+- **107 files changed**, 16,403 insertions, 329 deletions
+
+#### v0.2.0 Production Deploy
+- Tagged `v0.2.0` on main
+- GitHub Actions minutes exhausted (free tier) — deployed manually
+- Created `scripts/manual-deploy.sh` and `scripts/manual-rollback.sh` for future use
+- Built all 4 Docker images locally, pushed to ACR, updated Container Apps
+
+#### Manual Deploy Steps Performed
+1. `az acr login` — authenticated to ACR
+2. `docker build` × 4 — built api, web, admin, collab images tagged `v0.2.0` + `latest`
+3. `docker push` × 8 — pushed all tags (web:v0.2.0 push timed out once, retried successfully)
+4. `az containerapp update` × 4 — deployed all services
+5. Health check confirmed: `{"status":"ok","services":{"db":"ok","redis":"ok"}}`
+
+#### Post-Deploy: Feature Flag Activation
+- **Issue:** Beta Testers group had users assigned but features not showing
+- **Root cause:** Feature flags were still `enabled: false` in the `feature_flags` table (kill-switched). The kill switch is evaluated before flights — if the flag row is disabled, flights are never checked.
+- **Fix:** Enabled cloud feature flags via admin panel (Feature Flags → toggle enabled)
+- **Design note:** Two-layer system is intentional — `enabled` column is the global kill switch, flights control per-user delivery. Both must be on.
+
+#### Production State (v0.2.0)
+| Service | Container App | Status | Image |
+|---------|--------------|--------|-------|
+| API | ca-notebookmd-api | ✅ Running | api:v0.2.0 |
+| Web | ca-notebookmd-web | ✅ Running | web:v0.2.0 |
+| Admin | ca-notebookmd-admin | ✅ Running | admin:v0.2.0 |
+| Collab | ca-notebookmd-collab | ✅ Running | collab:v0.2.0 |
+
+#### Rollback Plan
+- Database migrations are purely additive (new tables, inserts, alter add column) — no rollback needed
+- Container images can be rolled back: `./scripts/manual-rollback.sh latest`
+- Old API code ignores new tables; feature flags default to disabled
