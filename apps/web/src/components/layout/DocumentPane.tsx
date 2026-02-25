@@ -277,7 +277,7 @@ export function DocumentPane({
               margins={margins}
               lineNumbers={lineNumbers}
               readOnly={activeTab.readOnly}
-              collaborative={collab.provider && currentUser ? { provider: collab.provider, user: { name: currentUser.name, color: currentUser.color ?? '#3B82F6' } } : undefined}
+              collaborative={collab.provider && currentUser ? { provider: collab.provider, user: { name: currentUser.name, color: currentUser.color ?? '#3B82F6' }, isSynced: collab.isSynced } : undefined}
             />
           </EditorErrorBoundary>
           )
