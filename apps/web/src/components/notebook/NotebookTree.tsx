@@ -203,13 +203,16 @@ export function NotebookTree({
   }, [expandedNotebooks, expandedFolders]);
 
   // After notebooks load, trigger file loading for restored expanded remote notebooks
+  // and for shared cloud notebooks (so they don't appear empty before expansion)
   const loadedRemotesRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (notebooks.length === 0) return;
-    for (const id of expandedNotebooks) {
+    for (const nb of notebooks) {
+      if (!nb.sourceType || nb.sourceType === 'local' || nb.pendingInvite) continue;
+      const id = nb.id;
       if (loadedRemotesRef.current.has(id)) continue;
-      const nb = notebooks.find((n) => n.id === id);
-      if (nb && nb.sourceType && nb.sourceType !== 'local' && !nb.pendingInvite) {
+      // Load files for expanded notebooks OR shared cloud notebooks
+      if (expandedNotebooks.has(id) || nb.sharedBy) {
         if (!files[id] || files[id].length === 0) {
           loadedRemotesRef.current.add(id);
           onExpandNotebook?.(id);
