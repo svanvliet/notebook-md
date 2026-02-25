@@ -4822,3 +4822,96 @@ Commit: 79cc6c4
    - WebSocket URL + networking decision
    - Marketing/legal page updates
    - Progressive rollout (internal alpha → private beta → public beta → GA)
+
+### Production Deployment Infrastructure (2026-02-25)
+
+Added collab server (HocusPocus WebSocket) to all production infrastructure and CI/CD pipelines.
+
+#### Architecture Decision
+- **Routing:** `wss://api.notebookmd.io/collab` → Front Door `/collab/*` route → collab Container App (no new subdomain)
+- **Container:** Separate Container App (`ca-notebookmd-collab`) for independent scaling/restarts
+
+#### Terraform Changes
+
+| File | Change |
+|------|--------|
+| `container_apps.tf` | Added `azurerm_container_app.collab` — port 3002, `transport = "auto"` (WebSocket), CPU 0.5, 1Gi, replicas 1–5, env vars for DB/Redis/encryption |
+| `frontdoor.tf` | Added `og-collab` origin group, `origin-collab` origin, `route-collab` route on API endpoint (`/collab/*` pattern, higher priority than `/*` catch-all) |
+| `keyvault.tf` | Added `db-admin-password` and `redis-primary-key` secrets (collab uses individual DB params, not connection string) |
+| `outputs.tf` | Added `container_app_collab_fqdn` output |
+
+#### Deploy Workflow Changes (`deploy.yml`)
+
+| Change | Details |
+|--------|---------|
+| Change detection | Added `collab` filter: `apps/collab/**`, `docker/Dockerfile.collab` + `collab-changed` output |
+| Build job | `build-collab`: Dockerfile.collab → ACR `collab:TAG+latest`, Trivy scan |
+| Deploy job | `deploy-collab`: `ca-notebookmd-collab` via container-apps-deploy-action |
+| Summary | Collab row in deploy summary markdown table |
+| Force rebuild | Updated to include `collab` in force rebuild loop |
+
+#### Rollback Workflow Changes (`rollback.yml`)
+
+- Added `collab` to `app` input choices
+- Added "Rollback Collab" step (revision list + traffic set, no health check)
+
+Commit: d5344f0
+
+---
+
+## One-Time Manual Steps Required Before First Deploy
+
+Before running `terraform apply` and the first deploy, these manual steps are needed:
+
+1. **Push the collab Docker image to ACR manually** (or use `force_rebuild` on first deploy):
+   ```bash
+   az acr login --name crnotebookmdprod
+   docker build -f docker/Dockerfile.collab -t crnotebookmdprod.azurecr.io/collab:latest .
+   docker push crnotebookmdprod.azurecr.io/collab:latest
+   ```
+
+2. **Run `terraform apply`** to create the collab Container App, Front Door route, and KV secrets:
+   ```bash
+   cd infra/terraform
+   terraform plan   # Review changes
+   terraform apply  # Apply
+   ```
+
+3. **Fix collab server Redis TLS** — Before deploy, update `apps/collab/src/server.ts` to support TLS Redis:
+   ```typescript
+   // Add tls option for production Redis (Azure Redis requires TLS)
+   const redis = new Redis({
+     host: process.env.REDIS_HOST ?? 'localhost',
+     port: Number(process.env.REDIS_PORT ?? 6379),
+     tls: process.env.NODE_ENV === 'production' ? {} : undefined,
+   });
+   ```
+
+4. **Verify Front Door routing** — After terraform apply, test that:
+   - `https://api.notebookmd.io/api/health` still works (API catch-all)
+   - `wss://api.notebookmd.io/collab` connects to the collab server (WebSocket upgrade)
+
+5. **Create first deploy tag** — Push a `v*` tag or use workflow_dispatch with `force_rebuild=true`
+
+---
+
+## Current Status Summary (2026-02-25, updated)
+
+### What's Complete
+- ✅ Phases 0–5: Co-authoring (local dev)
+- ✅ Flighting system v2: flight-level rollout, groups, overrides, admin UI
+- ✅ Feature flag enforcement: all 4 co-auth flags gated in API + UI
+- ✅ CI pipeline: collab server added (Dockerfile, change detection, typecheck, build)
+- ✅ E2E tests: optimized config + 3 new cloud/sharing/flag tests
+- ✅ API test optimization: 62% faster
+- ✅ PR #40 open to main for CI validation
+- ✅ Production infrastructure: Terraform + deploy.yml + rollback.yml for collab server
+
+### What's Next
+1. **Monitor PR #40 CI** — fix any failures
+2. **Fix collab Redis TLS** — required before production deploy
+3. **FlagProvider auth refresh** — re-fetch flags on sign-in/sign-out
+4. **Terraform apply** — create collab Container App + Front Door route
+5. **First production deploy** — tag + deploy
+6. **Marketing/legal page updates** (Phase 6.5)
+7. **Progressive rollout** — internal alpha → private beta → public beta → GA
