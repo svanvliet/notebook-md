@@ -38,6 +38,7 @@ jobs:
       api-changed: ${{ steps.flags.outputs.api }}
       web-changed: ${{ steps.flags.outputs.web }}
       admin-changed: ${{ steps.flags.outputs.admin }}
+      collab-changed: ${{ steps.flags.outputs.collab }}
       any-changed: ${{ steps.flags.outputs.any }}
     steps:
       - uses: actions/checkout@v6
@@ -87,6 +88,9 @@ jobs:
               - 'apps/admin/**'
               - 'docker/Dockerfile.admin'
               - 'docker/nginx/**'
+            collab:
+              - 'apps/collab/**'
+              - 'docker/Dockerfile.collab'
             shared:
               - 'packages/shared/**'
               - 'package-lock.json'
@@ -101,7 +105,7 @@ jobs:
 
           if [ "$FORCE" = "true" ] || [ "$NO_PREV_TAG" = "true" ]; then
             echo "Force rebuild requested (force=$FORCE, no_prev_tag=$NO_PREV_TAG)"
-            for key in api web admin any; do echo "$key=true" >> "$GITHUB_OUTPUT"; done
+            for key in api web admin collab any; do echo "$key=true" >> "$GITHUB_OUTPUT"; done
             exit 0
           fi
 
@@ -120,14 +124,20 @@ jobs:
             ADMIN=true
           fi
 
+          COLLAB=false
+          if [ "$SHARED" = "true" ] || [ "${{ steps.changes.outputs.collab }}" = "true" ]; then
+            COLLAB=true
+          fi
+
           ANY=false
-          if [ "$API" = "true" ] || [ "$WEB" = "true" ] || [ "$ADMIN" = "true" ]; then
+          if [ "$API" = "true" ] || [ "$WEB" = "true" ] || [ "$ADMIN" = "true" ] || [ "$COLLAB" = "true" ]; then
             ANY=true
           fi
 
           echo "api=$API" >> "$GITHUB_OUTPUT"
           echo "web=$WEB" >> "$GITHUB_OUTPUT"
           echo "admin=$ADMIN" >> "$GITHUB_OUTPUT"
+          echo "collab=$COLLAB" >> "$GITHUB_OUTPUT"
           echo "any=$ANY" >> "$GITHUB_OUTPUT"
 
           echo "### Change Detection" >> "$GITHUB_STEP_SUMMARY"
@@ -136,6 +146,7 @@ jobs:
           echo "| API | $API |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Web | $WEB |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Admin | $ADMIN |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Collab | $COLLAB |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify CI passed
         if: steps.flags.outputs.any == 'true' && inputs.skip_ci_gate != true
@@ -313,6 +324,53 @@ jobs:
           docker push "$IMAGE:$TAG"
           docker push "$IMAGE:latest"
 
+  build-collab:
+    name: Build Collab
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.collab-changed == 'true'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Pull cache
+        run: docker pull ${{ env.ACR_NAME }}.azurecr.io/collab:latest || true
+
+      - name: Build and push
+        run: |
+          IMAGE=${{ env.ACR_NAME }}.azurecr.io/collab
+          TAG=${{ needs.preflight.outputs.image-tag }}
+          DOCKER_BUILDKIT=1 docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from "$IMAGE:latest" \
+            -f docker/Dockerfile.collab \
+            -t "$IMAGE:$TAG" \
+            -t "$IMAGE:latest" \
+            .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ACR_NAME }}.azurecr.io/collab:${{ needs.preflight.outputs.image-tag }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
   deploy-api:
     name: Deploy API
     runs-on: ubuntu-latest
@@ -411,17 +469,46 @@ jobs:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/admin:${{ needs.preflight.outputs.image-tag }}
 
+  deploy-collab:
+    name: Deploy Collab
+    runs-on: ubuntu-latest
+    needs: [preflight, build-collab]
+    if: |
+      always() &&
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.collab-changed == 'true' &&
+      needs.build-collab.result == 'success'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Collab
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          containerAppName: ca-notebookmd-collab
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/collab:${{ needs.preflight.outputs.image-tag }}
+
   summary:
     name: Deploy Summary
     runs-on: ubuntu-latest
-    needs: [preflight, deploy-api, deploy-web, deploy-admin]
+    needs: [preflight, deploy-api, deploy-web, deploy-admin, deploy-collab]
     if: always() && needs.preflight.result == 'success'
     steps:
       - name: Check for failures
         if: |
           needs.deploy-api.result == 'failure' ||
           needs.deploy-web.result == 'failure' ||
-          needs.deploy-admin.result == 'failure'
+          needs.deploy-admin.result == 'failure' ||
+          needs.deploy-collab.result == 'failure'
         run: |
           echo "❌ One or more deploys failed"
           exit 1
@@ -451,4 +538,11 @@ jobs:
             echo "| Admin | ⏭️ Unchanged |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Admin | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ needs.deploy-collab.result }}" = "success" ]; then
+            echo "| Collab | ✅ Deployed |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ needs.deploy-collab.result }}" = "skipped" ]; then
+            echo "| Collab | ⏭️ Unchanged |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Collab | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"
           fi

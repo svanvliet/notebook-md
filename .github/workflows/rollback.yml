@@ -12,6 +12,7 @@ on:
           - api
           - web
           - admin
+          - collab
       revision:
         description: 'Revision name to activate (leave empty for previous revision)'
         required: false
@@ -104,6 +105,30 @@ jobs:
             echo "Rolling back to: $REVISIONS"
             az containerapp ingress traffic set \
               --name ca-notebookmd-admin \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "$REVISIONS=100"
+          fi
+
+      - name: Rollback Collab
+        if: inputs.app == 'all' || inputs.app == 'collab'
+        run: |
+          if [ -n "${{ inputs.revision }}" ]; then
+            az containerapp revision activate \
+              --name ca-notebookmd-collab \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision "${{ inputs.revision }}"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-collab \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision-weight "${{ inputs.revision }}=100"
+          else
+            REVISIONS=$(az containerapp revision list \
+              --name ca-notebookmd-collab \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --query "[?properties.active].name" -o tsv | tail -2 | head -1)
+            echo "Rolling back to: $REVISIONS"
+            az containerapp ingress traffic set \
+              --name ca-notebookmd-collab \
               --resource-group ${{ env.RESOURCE_GROUP }} \
               --revision-weight "$REVISIONS=100"
           fi

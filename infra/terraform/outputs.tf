@@ -34,6 +34,10 @@ output "container_app_admin_fqdn" {
   value = azurerm_container_app.admin.ingress[0].fqdn
 }
 
+output "container_app_collab_fqdn" {
+  value = azurerm_container_app.collab.ingress[0].fqdn
+}
+
 output "frontdoor_web_endpoint" {
   value = azurerm_cdn_frontdoor_endpoint.web.host_name
 }
