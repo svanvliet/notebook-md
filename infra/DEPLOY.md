@@ -62,7 +62,7 @@ ACR_NAME=crnotebookmdprod
 # Login to ACR
 az acr login --name $ACR_NAME
 
-# Build and push all 3 images
+# Build and push all 4 images
 docker build -f docker/Dockerfile.web -t $ACR_NAME.azurecr.io/web:latest .
 docker push $ACR_NAME.azurecr.io/web:latest
 
@@ -71,6 +71,9 @@ docker push $ACR_NAME.azurecr.io/api:latest
 
 docker build -f docker/Dockerfile.admin -t $ACR_NAME.azurecr.io/admin:latest .
 docker push $ACR_NAME.azurecr.io/admin:latest
+
+docker build -f docker/Dockerfile.collab -t $ACR_NAME.azurecr.io/collab:latest .
+docker push $ACR_NAME.azurecr.io/collab:latest
 ```
 
 ## Step 5: Full Terraform Apply
@@ -177,7 +180,7 @@ git push origin v0.1.0
 ```
 
 This triggers the deploy workflow which will:
-1. Build & push versioned images (`api:0.1.0`, `web:0.1.0`, `admin:0.1.0`)
+1. Build & push versioned images (`api:0.1.0`, `web:0.1.0`, `admin:0.1.0`, `collab:0.1.0`)
 2. Run database migrations (001–003)
 3. Deploy updated Container Apps
 4. Health check the API
@@ -205,6 +208,8 @@ Smoke test checklist:
 - [ ] Check cookie consent banner
 - [ ] Check legal pages (Privacy, Terms)
 - [ ] Verify admin console loads
+- [ ] Create a Cloud notebook (requires cloud_notebooks flag enabled)
+- [ ] Verify real-time collab connects (WebSocket at `wss://api.notebookmd.io/collab`)
 
 ## Step 11: Promote Admin Account
 
@@ -224,12 +229,12 @@ az containerapp exec \
 |----------|-----|-------|
 | PostgreSQL Flexible Server | B_Standard_B1ms | $13 |
 | Redis Cache | Basic C0 | $16 |
-| Container Apps (3 apps) | Consumption | $0–10 |
+| Container Apps (4 apps) | Consumption | $0–13 |
 | Front Door | Standard | $35 |
 | Container Registry | Basic | $5 |
 | Key Vault | Standard | $0–1 |
 | Log Analytics + App Insights | 90-day retention | $0–5 |
-| **Total** | | **~$70–85/mo** |
+| **Total** | | **~$70–88/mo** |
 
 ## Troubleshooting
 
@@ -237,6 +242,13 @@ az containerapp exec \
 ```bash
 az containerapp logs show --name ca-notebookmd-api --resource-group rg-notebookmd-prod --type system
 az containerapp logs show --name ca-notebookmd-api --resource-group rg-notebookmd-prod --type console
+```
+
+**Collab WebSocket not connecting:**
+```bash
+az containerapp logs show --name ca-notebookmd-collab --resource-group rg-notebookmd-prod --type console
+# Verify Front Door routes /collab/* to collab origin
+az afd route show --profile-name fd-notebookmd-prod --resource-group rg-notebookmd-prod --endpoint-name notebookmd-api --route-name route-collab
 ```
 
 **Database connection issues:**

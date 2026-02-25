@@ -11,6 +11,15 @@ export default defineConfig({
       brotliSize: true,
     }),
   ],
+  resolve: {
+    alias: {
+      // @tiptap/extension-collaboration@3.20 uses @tiptap/y-tiptap (a fork of y-prosemirror).
+      // @tiptap/extension-collaboration-cursor@3.0 uses y-prosemirror directly.
+      // They create different ySyncPluginKey instances, so the cursor plugin can't find
+      // the sync plugin's state. Aliasing ensures both use the same plugin key.
+      'y-prosemirror': '@tiptap/y-tiptap',
+    },
+  },
   build: {
     rollupOptions: {
       output: {
@@ -43,6 +52,11 @@ export default defineConfig({
       },
       '/webhooks': {
         target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/collab': {
+        target: 'ws://localhost:3002',
+        ws: true,
         changeOrigin: true,
       },
     },

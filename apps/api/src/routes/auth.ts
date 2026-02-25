@@ -120,6 +120,16 @@ router.post('/signup', authMutationLimiter, async (req: Request, res: Response) 
   );
   const userId = result.rows[0].id;
 
+  // Assign free plan + initialize usage counters
+  await query(
+    `INSERT INTO user_plan_subscriptions (user_id, plan_id, is_active) VALUES ($1, 'free', true) ON CONFLICT (user_id) DO NOTHING`,
+    [userId],
+  );
+  await query(
+    `INSERT INTO user_usage_counters (user_id, counter_key, counter_value) VALUES ($1, 'cloud_notebook_count', 0), ($1, 'cloud_storage_bytes', 0) ON CONFLICT (user_id, counter_key) DO NOTHING`,
+    [userId],
+  );
+
   // Send email verification
   const verifyToken = generateToken();
   const expiresAt = new Date();
@@ -358,6 +368,15 @@ router.post('/magic-link/verify', authMutationLimiter, async (req: Request, res:
     );
     userId = newUser.rows[0].id;
     isNewUser = true;
+    // Assign free plan + initialize usage counters
+    await query(
+      `INSERT INTO user_plan_subscriptions (user_id, plan_id, is_active) VALUES ($1, 'free', true) ON CONFLICT (user_id) DO NOTHING`,
+      [userId],
+    );
+    await query(
+      `INSERT INTO user_usage_counters (user_id, counter_key, counter_value) VALUES ($1, 'cloud_notebook_count', 0), ($1, 'cloud_storage_bytes', 0) ON CONFLICT (user_id, counter_key) DO NOTHING`,
+      [userId],
+    );
     userResult = await query(
       'SELECT id, display_name, email, email_verified, avatar_url, password_hash, totp_enabled, totp_secret_enc FROM users WHERE id = $1',
       [userId],
@@ -810,5 +829,23 @@ if (process.env.NODE_ENV !== 'production') {
     res.json({ user: { id: userId, displayName: 'Dev User', email: devEmail, emailVerified: true, avatarUrl: null, hasPassword: true } });
   });
 }
+
+// GET /auth/collab-token — Issue a short-lived token for WebSocket collaboration
+router.get('/collab-token', requireAuth, async (req: Request, res: Response) => {
+  const userResult = await query<{ display_name: string }>(
+    'SELECT display_name FROM users WHERE id = $1',
+    [req.userId!],
+  );
+  const displayName = userResult.rows[0]?.display_name ?? 'User';
+  const token = generateToken();
+  // Store in Redis with 5-minute TTL, mapping token → user info
+  await redis.set(
+    `collab:${token}`,
+    JSON.stringify({ userId: req.userId!, displayName }),
+    'EX',
+    300,
+  );
+  res.json({ token });
+});
 
 export default router;

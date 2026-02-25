@@ -1,6 +1,6 @@
-import { GitHubIcon, OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon } from '../icons/Icons';
+import { GitHubIcon, OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon, CloudIcon } from '../icons/Icons';
 
-export type SourceType = 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud';
+export type SourceType = 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
 
 interface SourceTypeInfo {
   label: string;
@@ -14,6 +14,12 @@ export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
     label: 'Local (Browser)',
     icon: DeviceIcon,
     color: 'text-gray-500',
+    available: true,
+  },
+  cloud: {
+    label: 'Cloud',
+    icon: CloudIcon,
+    color: 'text-blue-500',
     available: true,
   },
   github: {

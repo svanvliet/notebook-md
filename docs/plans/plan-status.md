@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-22
+**Last Updated: 2026-02-24
 
 ---
 
@@ -3808,3 +3808,1140 @@ All 5 phases completed. Key changes:
 ### Tests
 - ✅ 224 API tests pass (no regressions)
 - ✅ 186 web unit tests pass (no regressions)
+
+---
+
+## Co-Authoring Feature (Phases 0–5)
+
+**Plan:** `docs/plans/co-auth-plan-opus.md`
+**Requirements:** `docs/requirements/co-auth-requirements-opus.md`
+**Started:** 2026-02-23
+
+### Phase 0 — Foundation Wiring ✅
+
+**Completed:** 2026-02-23
+
+Added the foundational plumbing for cloud notebooks and real-time collaboration.
+
+**Changes:**
+- Added `'cloud'` to shared `SourceType` union + `CLOUD_SOURCE_TYPE` constant (`packages/shared`)
+- Created migration `004_feature-flags-cloud.sql` seeding 6 feature flags (all disabled by default)
+- Created `featureFlags.ts` service with `isFeatureEnabled()` and `requireFeature()` middleware
+- Added `GET /api/feature-flags/:key` endpoint for client-side flag checking
+- Created `apps/collab` workspace with HocusPocus stub server on port 3002
+- Updated `dev.sh` to start collab server as step 4/7, including status and stop support
+- Added Vite WebSocket proxy: `/collab` → `ws://localhost:3002`
+- Added `COLLAB_PORT=3002` to `.env` and `.env.example`
+- Added `CloudIcon` SVG component and Cloud source type to `SourceTypes.tsx`
+- Gated Cloud option in `AddNotebookModal` behind `cloud_notebooks` feature flag
+- Created `useFeatureFlag` hook with 1-minute client-side caching
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `packages/shared/src/index.ts` | Added `'cloud'` to SourceType, exported CLOUD_SOURCE_TYPE |
+| `apps/api/migrations/004_feature-flags-cloud.sql` | New — seeds 6 cloud feature flags |
+| `apps/api/src/services/featureFlags.ts` | New — feature flag service |
+| `apps/api/src/app.ts` | Added feature-flags endpoint |
+| `apps/api/src/tests/feature-flags.test.ts` | New — 3 tests |
+| `apps/collab/package.json` | New — @notebook-md/collab workspace |
+| `apps/collab/src/server.ts` | New — HocusPocus stub server |
+| `apps/collab/tsconfig.json` | New — TypeScript config |
+| `apps/web/src/hooks/useFeatureFlag.ts` | New — client-side feature flag hook |
+| `apps/web/src/components/icons/Icons.tsx` | Added CloudIcon |
+| `apps/web/src/components/notebook/SourceTypes.tsx` | Added Cloud source type |
+| `apps/web/src/components/notebook/AddNotebookModal.tsx` | Cloud source gated behind flag |
+| `apps/web/vite.config.ts` | Added /collab WebSocket proxy |
+| `dev.sh` | Added collab server (step 4/7), status, stop |
+| `.env.example`, `.env` | Added COLLAB_PORT |
+
+**Commit:** `a1bc75c` — feat: Phase 0 — foundation wiring for co-authoring
+
+**Tests:** ✅ 227 API tests pass (224 existing + 3 new)
+
+### Phase 1 — Database Schema & Entitlements ✅
+
+**Completed:** 2026-02-23
+
+Created all database tables, entitlements service, and Cloud document storage adapter. Cloud notebooks can now be created and documents CRUD'd via REST.
+
+**Changes:**
+- Migration `005_cloud-collab.sql`: cloud_documents, notebook_shares, notebook_public_links, collab_sessions, document_versions
+- Migration `006_plans-entitlements.sql`: plans, plan_entitlements, user_plan_subscriptions, user_usage_counters + free plan seed
+- Entitlements service with plan checks, usage queries, and banner state calculation
+- Usage accounting service for transactional counter management + reconciliation
+- Cloud source adapter implementing SourceAdapter interface with encrypted content storage
+- Sources router updated to handle Cloud provider (no external OAuth token needed)
+- Notebook creation/deletion updated for Cloud (entitlement check, owner share, usage tracking)
+- GET /api/entitlements/me and GET /api/usage/me endpoints
+- Free plan auto-assigned on user signup (email + magic link paths)
+- 15 new integration tests for cloud CRUD, entitlements, and usage tracking
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `apps/api/migrations/005_cloud-collab.sql` | New — Cloud collab tables |
+| `apps/api/migrations/006_plans-entitlements.sql` | New — Plans & entitlements tables + seed |
+| `apps/api/src/services/entitlements.ts` | New — Entitlements service |
+| `apps/api/src/services/usageAccounting.ts` | New — Usage counter management |
+| `apps/api/src/services/sources/cloud.ts` | New — Cloud source adapter |
+| `apps/api/src/routes/entitlements.ts` | New — GET /api/entitlements/me |
+| `apps/api/src/routes/usage.ts` | New — GET /api/usage/me |
+| `apps/api/src/routes/notebooks.ts` | Cloud creation/deletion logic |
+| `apps/api/src/routes/sources.ts` | Cloud provider bypass for OAuth |
+| `apps/api/src/routes/auth.ts` | Free plan + usage counters on signup |
+| `apps/api/src/app.ts` | Registered cloud adapter + new routes |
+| `apps/api/src/tests/helpers.ts` | Clean new tables |
+| `apps/api/src/tests/cloud-notebooks.test.ts` | New — 15 integration tests |
+| `apps/api/vitest.config.ts` | Added ENCRYPTION_KEY for test env |
+
+**Commit:** `0d292d6` — feat: Phase 1 — database schema, entitlements & cloud document CRUD
+
+**Tests:** ✅ 242 API tests pass (227 existing + 15 new)
+
+### Phase 2 — Real-Time Collaboration ✅
+
+**Completed:** 2026-02-23
+
+Implemented HocusPocus server, Yjs collaboration extensions, and collaboration UI components.
+
+**Changes:**
+- HocusPocus server with session-based authentication, notebook permission checks, database persistence (Yjs state), and collab session tracking
+- Document name format: `notebook:{id}:file:{encodedPath}`
+- User color assignment from 8-color palette based on user ID hash
+- Installed @tiptap/extension-collaboration v3, @tiptap/extension-collaboration-cursor v3, @hocuspocus/provider, yjs, y-prosemirror
+- `getEditorExtensions()` accepts optional CollabOptions to add Collaboration + CollaborationCursor extensions (disables built-in History)
+- MarkdownEditor accepts optional `collaborative` prop
+- `useCollaboration` hook manages HocusPocus provider lifecycle
+- CollaboratorAvatars component for top bar
+- CollaboratorCursors.css for live cursor styling
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `apps/collab/src/server.ts` | Full HocusPocus implementation |
+| `apps/web/src/components/editor/extensions.ts` | Added Collaboration + CollaborationCursor |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | Collaborative prop support |
+| `apps/web/src/hooks/useCollaboration.ts` | New — HocusPocus provider hook |
+| `apps/web/src/components/editor/CollaboratorAvatars.tsx` | New — Avatar display |
+| `apps/web/src/components/editor/CollaboratorCursors.css` | New — Cursor styles |
+
+**Commit:** `6c58110` — feat: Phase 2 — real-time collaboration infrastructure
+
+**Tests:** ✅ 242 API tests pass (no regressions)
+
+---
+
+### 2026-02-23 — Phase 3: Sharing & Permissions
+
+**What was done:**
+- Created sharing service (`apps/api/src/services/sharing.ts`) with full invite workflow: sendInvite (hashed tokens), acceptInvite, revokeAccess, getMembers, updateMemberRole
+- Created share links service (`apps/api/src/services/shareLinks.ts`) with create, revoke, toggle visibility, resolve public links
+- Created sharing API routes (`apps/api/src/routes/sharing.ts`) — mounted at `/api/cloud` — with invites, members, and share-link management endpoints
+- Public share link resolution at `/api/public/shares/:token` (no auth required) — mounted directly in app.ts
+- Added share invite email template in `apps/api/src/lib/email.ts`
+- Created ShareNotebookModal UI (`apps/web/src/components/notebook/ShareNotebookModal.tsx`) with invite/members/links tabs
+- Created PublicDocumentViewer component at `/s/:token` route
+- 14 new integration tests covering invites, accept, members, share links, public document access
+
+**Key decisions:**
+- Invite tokens are hashed (SHA-256) before storage; raw token sent via email only
+- Share link tokens are stored raw (they're public URLs)
+- Public routes separated from authenticated routes via distinct mount points
+- Express 5 wildcard `{*filePath}` returns arrays — joined with `/` for path resolution
+
+| File | Change |
+|------|--------|
+| `apps/api/src/services/sharing.ts` | New — invite/member management |
+| `apps/api/src/services/shareLinks.ts` | New — share link CRUD |
+| `apps/api/src/routes/sharing.ts` | New — sharing API routes |
+| `apps/api/src/lib/email.ts` | Added sendShareInviteEmail |
+| `apps/api/src/app.ts` | Mounted sharing + public routes |
+| `apps/api/src/tests/sharing.test.ts` | New — 14 integration tests |
+| `apps/web/src/components/notebook/ShareNotebookModal.tsx` | New — sharing modal |
+| `apps/web/src/components/public/PublicDocumentViewer.tsx` | New — public viewer |
+| `apps/web/src/Router.tsx` | Added `/s/:token` route |
+
+**Commit:** `7872bfd` — Phase 3: Sharing & permissions
+
+**Tests:** ✅ 256 API tests pass (no regressions)
+
+---
+
+### 2026-02-23 — Phase 4: Cross-Source Drag-to-Copy & Export
+
+**What was done:**
+- Created cloud export endpoint (`GET /api/cloud/notebooks/:id/export`) — streams .zip of all decrypted Markdown files
+- Extended cross-notebook drag-and-drop to allow any source → Cloud copies
+- Updated `crossDropStyle` in NotebookTree to allow Cloud as drop target
+- Updated `handleCopyFile` in useNotebookManager to support cross-source copies with toast
+- 2 new integration tests (export as zip, access denial)
+
+**Dependencies added:** archiver (server), jszip (test)
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/cloud.ts` | New — export endpoint |
+| `apps/api/src/tests/cloud-export.test.ts` | New — 2 export tests |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Updated drop logic |
+| `apps/web/src/hooks/useNotebookManager.ts` | Updated copy logic |
+
+**Commit:** `d9ac9cf` — Phase 4: Cross-source drag-to-copy & export
+
+**Tests:** ✅ 258 API tests pass (no regressions)
+
+---
+
+### 2026-02-23 — Phase 5: Quota Banners, Version History & Polish
+
+**What was done:**
+- Created QuotaBanner component (90%/100% storage warnings, dismissible per session)
+- Added version history API: list versions, get version content, restore with pre-restore snapshot
+- Created VersionHistoryPanel UI (slide-out panel with preview and restore)
+- Created version cleanup job (90-day retention, 100 per doc cap)
+- Created usage reconciliation job (nightly counter drift correction)
+- Added account deletion Cloud notebook warning with explicit checkbox requirement
+- 8 new integration tests (version CRUD, cleanup job, reconciliation, usage endpoint)
+
+**Key decisions:**
+- Version restore saves current content as a new version before overwriting
+- Cleanup jobs use correct column names: `counter_key` and `counter_value` (not counter_type/current_value)
+- PostgreSQL BIGINT returned as string by pg — must use `Number()` for comparisons
+- Usage endpoint returns both `cloudNotebooks` and `cloudNotebookCount` for compatibility
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/cloud.ts` | Added version history endpoints |
+| `apps/api/src/routes/usage.ts` | Added cloudNotebookCount alias |
+| `apps/api/src/jobs/versionCleanup.ts` | New — retention cleanup |
+| `apps/api/src/jobs/usageReconciliation.ts` | New — counter reconciliation |
+| `apps/api/src/tests/version-history.test.ts` | New — 8 tests |
+| `apps/web/src/components/layout/QuotaBanner.tsx` | New — quota warnings |
+| `apps/web/src/components/notebook/VersionHistoryPanel.tsx` | New — version UI |
+| `apps/web/src/components/account/AccountModal.tsx` | Cloud deletion warning |
+
+**Commit:** `92ca96a` — Phase 5: Quota banners, version history, cleanup jobs & polish
+
+**Tests:** ✅ 266 API tests pass (no regressions)
+
+---
+
+## Follow-Up Items
+
+### 2FA: Skip local setup for OAuth-authenticated users
+
+**Date noted:** 2026-02-23  
+**Context:** Users who sign in via a 3rd-party provider (Microsoft, Google, GitHub) already have 2FA enforced by that provider. Requiring them to set up a separate local 2FA in Notebook.md is redundant — their identity is already strongly verified at the provider level. The local 2FA prompt/setup should only apply to users who sign in with email+password, where Notebook.md is the sole authentication boundary.
+
+**Action needed:**
+- Update `TwoFactorSetup` / Account settings UI to hide the 2FA setup section for OAuth-only users (users without a password)
+- Consider showing an informational note instead: "Your account is secured by [Provider]'s authentication, including any 2FA you have enabled there."
+- Review backend: `onEnable2fa` / `onDisable2fa` should be no-ops or gated for OAuth-only users
+
+---
+
+## Post-Phase Bug Fixes & Polish (2026-02-23)
+
+### Fix: Cloud notebook file tree not loading
+
+**Problem:** After creating files in a Cloud notebook, the notebook tree showed "Empty notebook". Refreshing didn't help.  
+**Root cause:** `refreshFiles` in `useNotebookManager.ts` only handled github/onedrive/google-drive — Cloud fell through to `rawEntries = []`. File open/save/create/delete all fell through to IndexedDB (local store) instead of the sources API.  
+**Fix:** Created `apps/web/src/api/cloud.ts` with `listCloudTree`, `createCloudFile`, `deleteCloudFile`, `readCloudFile`, `writeCloudFile`. Wired Cloud into all file operation paths in `useNotebookManager`.  
+**Commit:** `b6ac7e9`
+
+### Fix: Cloud folder creation silently failing
+
+**Problem:** Creating a folder showed a success toast but no folder appeared in the tree.  
+**Root cause:** Two issues — (1) `validatePath` middleware strips trailing slashes, so the folder sentinel `/` was lost before reaching the cloud adapter; (2) `encodeURIComponent` encoded `/` as `%2F` in the URL, causing routing issues.  
+**Fix:** Client now sends `type: 'folder'` in the request body instead of encoding it in the URL. Sources router re-appends the trailing `/` for cloud provider before calling `createFile`. Added comprehensive folder test covering create → list → file-in-folder → folder survives child deletion.  
+**Commit:** `2b8a6b1`
+
+### Data cleanup: Orphaned cloud_documents rows
+
+Deleted 3 orphaned rows from the dev database in notebook `cbd84b6c-1a9d-4229-ab21-f88acc2b7995` (Cloud Test 1):
+- `path = 'Test'` — folder attempt before cloud file wiring fix
+- `path = 'Testing'` — folder attempt before folder creation fix
+- `path = 'Foldertest'` — folder attempt before folder creation fix
+
+### Added API test groups for faster targeted runs
+
+Added test group scripts to `apps/api/package.json`: `test:cloud` (~10s), `test:auth` (~40s), `test:notebooks`, `test:providers`, `test:misc`. Root shortcuts: `npm run test:api:cloud`, etc.  
+**Commit:** `4b74716`
+
+### UI: Cloud option ordering in Add Notebook modal
+
+Moved Cloud source type to appear right after Local (was last). Order is now: Local → Cloud → GitHub → OneDrive → Google Drive → iCloud.  
+**Commit:** `e848e68`
+
+**Tests:** ✅ 43 cloud tests pass (was 42, added folder creation test)
+
+---
+
+## UI Wiring Audit & Implementation (2026-02-23)
+
+**Context:** Audit of co-auth-plan-opus.md and co-auth-requirements-opus.md revealed many UI components were created during Phases 0-5 but never wired into the application. This batch connects them all.
+
+### QuotaBanner wired into App layout
+
+- Fixed `UsageData` interface to match actual API response (`storageBytesUsed`, `storageLimit`, `bannerState`)
+- Rendered `QuotaBanner` in App.tsx between DemoBanner and content area
+- Only renders when user is authenticated
+- Fetches usage every 5 minutes, shows yellow (90%) or red (100%) banner
+
+### CollaboratorAvatars + Connection Status in DocumentPane
+
+- Added `useCollaboration` hook call in DocumentPane for cloud documents
+- Renders `CollaboratorAvatars` showing connected users in tab bar
+- Connection status indicator (green/yellow/red dot) with tooltip
+- Extended `Tab` interface with optional `cloudDoc` field (`notebookId` + `path`)
+- App.tsx maps `cloudDoc` from notebook sourceType when converting OpenTab → Tab
+- Passes `currentUser` (from auth) and `collaborative` prop to MarkdownEditor
+
+### Version History trigger in editor
+
+- Added clock icon button in DocumentPane tab bar (only for cloud docs)
+- Toggles `VersionHistoryPanel` slide-out panel
+- Updated VersionHistoryPanel to accept `notebookId` + `documentPath` (resolves documentId internally)
+- Cloud adapter's `readFile` now returns `documentId` for version lookups
+- Added `documentId` to `FileContent` interface in sources/types.ts
+
+### View mode lock during collaboration
+
+- Added `effectiveViewMode` — forced to 'wysiwyg' when `collaborative` prop is set
+- Source and split view toggle buttons disabled with tooltip: "disabled during real-time collaboration"
+- All rendering logic uses `effectiveViewMode` to prevent source/split panes from appearing
+
+### "Shared with me" section in sidebar
+
+- Extended `GET /api/notebooks` to return `sharedNotebooks` array (accepted shares where user isn't the owner)
+- Updated `useNotebookManager` to sync shared notebooks with `sharedBy` and `sharedPermission` fields
+- Added `'cloud'` to `NotebookMeta.sourceType` union, plus `sharedBy?` and `sharedPermission?` fields
+- NotebookTree splits notebooks into own vs shared, renders "Shared with me" section header
+- Shared notebooks show owner name and Edit/View permission badge
+- Shared notebooks don't show in "Share…" context menu (only own cloud notebooks)
+
+| File | Change |
+|------|--------|
+| `apps/web/src/App.tsx` | Import QuotaBanner, render it, map cloudDoc to tabs, pass currentUser to DocumentPane |
+| `apps/web/src/components/layout/DocumentPane.tsx` | useCollaboration hook, CollaboratorAvatars, connection dot, version history button/panel, collaborative prop to editor |
+| `apps/web/src/components/layout/QuotaBanner.tsx` | Fixed UsageData interface to match API |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | effectiveViewMode for collab lock, disabled source/split buttons |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | "Shared with me" section with owner name + badge |
+| `apps/web/src/components/notebook/VersionHistoryPanel.tsx` | Accept notebookId+path, resolve documentId |
+| `apps/web/src/hooks/useNotebookManager.ts` | Sync shared notebooks from API |
+| `apps/web/src/stores/localNotebookStore.ts` | Added cloud to sourceType, sharedBy/sharedPermission fields |
+| `apps/api/src/routes/notebooks.ts` | Return sharedNotebooks in GET response |
+| `apps/api/src/services/sources/cloud.ts` | Return documentId in readFile |
+| `apps/api/src/services/sources/types.ts` | Added documentId to FileContent |
+
+**Commit:** `bb532c1` — Wire all missing co-authoring UI elements
+
+**Tests:** ✅ 43 cloud tests pass (no regressions)
+
+### Remaining UI gaps (not yet built — lower priority)
+
+- **SharingPage** — Account-level sharing management page (list shared/shared-with-me notebooks, manage links)
+- **ExportNotebookModal** — UI for exporting Cloud notebook to GitHub/OneDrive/Google Drive
+- **Mobile read-only banner** — "Co-editing is available on desktop" message for mobile cloud docs
+- **Markdown round-trip fidelity tests** — Automated tests for HTML↔Markdown conversion quality
+- **WebSocket auth for collab** — HocusPocus requires token but refresh_token cookie is HttpOnly; needs a session endpoint that returns a short-lived WS token
+
+---
+
+## Share Invite Flow Fix (2026-02-23)
+
+### Fix: Share invite acceptance not working
+
+**Problem:** Clicking the invite link in the email (`/app/invite?token=...`) just loaded the app — no acceptance happened, and the shared notebook never appeared.
+
+**Root causes:**
+1. No frontend handler for `/app/invite` — the route existed but App.tsx had no logic to detect the invite URL and call the accept endpoint
+2. `GET /api/notebooks` shared notebooks query used `owner_user_id IS NULL` which never matches (column is `NOT NULL`), so shared notebooks were silently filtered out
+
+**Fix:**
+- Added `/app/invite` route to Router.tsx
+- App.tsx detects `/app/invite?token=...`, calls `POST /api/cloud/invites/:token/accept`, shows success toast, reloads notebooks
+- If user isn't signed in, token is stored in `sessionStorage` and accepted automatically after login
+- Fixed query to use `n.user_id != $1` instead of `ns.owner_user_id IS NULL`
+
+| File | Change |
+|------|--------|
+| `apps/web/src/Router.tsx` | Added `/app/invite` route |
+| `apps/web/src/App.tsx` | Invite detection + accept call + pending invite on login |
+| `apps/api/src/routes/notebooks.ts` | Fixed shared notebooks query filter |
+
+**Commit:** `1dc2009`
+
+**Tests:** ✅ 43 cloud tests pass (no regressions)
+
+---
+
+### Session 8: WebSocket Collab Token Auth Bridge (2026-02-23)
+
+**Problem:** Real-time collaboration not working. HocusPocus WebSocket server requires a token for auth, but the user's `refresh_token` is in an HttpOnly cookie that JavaScript can't read. The collab server's `onAuthenticate` only validated session tokens by hashing and looking up `refresh_token_hash` — but the browser had no way to get that token.
+
+**Root Cause:** Auth bridge gap — the cookie-based session auth model doesn't extend to WebSocket connections which need an explicit token parameter.
+
+**Solution:** Short-lived collab token endpoint approach:
+
+1. **`GET /auth/collab-token`** (new endpoint in `apps/api/src/routes/auth.ts`):
+   - Requires `requireAuth` middleware (validates cookie session)
+   - Generates a random token via `generateToken()`
+   - Stores `collab:{token}` in Redis with 5-minute TTL, containing `{ userId, displayName }`
+   - Returns `{ token }` to client
+
+2. **HocusPocus server updated** (`apps/collab/src/server.ts`):
+   - Added Redis connection (`ioredis` with `lazyConnect`)
+   - `onAuthenticate` now tries Redis collab token first (`collab:{token}` key)
+   - Falls back to session-based auth (hash + DB lookup) if Redis miss
+   - Refactored to use `userId`/`displayName` variables instead of `user.user_id`
+
+3. **`useCollaboration` hook updated** (`apps/web/src/hooks/useCollaboration.ts`):
+   - Removed `token` parameter — hook now fetches token internally
+   - `connect()` async function: fetches `GET /auth/collab-token` with credentials, then creates `HocuspocusProvider`
+   - Proper cleanup with `cancelled` flag for race condition safety
+
+4. **`DocumentPane` cleaned up** (`apps/web/src/components/layout/DocumentPane.tsx`):
+   - Removed `collabToken` prop from interface and destructuring
+   - `useCollaboration` now called with only 3 args: `notebookId`, `path`, `currentUser`
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/auth.ts` | Added `GET /auth/collab-token` endpoint |
+| `apps/collab/src/server.ts` | Redis collab token validation + dual auth path |
+| `apps/web/src/hooks/useCollaboration.ts` | Auto-fetch token, removed token param |
+| `apps/web/src/components/layout/DocumentPane.tsx` | Removed collabToken prop |
+
+**Commit:** `4bb3cc4`
+
+**Tests:** ✅ 43 cloud tests pass, collab server type-checks clean
+
+**Remaining:** Manual validation needed — verify WebSocket connects (green dot), avatars appear, real-time sync works between two browser sessions.
+
+---
+
+### Session 9: Fix Browser Freeze on Collab Connect (2026-02-23)
+
+**Problem:** When a second user connected to the same Cloud document, the first user's browser froze (Chrome "This page isn't responding" dialog). Required force-closing the tab.
+
+**Root Cause — Two issues:**
+
+1. **Infinite loop in content sync:** When Yjs synced content from Client B, the `onUpdate` handler called `onChange(html)` → parent updated tab content state → `content` prop changed → `useEffect` at line 185 called `editor.commands.setContent(sanitize(content))` → this fired `onUpdate` again → infinite loop. The `content !== editor.getHTML()` guard didn't prevent it because `sanitize()` produces slightly different HTML than `editor.getHTML()`.
+
+2. **Collaboration extension never applied:** The `useCollaboration` hook connects asynchronously (fetch collab token → create provider). On first render, `collab.provider` is `null`, so `collaborative` prop is `undefined`, and `useEditor` creates the editor WITHOUT the Collaboration extension. When the provider connects and triggers a re-render, `useEditor` doesn't re-create the editor (TipTap caches it), so the Collaboration/CollaborationCursor extensions are never actually used.
+
+**Fix:**
+
+1. Skip `content` sync useEffect when `collaborative` is set — Yjs document is the source of truth
+2. Skip `onChange` callback in `onUpdate` during collaboration — prevents parent from managing content
+3. Delay editor mount for cloud docs until collab provider connects — show loading skeleton
+4. Use keyed `EditorErrorBoundary` (`${id}-${collab/solo}`) to force remount when collab state changes
+
+| File | Change |
+|------|--------|
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | Guard content sync + onChange in collaborative mode |
+| `apps/web/src/components/layout/DocumentPane.tsx` | Loading state + keyed remount for cloud docs |
+
+**Commit:** `50abc03`
+
+---
+
+### Session 10: Real-Time Collaboration — Full Fix Chain (2026-02-23)
+
+**Problem:** Opening a Cloud document caused the browser to freeze (tab unresponsive). Multiple root causes discovered through iterative debugging.
+
+**Root Causes (4 layered issues):**
+
+1. **`ySyncPluginKey` mismatch (crash loop):** `@tiptap/extension-collaboration@3.20` uses `@tiptap/y-tiptap` (TipTap's fork of y-prosemirror), while `@tiptap/extension-collaboration-cursor@3.0` uses `y-prosemirror` directly. Different packages = different `ySyncPluginKey` instances. The cursor plugin crashed with `Cannot read properties of undefined (reading 'doc')` trying to access sync state. Error caught by `EditorErrorBoundary` → retry → infinite crash loop → browser freeze.
+
+2. **TipTap `setOptions` re-render loop (extensions):** `getEditorExtensions()` created new extension instances on every render. TipTap's `compareOptions` checks extensions by reference → always returned false → called `setOptions` → `CollaborationCursor` re-init fired awareness updates → `setConnectedUsers` → re-render → loop.
+
+3. **TipTap `setOptions` re-render loop (editorProps):** `editorProps` was a new object literal on every render. Same `compareOptions` path → `setOptions` → `view.updateState` → awareness update → re-render → loop.
+
+4. **Content sync feedback loop:** Yjs sync fired `onUpdate` → `onChange(html)` → parent state → `content` prop changed → `useEffect` called `setContent(sanitize(content))` → `onUpdate` again → loop. Also, editor was mounting before collab provider connected, so Collaboration extension was never in the initial extension set.
+
+**Fixes (4 commits):**
+
+| Commit | Fix |
+|--------|-----|
+| `4bb3cc4` | Collab token endpoint (`GET /auth/collab-token`) + Redis auth in HocusPocus server |
+| `50abc03` | Skip content sync + onChange in collaborative mode; loading skeleton until provider connects |
+| `92bf6e4` | `useMemo` for extensions array (dep: `collaborative?.provider`); functional updater for `setConnectedUsers` |
+| `893c30a` | `useMemo` for `editorProps` (dep: `spellCheckProp`) |
+| `bc72838` | Vite alias `y-prosemirror` → `@tiptap/y-tiptap` to share `ySyncPluginKey` |
+
+| File | Change |
+|------|--------|
+| `apps/web/vite.config.ts` | `resolve.alias` mapping y-prosemirror → @tiptap/y-tiptap |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | useMemo extensions + editorProps; guard content sync + onChange in collab mode |
+| `apps/web/src/components/layout/DocumentPane.tsx` | Loading skeleton until provider connects; keyed ErrorBoundary |
+| `apps/web/src/hooks/useCollaboration.ts` | Auto-fetch collab token; functional setConnectedUsers updater |
+| `apps/api/src/routes/auth.ts` | `GET /auth/collab-token` endpoint (Redis-backed, 5-min TTL) |
+| `apps/collab/src/server.ts` | Redis collab token validation + dual auth path; Redis connect on startup |
+
+**Status:** ✅ Real-time collaboration working — green connection dot, user avatars, live editing confirmed by user.
+
+---
+
+### Session Entry — 2026-02-23 (continued): Share UX Polish
+
+**What was done:**
+
+1. **Owner-only Share menu** — Context menu now hides "Share…" for notebooks where `sharedBy` is set (i.e., notebooks shared with you by someone else). Only the original owner sees the share option.
+
+2. **"Manage Sharing" label** — When a notebook already has active shares, the context menu label changes from "Share…" to "Manage Sharing". Fixed `hasShares` not being mapped from the API response in `useNotebookManager.ts`.
+
+3. **Owner in members list** — The GET `/api/cloud/notebooks/:id/members` endpoint now prepends the notebook owner as the first entry with `permission: 'owner'`, ensuring the owner is always visible and non-editable in the share dialog.
+
+4. **"Leave Shared Notebook" flow** — Non-owners can right-click a shared notebook and select "Leave Shared Notebook". This shows a confirmation modal, then calls `POST /api/cloud/notebooks/:id/leave` to revoke their share. The notebook is removed from their tree on success. Shared notebooks no longer show Rename/Delete options.
+
+| Commit | Description |
+|--------|-------------|
+| `1c724d1` | Restrict Share menu to owners + show owner in members list |
+| `475b67a` | Add 'Manage Sharing' label, Leave Shared Notebook flow, hasShares mapping |
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/sharing.ts` | Added `POST /notebooks/:id/leave` endpoint; owner prepended in members list |
+| `apps/api/src/routes/notebooks.ts` | Added `has_shares` subquery to GET /api/notebooks |
+| `apps/web/src/hooks/useNotebookManager.ts` | Map `hasShares` from API response |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Owner-only Share menu, Manage Sharing label, Leave Shared Notebook flow with confirm modal |
+| `apps/web/src/components/layout/NotebookPane.tsx` | Thread `onLeaveNotebook` prop to both NotebookTree instances |
+| `apps/web/src/App.tsx` | Implement `onLeaveNotebook` handler (API call + reload + toast) |
+| `apps/web/src/stores/localNotebookStore.ts` | Added `hasShares?: boolean` to NotebookMeta interface |
+
+**Status:** ✅ Share UX polish complete — owner-only sharing, manage label, leave flow all wired.
+
+---
+
+### Session Entry — 2026-02-24: Viewer Permission Enforcement
+
+**Problem:** Three bugs reported after sharing a notebook and changing a member from Editor to Viewer:
+1. Members with same display name were indistinguishable in the Share dialog
+2. Changing a member's role to Viewer didn't enforce read-only — user could still edit, save, create files
+3. API had no permission checks on cloud file write/create/delete operations
+
+**What was done:**
+
+1. **Member email display** — Added email address in parentheses next to display name in the Share dialog members tab, so users with the same name are distinguishable.
+
+2. **Client-side read-only enforcement:**
+   - `readOnly` flag in App.tsx now checks `notebook?.sharedPermission === 'viewer'` (was only checking pending PRs)
+   - TipTap editor becomes non-editable for viewer tabs (via existing `editable: !readOnly` path)
+   - Context menu hides New File, New Folder, Import, Rename, Delete items for viewers
+   - Viewers see only Refresh in notebook context menu, and no write actions on files
+
+3. **API-side permission enforcement:**
+   - Added `requireCloudEditor` middleware in `sources.ts` that checks notebook ownership or editor-level share permission
+   - Applied to PUT (save), POST (create), DELETE (delete) routes for cloud provider
+   - Viewers receive `403 Viewers cannot modify files` on any write attempt
+   - Owners always pass; shared editors pass; viewers and non-members are blocked
+
+| Commit | Description |
+|--------|-------------|
+| `02f3b09` | Enforce viewer permissions: read-only editor, hidden write actions, API guard |
+
+| File | Change |
+|------|--------|
+| `apps/web/src/components/notebook/ShareNotebookModal.tsx` | Show email alongside display name for members |
+| `apps/web/src/App.tsx` | `readOnly` now includes `sharedPermission === 'viewer'` check |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Refactored context menu: compute `isViewer`, hide write actions for viewers |
+| `apps/api/src/routes/sources.ts` | Added `requireCloudEditor` middleware on PUT/POST/DELETE cloud file routes |
+
+**Status:** ✅ Viewer permission enforcement complete — server + client both enforce read-only for viewers.
+
+---
+
+### Session Entry — 2026-02-24 (continued): Authorization Gaps, Share UX Polish, Invite Flow, Revoke Fixes
+
+**Scope:** Comprehensive security audit, share pill UX, permission polling, invite accept/decline in-app flow, revoked share cleanup, and test coverage.
+
+#### 1. Authorization Gap Closure
+
+Conducted full security audit of all sharing, cloud, and sources API routes. Found and closed 6 critical/high gaps:
+
+- **GET cloud tree/files/readFile**: Added `requireCloudAccess` middleware — blocks unauthorized users
+- **DELETE invite**: Added ownership check — only notebook owner can revoke invites
+- **GET invites/members**: Added ownership or membership checks
+- **Export & version history routes**: Added `hasNotebookAccess`/`hasDocumentAccess` helpers in `cloud.ts`
+
+| Commit | Description |
+|--------|-------------|
+| `ed5abde` | Close authorization gaps across sharing, cloud, and sources APIs |
+
+#### 2. Share UX Pills
+
+- Changed "Edit"/"View" labels to "Editor"/"Viewer" to indicate role
+- Removed owner name text, added hover tooltip "Owner: {Owner Name}" on pill
+- Added green "Shared" pill for owner's notebooks with active shares; clicking opens Manage Sharing modal on Members tab
+
+| Commit | Description |
+|--------|-------------|
+| `a837eff` | Improve shared notebook pills: Editor/Viewer with owner tooltip, Shared pill for owners |
+| `a56e1a4` | Match pill styling, open Members tab from Shared pill |
+
+#### 3. Permission Polling (60s)
+
+- Added polling effect in `useNotebookManager` that re-fetches `/api/notebooks` every 60 seconds
+- Detects `sharedPermission` changes, `hasShares` changes, and revoked shares
+- Editor→Viewer: editor goes read-only automatically
+- Viewer→Editor: toast with "Refresh to edit" action link (toasts with actions persist, don't auto-dismiss)
+
+| Commit | Description |
+|--------|-------------|
+| `46a5d7f` | Poll for permission changes every 60s |
+| `09de744` | Add 'Refresh to edit' action link on viewer→editor toast |
+
+#### 4. In-App Pending Invite Flow
+
+- Added `pendingInvites` to GET `/api/notebooks` response (matched by user email)
+- Added `POST /api/cloud/invites/accept-by-id` endpoint for in-app acceptance
+- Added `POST /api/cloud/invites/decline-by-id` endpoint for in-app decline
+- Pending notebooks appear in "Shared with me" with amber "View Invitation" pill (non-expandable, no context menu)
+- Invitation modal shows notebook name, owner, role, date with Accept/Decline buttons
+- Accept/decline both call `syncNotebooksFromServer()` to immediately refresh the tree
+
+| Commit | Description |
+|--------|-------------|
+| `5d66270` | Show pending invites with View Invitation modal and in-app accept |
+| `b1b9a4e` | Refresh tree on invite accept/decline with server sync |
+
+#### 5. Revoked Share Cleanup (Multi-Layer Fix)
+
+Fixed persistent bug where revoked shared notebooks remained visible due to stale IndexedDB entries and race conditions:
+
+1. **Orphan cleanup**: Removes tabs and sessionStorage expansion state for deleted notebooks
+2. **Silent 403 handling**: Shared notebooks that return 403 are removed from React state
+3. **Error status propagation**: `listCloudTree`/`readCloudFile` now attach HTTP status to error objects
+4. **Race condition fix**: 403 handler only removes from React state, not IndexedDB (sync IIFE is sole authority)
+5. **Pending invite guards**: `refreshFiles`, `onExpandNotebook`, and tree auto-expand all skip `pendingInvite` notebooks
+6. **API fix**: `GET /api/notebooks` `sharedNotebooks` query now filters `revoked_at IS NULL`
+
+| Commit | Description |
+|--------|-------------|
+| `1066a79` | Fix revoked share cleanup: remove stale notebooks, tabs, suppress 403 toasts |
+| `3e88546` | Handle revoked share URL gracefully: redirect to /app, skip stale tabs |
+| `85fae48` | Auto-purge revoked shared notebooks on 403 |
+| `ec09748` | Fix 403 detection: attach status code to errors |
+| `eef011f` | Fix 403 purge race: don't delete from IndexedDB, only React state |
+| `b9a432b` | Guard all paths against loading files for pending invite notebooks |
+| `5de7d67` | Fix revoked/declined shares still appearing in shared notebooks list |
+
+#### 6. Test Coverage
+
+Added 10 new API tests for the in-app invite flow:
+
+- Accept-by-id: happy path, double-accept rejection, wrong user rejection, missing shareId
+- Decline-by-id: happy path, double-decline rejection, wrong user rejection, declined invite excluded from notebooks list
+- Revoked shares: accepted share visible, revoked share excluded from notebooks list
+
+| Commit | Description |
+|--------|-------------|
+| `2ced455` | Add tests for accept-by-id, decline-by-id, and revoked share exclusion |
+
+#### Key Files Changed
+
+| File | Change |
+|------|--------|
+| `apps/api/src/routes/sources.ts` | `requireCloudEditor` + `requireCloudAccess` middleware |
+| `apps/api/src/routes/sharing.ts` | `accept-by-id`, `decline-by-id` endpoints; ownership checks |
+| `apps/api/src/routes/notebooks.ts` | `pendingInvites` in response; `revoked_at IS NULL` filter |
+| `apps/api/src/routes/cloud.ts` | `hasNotebookAccess`/`hasDocumentAccess` helpers |
+| `apps/api/src/tests/sharing.test.ts` | 10 new tests (277 total, all pass) |
+| `apps/web/src/hooks/useNotebookManager.ts` | `syncNotebooksFromServer()` extracted; permission polling; pending invite guards |
+| `apps/web/src/hooks/useToast.tsx` | Toast action support (label + onClick, no auto-dismiss) |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | Pending invite UI, invitation modal, accept/decline wiring |
+| `apps/web/src/components/notebook/ShareNotebookModal.tsx` | Email display, initialTab prop |
+| `apps/web/src/App.tsx` | Read-only viewer check, onAcceptInvite, onDeclineInvite |
+| `apps/web/src/api/cloud.ts` | HTTP status attached to errors |
+
+**Status:** ✅ All Phase 3 exit criteria met except "Account sharing management page" (deferred to Phase 6). Phases 4 and 5 were completed in prior sessions. **All Phases 0–5 are functionally complete.**
+
+---
+
+## Flighting System Implementation
+
+**Branch:** `feature/flighting` (based on `feature/co-auth`)  
+**Plan:** `docs/plans/flighting-plan.md`  
+**Requirements:** `docs/requirements/flighting-requirements.md`  
+**Date:** 2026-02-24
+
+### Overview
+
+Evolved the basic boolean feature flag system into a full flighting platform with per-user resolution, groups, flights, percentage rollout, admin UI, and self-enrollment — maintaining backward compatibility with all existing call sites.
+
+### Phase 1 — Database Schema ✅
+
+Created migration `007_flighting.sql` with 6 new tables: `flag_overrides`, `user_groups`, `user_group_members`, `flights`, `flight_flags`, `flight_assignments`. Extended `feature_flags` with `rollout_percentage`, `variants`, `stale_at`.
+
+| Commit | Description |
+|--------|-------------|
+| `6f24dda` | Phase 1: Add flighting database schema |
+
+### Phase 2 — Resolution Engine ✅
+
+Rewrote `featureFlags.ts` with a 5-step priority resolution algorithm: kill switch → per-user override → flight assignment → rollout % → global default. Added FNV-1a hash for deterministic rollout bucketing, batch `GET /api/flags` endpoint, `optionalAuth` on flag endpoints for per-user resolution, server-side cache with 30s TTL. 20 test cases.
+
+| Commit | Description |
+|--------|-------------|
+| `dd30511` | Phase 2: Add flighting resolution engine with batch API |
+
+### Phase 3 — Admin API ✅
+
+Added comprehensive CRUD endpoints for groups, flights, overrides behind admin auth. Enhanced feature flag listing/creation with rollout percentage and variants. User flag resolution diagnostic (`GET /admin/users/:id/flags`). Cache invalidation on all mutations. Full audit logging. 28 new admin tests.
+
+| Commit | Description |
+|--------|-------------|
+| `a7739b6` | Phase 3: Add flighting admin API |
+
+### Phase 4 — Admin UI ✅
+
+Created `GroupsPage.tsx` and `FlightsPage.tsx` with full CRUD, detail panels, and assignment management. Enhanced `FeatureFlagsPage.tsx` with rollout % selector and overrides panel. Added Groups and Flights to sidebar navigation. Extended `useAdmin.ts` with 15 new API functions and 6 new types.
+
+| Commit | Description |
+|--------|-------------|
+| `a1c19d5` | Phase 4: Add admin UI for groups, flights, and enhanced feature flags |
+
+### Phase 5 — Frontend & User-Facing ✅
+
+Created `FlagProvider` context replacing per-flag API calls with batch resolution and 90s polling. `useFlag()` and `useFlagBadge()` hooks. Self-enrollment API endpoints (`/api/groups/joinable`, `join`, `leave`). "Beta Programs" section in AccountModal. 4 new self-enrollment tests (329 total, all pass).
+
+| Commit | Description |
+|--------|-------------|
+| `8706435` | Phase 5: Add FlagProvider, self-enrollment, and Beta Programs UI |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `apps/api/migrations/007_flighting.sql` | Migration for all flighting tables |
+| `apps/api/src/services/featureFlags.ts` | Core resolution engine (4-step algorithm, v2) |
+| `apps/api/src/routes/admin.ts` | Groups, flights, overrides CRUD endpoints |
+| `apps/api/src/app.ts` | Batch flags endpoint, self-enrollment endpoints |
+| `apps/api/src/tests/flighting.test.ts` | Resolution engine + self-enrollment tests |
+| `apps/api/src/tests/flighting-admin.test.ts` | Admin API tests |
+| `apps/web/src/hooks/useFlagProvider.tsx` | FlagProvider context + hooks |
+| `apps/web/src/hooks/useFeatureFlag.ts` | Backward-compatible wrapper |
+| `apps/web/src/components/account/AccountModal.tsx` | Beta Programs section |
+| `apps/admin/src/pages/GroupsPage.tsx` | Groups management page |
+| `apps/admin/src/pages/FlightsPage.tsx` | Flights management page |
+| `apps/admin/src/pages/FeatureFlagsPage.tsx` | Enhanced with rollout % and overrides |
+| `apps/admin/src/hooks/useAdmin.ts` | Extended with 15 new API functions |
+
+### Test Summary
+
+- 329 total API tests (all pass)
+- 52 flighting-specific tests (24 resolution + 28 admin)
+- Admin app type checks clean
+
+**Status:** All flighting phases (1–6) complete. Ready for production deployment planning.
+
+### v2 Redesign Decision (2026-02-24)
+
+After reviewing the implemented system, the rollout model was redesigned:
+
+**Problem:** v1 puts `rollout_percentage` on individual flags. With 6 co-authoring flags, rolling out to 25% requires updating 6 rows independently. If one is missed, users get a broken partial experience. Two parallel delivery paths (flights vs. per-flag %) create confusion.
+
+**Solution:** Move `rollout_percentage` from `feature_flags` to `flights`. Flights become the sole delivery mechanism:
+- Users → Groups → Flights (with %) → Flags
+- A flag is OFF by default unless delivered through a flight
+- One knob on the flight controls rollout for all its flags atomically
+- Graduated features use a "General Availability" flight at 100%
+
+**Impact:** Requires Phase 6 implementation:
+- Schema: add `rollout_percentage` to `flights`, deprecate on `feature_flags`
+- Resolution engine: remove per-flag rollout, add flight-level rollout with `flightName:userId` hash
+- Admin UI: move rollout slider from flags page to flights page
+- Migration: create GA flight for existing co-auth flags
+
+See updated `docs/requirements/flighting-requirements.md` (v2) and `docs/plans/flighting-plan.md` (Phase 6).
+
+### Phase 6 — v2 Redesign: Flight-Level Rollout
+
+Moved rollout_percentage from feature_flags to flights. Rewrote resolution engine to 4-step algorithm. Flags OFF by default unless delivered through a flight. Created migration 008, GA flight, seedFlagsWithGAFlight() test helper. All 332 tests pass.
+
+Commit: 6e4785e
+
+Status: All flighting phases (1-6) complete. Ready for production deployment planning.
+
+### Permanent Flights Guard
+
+Added is_permanent column to flights table (migration 009). GA flight marked as permanent. API returns 403 on delete attempts, admin UI hides Delete button for permanent flights. 32 admin tests pass.
+
+Commit: b7c689f
+
+### cloud_collab Flag Wired to Collab Features
+
+The cloud_collab feature flag was created in migration 004 but never enforced. Now wired to two places: (1) collab server rejects non-owner WebSocket connections when kill-switched, (2) web app useCollaboration hook skips WebSocket connection when flag is off. This enables the rollback scenario from the co-auth plan: disable cloud_collab to kill real-time editing while keeping cloud notebooks functional via REST.
+
+Commit: f8bb4b5
+
+### View-Only Fallback When cloud_collab Disabled
+
+When cloud_collab is kill-switched, non-owners default to view-only (no last-write-wins risk). Share modal hides Editor option and defaults to Viewer. API rejects editor invites and role changes with a clear error message. Owners retain full editing in solo mode. 333 tests pass.
+
+Commits: f8bb4b5 (collab gate), 26c4e76 (loading fix), e91b3d7 (view-only enforcement)
+
+### Content Sync: Collab Server Dual-Write
+
+The collab server's HocusPocus Database `store` callback previously only wrote `ydoc_state`, leaving `content_enc` stale. This meant REST reads (view-only mode, public links, exports) returned the original file content, not the latest collab edits. Fix: the store callback now converts Yjs state to HTML via a lightweight XML-to-HTML walker, encrypts it, and updates `content_enc` alongside `ydoc_state`. No new dependencies — uses `yjs` (already installed) and Node.js `crypto`.
+
+Commit: cc3d3d4
+
+### Auto-Load File Listing for Shared Notebooks
+
+Shared cloud notebooks appeared as "Empty notebook" on first load because the file listing effect in NotebookTree only triggered for notebooks already in the expanded set (restored from sessionStorage). New notebooks shared with the user were never expanded, so files never loaded. Fix: the effect now also loads files for any notebook with `sharedBy` set, regardless of expansion state.
+
+Commit: 84747ae
+
+### All cloud_collab Bugs Resolved (2026-02-25)
+
+Both remaining bugs verified fixed:
+- **Content sync**: Confirmed working. Shared docs load current content in view-only mode after collab server dual-write fix.
+- **File listing**: Confirmed working. Shared cloud notebooks show files on initial load after clearing stale IndexedDB cache.
+
+All flighting and cloud_collab gating work is complete.
+
+### cloud_public_links Flag Wired (2026-02-25)
+
+The cloud_public_links flag was created in migration 004 but never enforced. Now wired:
+- API share-link endpoints (create, list, toggle, revoke): Added requireFeature middleware
+- Public viewer endpoints (resolve, document fetch): Check kill switch via new isKillSwitched() helper
+- UI ShareNotebookModal: Links tab hidden when flag is off
+- Added isKillSwitched() to featureFlags.ts for anonymous endpoint checks
+
+Commit: 28e0ee7
+
+### Public Share Link Error Handling (2026-02-25)
+
+PublicDocumentViewer was showing a blank screen when the resolve API returned 403 (disabled) or 404 (revoked) because it parsed the error JSON without checking res.ok. Now checks res.ok, shows contextual error message ("Public links are currently disabled" vs "This share link is invalid or has been revoked"), and includes a "Go to Notebook.md" link.
+
+Commit: a768586
+
+### cloud_sharing Flag Wired to UI (2026-02-25)
+
+The cloud_sharing flag was enforced on API endpoints but not in the UI. Now gates three spots in NotebookTree:
+- "Share..." / "Manage Sharing" context menu item hidden
+- "Shared" badge on owned notebooks hidden
+- "Shared with me" section entirely hidden
+
+Commit: 97d6635
+
+### cloud_notebooks Flag Review (2026-02-25)
+
+Confirmed correct behavior: flag gates creation of new cloud notebooks (Add Notebook dialog), but existing cloud notebooks remain visible and accessible. This is intentional -- users must retain access to their data.
+
+### Feature Flag Wiring Summary
+
+All co-auth feature flags are now fully enforced (API + UI):
+| Flag | API | UI | Behavior when disabled |
+|------|-----|-----|----------------------|
+| cloud_notebooks | Gates notebook creation | Hides Cloud option in Add dialog | Existing notebooks accessible |
+| cloud_sharing | Gates invite/member endpoints | Hides Share menu, Shared badge, Shared with me | Existing shares still function for data access |
+| cloud_collab | Gates WebSocket connections | Skips collab provider, forces view-only | Owners edit solo, non-owners view-only |
+| cloud_public_links | Gates link CRUD + public viewer | Hides Links tab in Share modal | Error page for existing links |
+
+### Flight Rollout Scoping Fix (2026-02-25)
+
+Rollout percentage was applying to ALL users regardless of group assignments. Fixed: when a flight has group/user/domain assignments, rollout % only applies within that audience. Flights with no assignments apply rollout to everyone (general population). Added `has_assignments` subquery to the resolution engine.
+
+Commit: a52d1fe
+
+### Group Member Add: Email Support (2026-02-25)
+
+Admin group member add was returning 500 on invalid user IDs (FK constraint). Fixed: API now resolves email addresses to user IDs, returns 400 with clear error for unknown emails. UI placeholder updated to "Email address".
+
+Commit: 6f8bb35
+
+### Migration 010: Production Seed Data (2026-02-25)
+
+Created migration to seed production with current collab rollout configuration:
+- Beta Testers group
+- Collab Features flight (100%, 5 co-auth flags, Beta Testers group assigned)
+- Co-auth flags removed from GA flight
+Fully idempotent. User assignments done via admin UI per-environment.
+
+Commit: 118f105
+
+### CI/CD: Collab Server Pipeline (2026-02-25)
+
+Added collab server to the CI/CD pipeline and fixed Express v5 TypeScript errors:
+
+- **New Dockerfile.collab**: 4-stage build (deps → build → prod-deps → production) for HocusPocus WebSocket server
+- **Workspace deps**: Added `COPY apps/collab/package.json apps/collab/` to api/web/admin Dockerfiles (npm workspace requires all package.json files at install time)
+- **docker-compose.prod.yml**: Added collab service with DB + Redis dependencies
+- **CI workflow**: Collab change detection, `build-collab-image` job, collab typecheck step, e2e dependencies updated
+- **Root package.json**: Added collab to `build` script
+- **Express v5 fix**: `req.params` returns `string | string[]` in Express 5 — cast to `string` in admin.ts, cloud.ts, sharing.ts (18 type errors)
+- **Migration 010 fix**: Join on `feature_flags` table instead of VALUES list for FK safety in test DB
+
+All 333 API tests pass. Docker builds succeed for both API and collab images.
+
+Commit: cfcbebb
+
+### API Test Performance Optimization (2026-02-25)
+
+Reduced full API test suite from **207s → 78s (62% faster, 2.7x speedup)**:
+
+- **Batched `cleanDb()`**: 26 individual DELETE queries → single multi-statement SQL query (minimal gain ~1s, eliminates 25 round-trips)
+- **`createTestUser()` / `createTestAdmin()` helpers**: Direct SQL insert + session creation, bypassing HTTP + SMTP entirely (~1ms vs ~3s per user). This was the big win — tests that just need an authenticated user no longer send emails through Mailpit.
+- **Cached bcrypt hash**: Cost 4 instead of 12, computed once per test run and reused
+- Tests that specifically test signup/auth flows still use `signUp()` via the API
+
+Updated test files: `flighting-admin.test.ts`, `flighting.test.ts`, `admin.test.ts`
+
+Commit: 979f06f
+
+### Test Timeout Root Cause (2026-02-25)
+
+The 6 test failures in `flighting-admin.test.ts` (Groups CRUD) were caused by Mailpit being down after `./dev.sh` was stopped. The `createAdmin()` helper calls `signUp()` which sends a verification email — SMTP connection to port 1025 timed out at 30s, hitting the Vitest hook timeout. Restarting Docker services (`docker compose up -d db cache mailpit`) resolved all failures. Not a code bug.
+
+---
+
+## Next Steps: Production Deployment for Collab Server
+
+### What's Done
+- ✅ `Dockerfile.collab` — production-ready multi-stage Docker image
+- ✅ `ci.yml` — collab change detection, typecheck, Docker build
+- ✅ `docker-compose.prod.yml` — collab service for local prod-like testing
+- ✅ All 333 API tests pass, Docker builds succeed
+
+### What's Needed Before Production Deploy
+
+**1. Terraform: Add Collab Container App** (infra change)
+- Add `azurerm_container_app.collab` to `container_apps.tf`
+- WebSocket-capable (requires `transport: "auto"` or explicit WS support)
+- Needs DB + Redis connection strings from Key Vault
+- Internal-only networking (fronted by Front Door or direct from web app)
+- Consider: does collab need its own Front Door endpoint (e.g., `collab.notebookmd.io`) or can web app proxy to it?
+
+**2. deploy.yml: Add Collab Build & Deploy Jobs**
+- Preflight: add `collab-changed` output with paths (`apps/collab/**`, `docker/Dockerfile.collab`)
+- `build-collab` job: mirrors existing build-api pattern (Docker build + push to ACR + Trivy scan)
+- `deploy-collab` job: Container Apps deploy targeting the new collab resource
+- No health check endpoint needed (WebSocket server, no HTTP health route) — or add one
+
+**3. rollback.yml: Add Collab Option**
+- Add `collab` to the `app` choice options dropdown
+- Add collab rollback step mirroring existing api/web/admin pattern
+
+**4. Web App: Production WebSocket URL**
+- Currently web app proxies `/collab` to `ws://localhost:3002` via Vite dev server
+- In production, need `VITE_COLLAB_URL` env var (e.g., `wss://collab.notebookmd.io`) or proxy through Front Door
+- Update `useCollaboration.ts` to use the env var for WebSocket connection
+
+**5. Front Door / Networking Decision**
+- Option A: Dedicated `collab.notebookmd.io` subdomain via Front Door → collab Container App (requires custom domain + TLS)
+- Option B: Route `/collab` on `api.notebookmd.io` through Front Door to collab app (simpler, but mixes HTTP + WS on same domain)
+- Option C: Direct Container App FQDN with TLS (simplest, but exposes Azure URLs)
+
+### Recommendation
+Test CI first via PR to main (current step). Then plan the infra + deploy changes as a follow-up, since they require Terraform changes and a networking decision for WebSocket routing.
+
+### E2E Test Optimization & New Coverage (2026-02-25)
+
+#### Performance Optimization
+
+Optimized Playwright config for faster E2E execution:
+
+- **`fullyParallel: true`**: Tests within the same file now run concurrently (was serial with `workers: 1`)
+- **Dynamic workers**: Defaults to half CPUs locally (~8 workers), `2` in CI
+- **Smart retries**: `0` locally (fast iteration), `1` in CI (handle flakiness)
+- **CI reporter**: Switched to `github` reporter for native PR annotations
+- **Parallel Docker builds in CI**: E2E job now builds all 4 images (`api`, `web`, `admin`, `collab`) concurrently with `&` + `wait` instead of a sequential for-loop
+
+Commit: 64ac7ec
+
+#### New E2E Tests for Co-Auth Features
+
+Added 3 focused E2E tests covering the new sharing/collab/flighting features:
+
+| Test | Approach | What it validates |
+|------|----------|-------------------|
+| **Cloud notebook creation** | Full UI flow: Add Notebook → Cloud → name → Create | End-to-end cloud notebook CRUD via the Add Notebook dialog |
+| **Public share link (anonymous view)** | API setup (signup + create notebook + create link) + fresh browser context | Anonymous users see the public viewer (validates blank-screen bug fix) |
+| **Feature flag gating** | `page.route()` intercepts `GET /api/flags`, sets `cloud_sharing: false` | Share menu hidden in context menu when flag is disabled |
+
+**Key design decisions:**
+- API setup calls go through Vite proxy (relative URLs) to respect CORS and match production behavior
+- Flag gating test uses Playwright's native `page.route()` network interception instead of DB manipulation — cleaner, no pg dependency, tests the actual UI behavior
+- Anonymous share link test creates a fresh `browser.newContext()` with no cookies to verify true anonymous access
+- Removed low-value marketing page tests (terms, privacy, /about — all static HTML)
+
+**Known product issue noted:** FlagProvider fetches flags once on mount and polls every 90s. It does NOT re-fetch when auth state changes (sign-in/sign-out). This means flag resolution uses the anonymous result until the next poll. Should be fixed by adding a `useEffect` that calls `refreshFlags()` when `auth.user.id` changes.
+
+Result: **24 tests, all passing in 6.5s** (was 21 tests, serial execution)
+
+Commit: 79cc6c4
+
+#### Removed Tests
+- `smoke.spec.ts`: Removed terms page and privacy page tests (static content, no value)
+- `navigation.spec.ts`: Removed `/about` navigation from marketing page test
+
+---
+
+### PR #40: Flighting System → main (2026-02-25)
+
+**Branch:** `feature/flighting` → `main`
+**PR URL:** https://github.com/svanvliet/notebook-md/pull/40
+**Status:** Open, CI running
+
+**What's in this PR:**
+- Full flighting system (v2 flight-level rollout, admin UI, self-enrollment)
+- All 4 co-auth feature flags wired and enforced (API + UI)
+- Bug fixes: flight scoping, group member add, public link error pages, content sync
+- CI: Collab server Dockerfile, change detection, build job, typecheck
+- E2E: Parallel execution, 3 new cloud/sharing/flag tests
+- API test optimization: 207s → 78s (62% faster)
+
+**CI should validate:**
+- Collab typecheck + Docker build
+- API tests (333 tests, ~78s)
+- Web tests
+- E2E smoke tests (24 tests, ~6.5s)
+
+---
+
+## Current Status Summary (2026-02-25)
+
+### What's Complete
+- ✅ Phases 0–5: Co-authoring (local dev)
+- ✅ Flighting system v2: flight-level rollout, groups, overrides, admin UI
+- ✅ Feature flag enforcement: all 4 co-auth flags gated in API + UI
+- ✅ CI pipeline: collab server added (Dockerfile, change detection, typecheck, build)
+- ✅ E2E tests: optimized config + 3 new cloud/sharing/flag tests
+- ✅ API test optimization: 62% faster
+- ✅ PR #40 open to main for CI validation
+
+### What's Next
+1. **Monitor PR #40 CI** — fix any failures
+2. **FlagProvider auth refresh** — re-fetch flags on sign-in/sign-out (product issue)
+3. **Production deployment** (Phase 6) — see "Next Steps: Production Deployment" section above
+   - Terraform: collab Container App
+   - deploy.yml + rollback.yml: collab jobs
+   - WebSocket URL + networking decision
+   - Marketing/legal page updates
+   - Progressive rollout (internal alpha → private beta → public beta → GA)
+
+### Production Deployment Infrastructure (2026-02-25)
+
+Added collab server (HocusPocus WebSocket) to all production infrastructure and CI/CD pipelines.
+
+#### Architecture Decision
+- **Routing:** `wss://api.notebookmd.io/collab` → Front Door `/collab/*` route → collab Container App (no new subdomain)
+- **Container:** Separate Container App (`ca-notebookmd-collab`) for independent scaling/restarts
+
+#### Terraform Changes
+
+| File | Change |
+|------|--------|
+| `container_apps.tf` | Added `azurerm_container_app.collab` — port 3002, `transport = "auto"` (WebSocket), CPU 0.5, 1Gi, replicas 1–5, env vars for DB/Redis/encryption |
+| `frontdoor.tf` | Added `og-collab` origin group, `origin-collab` origin, `route-collab` route on API endpoint (`/collab/*` pattern, higher priority than `/*` catch-all) |
+| `keyvault.tf` | Added `db-admin-password` and `redis-primary-key` secrets (collab uses individual DB params, not connection string) |
+| `outputs.tf` | Added `container_app_collab_fqdn` output |
+
+#### Deploy Workflow Changes (`deploy.yml`)
+
+| Change | Details |
+|--------|---------|
+| Change detection | Added `collab` filter: `apps/collab/**`, `docker/Dockerfile.collab` + `collab-changed` output |
+| Build job | `build-collab`: Dockerfile.collab → ACR `collab:TAG+latest`, Trivy scan |
+| Deploy job | `deploy-collab`: `ca-notebookmd-collab` via container-apps-deploy-action |
+| Summary | Collab row in deploy summary markdown table |
+| Force rebuild | Updated to include `collab` in force rebuild loop |
+
+#### Rollback Workflow Changes (`rollback.yml`)
+
+- Added `collab` to `app` input choices
+- Added "Rollback Collab" step (revision list + traffic set, no health check)
+
+Commit: d5344f0
+
+---
+
+## One-Time Manual Steps Required Before First Deploy
+
+Before running `terraform apply` and the first deploy, these manual steps are needed:
+
+1. **Push the collab Docker image to ACR manually** (or use `force_rebuild` on first deploy):
+   ```bash
+   az acr login --name crnotebookmdprod
+   docker build -f docker/Dockerfile.collab -t crnotebookmdprod.azurecr.io/collab:latest .
+   docker push crnotebookmdprod.azurecr.io/collab:latest
+   ```
+
+2. **Run `terraform apply`** to create the collab Container App, Front Door route, and KV secrets:
+   ```bash
+   cd infra/terraform
+   terraform plan   # Review changes
+   terraform apply  # Apply
+   ```
+
+3. **Fix collab server Redis TLS** — Before deploy, update `apps/collab/src/server.ts` to support TLS Redis:
+   ```typescript
+   // Add tls option for production Redis (Azure Redis requires TLS)
+   const redis = new Redis({
+     host: process.env.REDIS_HOST ?? 'localhost',
+     port: Number(process.env.REDIS_PORT ?? 6379),
+     tls: process.env.NODE_ENV === 'production' ? {} : undefined,
+   });
+   ```
+
+4. **Verify Front Door routing** — After terraform apply, test that:
+   - `https://api.notebookmd.io/api/health` still works (API catch-all)
+   - `wss://api.notebookmd.io/collab` connects to the collab server (WebSocket upgrade)
+
+5. **Create first deploy tag** — Push a `v*` tag or use workflow_dispatch with `force_rebuild=true`
+
+---
+
+## Current Status Summary (2026-02-25, updated)
+
+### What's Complete
+- ✅ Phases 0–5: Co-authoring (local dev)
+- ✅ Flighting system v2: flight-level rollout, groups, overrides, admin UI
+- ✅ Feature flag enforcement: all 4 co-auth flags gated in API + UI
+- ✅ CI pipeline: collab server added (Dockerfile, change detection, typecheck, build)
+- ✅ E2E tests: optimized config + 3 new cloud/sharing/flag tests
+- ✅ API test optimization: 62% faster
+- ✅ PR #40 open to main for CI validation
+- ✅ Production infrastructure: Terraform + deploy.yml + rollback.yml for collab server
+
+### What's Next
+1. **Monitor PR #40 CI** — fix any failures
+2. **Fix collab Redis TLS** — required before production deploy
+3. **FlagProvider auth refresh** — re-fetch flags on sign-in/sign-out
+4. **Terraform apply** — create collab Container App + Front Door route
+5. **First production deploy** — tag + deploy
+6. **Marketing/legal page updates** (Phase 6.5)
+7. **Progressive rollout** — internal alpha → private beta → public beta → GA
+
+### Collab Server Production Deployment (2026-02-25)
+
+Successfully deployed the collab (HocusPocus WebSocket) server to Azure production.
+
+#### Timeline
+1. `terraform apply` #1 — Created Container App, Front Door route, KV secrets (6 added, 4 changed)
+2. Hit `NOAUTH Authentication required` — Redis needs password, but collab used individual host/port without auth
+3. Fixed: Switched collab to use `REDIS_URL` connection string (matches API pattern, includes auth + TLS)
+4. `terraform apply` #2 — Updated collab env vars (REDIS_HOST/PORT → REDIS_URL)
+5. Hit `ECONNREFUSED` — Docker cache served stale image without the fix
+6. Rebuilt with `--no-cache`, tagged `fix-redis`, pushed and deployed
+7. ✅ `HocusPocus server listening on port 3002` — Ready
+
+#### Issues Encountered & Fixes
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| `NOAUTH Authentication required` | Azure Redis requires password; collab used bare host/port | Switched to `REDIS_URL` with embedded credentials (commit `f4b38b0`) |
+| `ECONNREFUSED` after Terraform update | Docker build cache served old code; `COPY . .` layer was cached | Rebuilt with `--no-cache` flag |
+| Image tag `latest` didn't trigger new revision | Container Apps sees same tag name, skips pull | Used unique tag `fix-redis` |
+| Terraform image drift on api/web/admin | Deploy workflow uses versioned tags, TF hardcodes `latest` | Applied as-is; consider `lifecycle { ignore_changes }` later |
+
+#### Production Verification
+- ✅ `ca-notebookmd-collab` running (revision `--0000002`)
+- ✅ Front Door route `route-collab` provisioned (`/collab/*` on API endpoint)
+- ✅ API health check passing (no disruption from revision churn)
+- ✅ Redis connected (via `REDIS_URL` with TLS)
+- ✅ PostgreSQL connected (with SSL)
+
+Commits: `d5344f0` (infra), `ce4a905` (DEPLOY.md), `4dfdbdb` (pg SSL + redis TLS), `f4b38b0` (REDIS_URL fix)

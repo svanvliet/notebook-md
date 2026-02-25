@@ -44,6 +44,9 @@ interface NotebookPaneProps {
   activeFilePath: string | null;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  onLeaveNotebook?: (notebookId: string) => void;
+  onAcceptInvite?: (shareId: string) => Promise<void>;
+  onDeclineInvite?: (shareId: string) => Promise<void>;
 }
 
 export function NotebookPane({
@@ -73,6 +76,9 @@ export function NotebookPane({
   activeFilePath,
   mobileOpen,
   onMobileClose,
+  onLeaveNotebook,
+  onAcceptInvite,
+  onDeclineInvite,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -196,11 +202,13 @@ export function NotebookPane({
             expandToPath={expandToPath}
             onExpandToPathHandled={onExpandToPathHandled}
             activeFilePath={activeFilePath}
+            onLeaveNotebook={onLeaveNotebook}
+            onAcceptInvite={onAcceptInvite}
+            onDeclineInvite={onDeclineInvite}
           />
         </div>
       )}
 
-      {/* Collapsed icon */}
       {collapsed && (
         <div className="flex-1 flex items-start justify-center pt-3">
           <NotebookIcon className="w-4 h-4 text-gray-400 dark:text-gray-600" />
@@ -305,6 +313,9 @@ export function NotebookPane({
                 expandToPath={expandToPath}
                 onExpandToPathHandled={onExpandToPathHandled}
                 activeFilePath={activeFilePath}
+                onLeaveNotebook={onLeaveNotebook}
+                onAcceptInvite={onAcceptInvite}
+                onDeclineInvite={onDeclineInvite}
               />
             </div>
           </div>

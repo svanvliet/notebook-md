@@ -12,6 +12,7 @@
 import { useState, useEffect } from 'react';
 import { XIcon } from '../icons/Icons';
 import { SOURCE_TYPES, SourceIcon, type SourceType } from './SourceTypes';
+import { useFeatureFlag } from '../../hooks/useFeatureFlag';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 import {
@@ -48,6 +49,7 @@ interface AddNotebookModalProps {
 type Step = 'source' | 'configure' | 'name';
 
 export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
+  const cloudEnabled = useFeatureFlag('cloud_notebooks');
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
   const [sourceType, setSourceType] = useState<SourceType | null>(validSource);
@@ -60,7 +62,7 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
     if (!info.available) return;
     setSourceType(type);
     setError(null);
-    if (type === 'local') {
+    if (type === 'local' || type === 'cloud') {
       setStep('name');
     } else {
       setStep('configure');
@@ -117,7 +119,7 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 
         {/* Body */}
         <div className="px-5 py-4 min-h-[220px]">
-          {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} onDemoSignUp={onDemoSignUp} />}
+          {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} onDemoSignUp={onDemoSignUp} hiddenSources={cloudEnabled ? [] : ['cloud']} />}
           {step === 'configure' && sourceType === 'github' && (
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
           )}
@@ -148,8 +150,9 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 
 // ── Step 1: Source picker ─────────────────────────────────────────────────
 
-function SourcePicker({ onSelect, isDemoMode, onDemoSignUp }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean; onDemoSignUp?: () => void }) {
-  const types = Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][];
+function SourcePicker({ onSelect, isDemoMode, onDemoSignUp, hiddenSources = [] }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean; onDemoSignUp?: () => void; hiddenSources?: SourceType[] }) {
+  const types = (Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][])
+    .filter(([type]) => !hiddenSources.includes(type));
 
   return (
     <div className="space-y-2">

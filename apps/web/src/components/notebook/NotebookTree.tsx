@@ -1,8 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 import { ChevronRightIcon, FolderIcon } from '../icons/Icons';
 import { SourceIcon } from './SourceTypes';
+import { useFlag } from '../../hooks/useFlagProvider';
+
+const ShareNotebookModal = lazy(() => import('./ShareNotebookModal'));
 
 // --- Small SVG icons for context menu items ---
 const ic = 'w-4 h-4 shrink-0';
@@ -27,6 +30,9 @@ function ImportIcon() {
 }
 function RefreshIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>;
+}
+function ShareIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>;
 }
 
 function BlockedBadge() {
@@ -134,6 +140,9 @@ interface NotebookTreeProps {
   expandToPath?: { notebookId: string; path: string } | null;
   onExpandToPathHandled?: () => void;
   activeFilePath: string | null;
+  onLeaveNotebook?: (notebookId: string) => void;
+  onAcceptInvite?: (shareId: string) => Promise<void>;
+  onDeclineInvite?: (shareId: string) => Promise<void>;
 }
 
 export function NotebookTree({
@@ -158,8 +167,17 @@ export function NotebookTree({
   expandToPath,
   onExpandToPathHandled,
   activeFilePath,
+  onLeaveNotebook,
+  onAcceptInvite,
+  onDeclineInvite,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
+  const sharingEnabled = useFlag('cloud_sharing');
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string; initialTab?: 'invite' | 'members' | 'links' } | null>(null);
+  const [leaveConfirm, setLeaveConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [inviteModal, setInviteModal] = useState<{ nb: NotebookMeta } | null>(null);
+  const [acceptingInvite, setAcceptingInvite] = useState(false);
+  const [decliningInvite, setDecliningInvite] = useState(false);
   // Restore tree expansion state from sessionStorage
   const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(() => {
     try {
@@ -187,13 +205,16 @@ export function NotebookTree({
   }, [expandedNotebooks, expandedFolders]);
 
   // After notebooks load, trigger file loading for restored expanded remote notebooks
+  // and for shared cloud notebooks (so they don't appear empty before expansion)
   const loadedRemotesRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (notebooks.length === 0) return;
-    for (const id of expandedNotebooks) {
+    for (const nb of notebooks) {
+      if (!nb.sourceType || nb.sourceType === 'local' || nb.pendingInvite) continue;
+      const id = nb.id;
       if (loadedRemotesRef.current.has(id)) continue;
-      const nb = notebooks.find((n) => n.id === id);
-      if (nb && nb.sourceType && nb.sourceType !== 'local') {
+      // Load files for expanded notebooks OR shared cloud notebooks
+      if (expandedNotebooks.has(id) || nb.sharedBy) {
         if (!files[id] || files[id].length === 0) {
           loadedRemotesRef.current.add(id);
           onExpandNotebook?.(id);
@@ -241,7 +262,9 @@ export function NotebookTree({
     const tgtNb = notebooks.find((n) => n.id === targetNotebookId);
     const srcLocal = (srcNb?.sourceType ?? 'local') === 'local';
     const tgtLocal = (tgtNb?.sourceType ?? 'local') === 'local';
-    return srcLocal && tgtLocal ? 'copy' : 'blocked';
+    const tgtCloud = tgtNb?.sourceType === 'cloud';
+    // Allow copy: local-to-local OR any-to-cloud
+    return (srcLocal && tgtLocal) || tgtCloud ? 'copy' : 'blocked';
   }, [dragSourceNotebookId, notebooks]);
 
   useEffect(() => {
@@ -414,7 +437,10 @@ export function NotebookTree({
               } else {
                 if (!onCopyFile) return;
                 const targetNb = notebooks.find((n) => n.id === file.notebookId);
-                if (data.sourceType !== 'local' || (targetNb?.sourceType ?? 'local') !== 'local') return;
+                const tgtLocal = (targetNb?.sourceType ?? 'local') === 'local';
+                const tgtCloud = targetNb?.sourceType === 'cloud';
+                // Allow: local-to-local or any-to-cloud
+                if (!((data.sourceType === 'local' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
                 onCopyFile(data.notebookId, data.path, file.notebookId, file.path);
               }
             } catch { /* ignore */ }
@@ -491,9 +517,13 @@ export function NotebookTree({
     );
   }
 
+  const ownNotebooks = notebooks.filter(nb => !nb.sharedBy);
+  const sharedNotebooks = notebooks.filter(nb => !!nb.sharedBy && !nb.pendingInvite);
+  const pendingNotebooks = notebooks.filter(nb => !!nb.pendingInvite);
+
   return (
     <div className="flex-1 overflow-y-auto py-1">
-      {notebooks.map((nb) => {
+      {ownNotebooks.map((nb) => {
         const isExpanded = expandedNotebooks.has(nb.id);
         const isRenaming = renamingItem?.type === 'notebook' && renamingItem.key === nb.id;
         const allFiles = files[nb.id] ?? [];
@@ -593,9 +623,11 @@ export function NotebookTree({
                       if (!data.path.includes('/')) return; // Already at root
                       onMoveFile(data.notebookId, data.path, '');
                     } else {
-                      // Cross-notebook → copy to root (local-to-local only)
+                      // Cross-notebook → copy to root (local-to-local or any-to-cloud)
                       if (!onCopyFile) return;
-                      if (data.sourceType !== 'local' || (nb.sourceType ?? 'local') !== 'local') return;
+                      const tgtLocal = (nb.sourceType ?? 'local') === 'local';
+                      const tgtCloud = nb.sourceType === 'cloud';
+                      if (!((data.sourceType === 'local' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
                       onCopyFile(data.notebookId, data.path, nb.id, '');
                     }
                   } catch { /* ignore */ }
@@ -644,6 +676,15 @@ export function NotebookTree({
                   PR
                 </span>
               )}
+              {sharingEnabled && nb.sourceType === 'cloud' && nb.hasShares && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShareTarget({ id: nb.id, name: nb.name, initialTab: 'members' }); }}
+                  className="shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                  title="Manage sharing"
+                >
+                  Shared
+                </button>
+              )}
             </div>
             {isExpanded && (
               <div>
@@ -668,6 +709,83 @@ export function NotebookTree({
         );
       })}
 
+      {/* Shared with me */}
+      {sharingEnabled && (sharedNotebooks.length > 0 || pendingNotebooks.length > 0) && (
+        <>
+          <div className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            Shared with me
+          </div>
+          {sharedNotebooks.map((nb) => {
+            const isExpanded = expandedNotebooks.has(nb.id);
+            const allFiles = files[nb.id] ?? [];
+            const rootFiles = allFiles
+              .filter((f) => f.parentPath === '')
+              .sort((a, b) => {
+                if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+                return a.name.localeCompare(b.name);
+              });
+
+            return (
+              <div key={nb.id}>
+                <div
+                  className="flex items-center gap-1.5 px-2 py-1 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded mx-1 select-none transition-colors"
+                  onClick={() => toggleNotebook(nb.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ x: e.clientX, y: e.clientY, target: { kind: 'notebook', id: nb.id } });
+                  }}
+                >
+                  <ChevronRightIcon className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                  <SourceIcon sourceType={nb.sourceType ?? 'local'} className="w-4 h-4 shrink-0" />
+                  <span className="truncate flex-1">{nb.name}</span>
+                  <span className="shrink-0 text-[10px] font-medium text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded cursor-default" title={`Owner: ${nb.sharedBy}`}>
+                    {nb.sharedPermission === 'viewer' ? 'Viewer' : 'Editor'}
+                  </span>
+                </div>
+                {isExpanded && (
+                  <div>
+                    {rootFiles.length === 0 ? (
+                      loadingNotebooks?.has(nb.id) ? (
+                        <div className="flex items-center gap-2 px-6 py-2">
+                          <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Loading…</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-400 dark:text-gray-500 px-6 py-2 italic">Empty notebook</div>
+                      )
+                    ) : (
+                      rootFiles.map((file) => renderFileItem(file, 1))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Pending invites */}
+          {pendingNotebooks.map((nb) => (
+            <div key={nb.id}>
+              <div
+                className="flex items-center gap-1.5 px-2 py-1 text-sm font-medium text-gray-500 dark:text-gray-400 rounded mx-1 select-none"
+              >
+                <span className="w-3 h-3 shrink-0" />
+                <SourceIcon sourceType="cloud" className="w-4 h-4 shrink-0 opacity-50" />
+                <span className="truncate flex-1 italic">{nb.name}</span>
+                <button
+                  onClick={() => setInviteModal({ nb })}
+                  className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                >
+                  View Invitation
+                </button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
       {/* Context menu */}
       {contextMenu && (
         <div
@@ -675,41 +793,167 @@ export function NotebookTree({
           className="fixed bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 min-w-[160px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          {contextMenu.target.kind === 'notebook' ? (
-            <>
-              <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'file'); setContextMenu(null); }} />
-              <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { onCreateFile(contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '', '', 'folder'); setContextMenu(null); }} />
-              <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'notebook') onImportFile(contextMenu.target.id, ''); setContextMenu(null); }} />
-              {onRefreshNotebook && (
-                <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { if (contextMenu.target.kind === 'notebook') onRefreshNotebook(contextMenu.target.id); setContextMenu(null); }} />
-              )}
-              <CtxDivider />
-              <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { const nb = notebooks.find((n) => n.id === (contextMenu.target.kind === 'notebook' ? contextMenu.target.id : '')); if (nb) startRename('notebook', nb.id, nb.name); }} />
-              <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'notebook') onDeleteNotebook(contextMenu.target.id); setContextMenu(null); }} />
-            </>
-          ) : (
-            <>
-              {contextMenu.target.fileType === 'folder' && (
+          {(() => {
+            const ctxNbId = contextMenu.target.kind === 'notebook' ? contextMenu.target.id : contextMenu.target.notebookId;
+            const ctxNb = notebooks.find((n) => n.id === ctxNbId);
+            const isViewer = ctxNb?.sharedPermission === 'viewer';
+
+            if (contextMenu.target.kind === 'notebook') {
+              return (
                 <>
-                  <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
-                  <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
-                  <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'file') onImportFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
-                  <CtxDivider />
+                  {!isViewer && (
+                    <>
+                      <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { onCreateFile(ctxNbId, '', 'file'); setContextMenu(null); }} />
+                      <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { onCreateFile(ctxNbId, '', 'folder'); setContextMenu(null); }} />
+                      <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { onImportFile(ctxNbId, ''); setContextMenu(null); }} />
+                    </>
+                  )}
+                  {onRefreshNotebook && (
+                    <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { onRefreshNotebook(ctxNbId); setContextMenu(null); }} />
+                  )}
+                  {sharingEnabled && ctxNb?.sourceType === 'cloud' && !ctxNb.sharedBy && (
+                    <CtxItem icon={<ShareIcon />} label={ctxNb.hasShares ? 'Manage Sharing' : 'Share…'} onClick={() => { setShareTarget({ id: ctxNb.id, name: ctxNb.name }); setContextMenu(null); }} />
+                  )}
+                  {ctxNb?.sharedBy ? (
+                    <>
+                      <CtxDivider />
+                      <CtxItem icon={<TrashIcon />} label="Leave Shared Notebook" danger onClick={() => { setLeaveConfirm({ id: ctxNb.id, name: ctxNb.name }); setContextMenu(null); }} />
+                    </>
+                  ) : (
+                    <>
+                      <CtxDivider />
+                      <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { if (ctxNb) startRename('notebook', ctxNb.id, ctxNb.name); }} />
+                      <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { onDeleteNotebook(ctxNbId); setContextMenu(null); }} />
+                    </>
+                  )}
                 </>
-              )}
-              <CtxItem
-                icon={<RenameIcon />}
-                label={t('notebook.rename')}
+              );
+            } else {
+              return (
+                <>
+                  {contextMenu.target.fileType === 'folder' && !isViewer && (
+                    <>
+                      <CtxItem icon={<NewFileIcon />} label={t('notebook.newFile')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'file'); setContextMenu(null); }} />
+                      <CtxItem icon={<NewFolderIcon />} label={t('notebook.newFolder')} onClick={() => { if (contextMenu.target.kind === 'file') onCreateFile(contextMenu.target.notebookId, contextMenu.target.path, 'folder'); setContextMenu(null); }} />
+                      <CtxItem icon={<ImportIcon />} label="Import File…" onClick={() => { if (contextMenu.target.kind === 'file') onImportFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
+                      <CtxDivider />
+                    </>
+                  )}
+                  {!isViewer && (
+                    <>
+                      <CtxItem
+                        icon={<RenameIcon />}
+                        label={t('notebook.rename')}
+                        onClick={() => {
+                          if (contextMenu.target.kind === 'file') {
+                            const name = contextMenu.target.path.split('/').pop() ?? '';
+                            startRename('file', `${contextMenu.target.notebookId}:${contextMenu.target.path}`, name);
+                          }
+                        }}
+                      />
+                      <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'file') onDeleteFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
+                    </>
+                  )}
+                </>
+              );
+            }
+          })()}
+        </div>
+      )}
+
+      {shareTarget && (
+        <Suspense fallback={null}>
+          <ShareNotebookModal
+            notebookId={shareTarget.id}
+            notebookName={shareTarget.name}
+            initialTab={shareTarget.initialTab}
+            onClose={() => setShareTarget(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Leave Shared Notebook confirm modal */}
+      {leaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setLeaveConfirm(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Leave Shared Notebook</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Are you sure you want to leave <strong>"{leaveConfirm.name}"</strong>? You will lose access to this notebook and it will be removed from your list.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setLeaveConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+              <button
                 onClick={() => {
-                  if (contextMenu.target.kind === 'file') {
-                    const name = contextMenu.target.path.split('/').pop() ?? '';
-                    startRename('file', `${contextMenu.target.notebookId}:${contextMenu.target.path}`, name);
+                  if (onLeaveNotebook) onLeaveNotebook(leaveConfirm.id);
+                  setLeaveConfirm(null);
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Invitation modal */}
+      {inviteModal && inviteModal.nb.pendingInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setInviteModal(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notebook Invitation</h3>
+            <div className="space-y-3 mb-6">
+              <div>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notebook</span>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{inviteModal.nb.name}</p>
+              </div>
+              <div>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Shared by</span>
+                <p className="text-sm text-gray-900 dark:text-white">{inviteModal.nb.pendingInvite.ownerName}</p>
+              </div>
+              <div>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Your role</span>
+                <p className="text-sm text-gray-900 dark:text-white">{inviteModal.nb.pendingInvite.permission === 'viewer' ? 'Viewer' : 'Editor'}</p>
+              </div>
+              <div>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Invited</span>
+                <p className="text-sm text-gray-900 dark:text-white">{new Date(inviteModal.nb.pendingInvite.invitedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                disabled={decliningInvite}
+                onClick={async () => {
+                  if (!onDeclineInvite || !inviteModal.nb.pendingInvite) return;
+                  setDecliningInvite(true);
+                  try {
+                    await onDeclineInvite(inviteModal.nb.pendingInvite.shareId);
+                    setInviteModal(null);
+                  } finally {
+                    setDecliningInvite(false);
                   }
                 }}
-              />
-              <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { if (contextMenu.target.kind === 'file') onDeleteFile(contextMenu.target.notebookId, contextMenu.target.path); setContextMenu(null); }} />
-            </>
-          )}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                {decliningInvite ? 'Declining…' : 'Decline'}
+              </button>
+              <button
+                disabled={acceptingInvite}
+                onClick={async () => {
+                  if (!onAcceptInvite || !inviteModal.nb.pendingInvite) return;
+                  setAcceptingInvite(true);
+                  try {
+                    await onAcceptInvite(inviteModal.nb.pendingInvite.shareId);
+                    setInviteModal(null);
+                  } finally {
+                    setAcceptingInvite(false);
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {acceptingInvite ? 'Accepting…' : 'Accept'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

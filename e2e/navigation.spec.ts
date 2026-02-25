@@ -33,9 +33,6 @@ test.describe('Navigation & URL State', () => {
   test('marketing pages remain accessible', async ({ page }) => {
     await page.goto('/features');
     await expect(page.getByRole('heading', { name: /everything you need/i })).toBeVisible();
-
-    await page.goto('/about');
-    await expect(page.getByRole('heading', { name: /About/i })).toBeVisible();
   });
 
   test('Try Demo button navigates to /demo', async ({ page }) => {

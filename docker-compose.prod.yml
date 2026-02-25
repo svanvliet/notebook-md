@@ -102,5 +102,29 @@ services:
     depends_on:
       - api
 
+  collab:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.collab
+    ports:
+      - "3002:3002"
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      COLLAB_PORT: "3002"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: notebookmd
+      DB_USER: notebookmd
+      DB_PASSWORD: localdev
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata_prod:

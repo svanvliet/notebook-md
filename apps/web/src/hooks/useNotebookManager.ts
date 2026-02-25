@@ -47,6 +47,28 @@ import {
   createGoogleDriveFile,
   deleteGoogleDriveFile,
 } from '../api/googledrive';
+import { listCloudTree, createCloudFile, deleteCloudFile } from '../api/cloud';
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+async function readCloudFile(notebookId: string, filePath: string) {
+  const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`);
+  if (!res.ok) {
+    const err = new Error('Failed to read cloud file');
+    (err as any).status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<{ path: string; name: string; content: string; sha?: string }>;
+}
+
+async function writeCloudFile(notebookId: string, filePath: string, content: string) {
+  const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error('Failed to save cloud file');
+  return res.json() as Promise<{ path: string; sha?: string }>;
+}
 
 const EDITABLE_EXTS = new Set(['md', 'mdx', 'markdown', 'txt']);
 
@@ -80,7 +102,7 @@ export interface SaveLocationRequest {
 
 import type { ToastType } from './useToast';
 
-export type ToastFn = (message: string, type?: ToastType) => void;
+export type ToastFn = (message: string, type?: ToastType, action?: { label: string; onClick: () => void }) => void;
 
 export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDemoMode?: boolean) {
   const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
@@ -112,62 +134,191 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     messageTimer.current = setTimeout(() => setStatusMessage(null), ms);
   }, []);
 
+  // Sync remote notebooks from the API into IndexedDB and update React state.
+  // Called on initial load and after invite accept/decline to refresh the tree.
+  const syncNotebooksFromServer = useCallback(async () => {
+    if (!userId || isDemoMode) return;
+    try {
+      const res = await apiFetch('/api/notebooks');
+      if (res.ok) {
+        const { notebooks: serverNbs, sharedNotebooks: sharedNbs, pendingInvites: pendingInvs } = await res.json();
+        const serverIds = new Set<string>();
+        for (const snb of serverNbs) {
+          serverIds.add(snb.id);
+          await upsertNotebook({
+            id: snb.id,
+            name: snb.name,
+            sourceType: snb.sourceType,
+            sourceConfig: snb.sourceConfig ?? {},
+            sortOrder: new Date(snb.createdAt).getTime(),
+            createdAt: new Date(snb.createdAt).getTime(),
+            updatedAt: new Date(snb.updatedAt).getTime(),
+            hasShares: snb.hasShares ?? false,
+          });
+        }
+        for (const snb of (sharedNbs ?? [])) {
+          serverIds.add(snb.id);
+          await upsertNotebook({
+            id: snb.id,
+            name: snb.name,
+            sourceType: snb.sourceType,
+            sourceConfig: snb.sourceConfig ?? {},
+            sortOrder: new Date(snb.createdAt).getTime(),
+            createdAt: new Date(snb.createdAt).getTime(),
+            updatedAt: new Date(snb.updatedAt).getTime(),
+            sharedBy: snb.ownerName,
+            sharedPermission: snb.permission,
+          });
+        }
+        for (const inv of (pendingInvs ?? [])) {
+          serverIds.add(inv.notebookId);
+          await upsertNotebook({
+            id: inv.notebookId,
+            name: inv.notebookName,
+            sourceType: 'cloud',
+            sourceConfig: {},
+            sortOrder: new Date(inv.invitedAt).getTime(),
+            createdAt: new Date(inv.invitedAt).getTime(),
+            updatedAt: new Date(inv.invitedAt).getTime(),
+            sharedBy: inv.ownerName,
+            sharedPermission: inv.permission,
+            pendingInvite: {
+              shareId: inv.shareId,
+              ownerName: inv.ownerName,
+              permission: inv.permission,
+              invitedAt: inv.invitedAt,
+            },
+          });
+        }
+        // Remove orphan remote notebooks from IndexedDB
+        const localNbs = await listNotebooks();
+        const orphanIds: string[] = [];
+        for (const lnb of localNbs) {
+          if (lnb.sourceType && lnb.sourceType !== 'local' && !serverIds.has(lnb.id)) {
+            await deleteNb(lnb.id);
+            orphanIds.push(lnb.id);
+          }
+        }
+        if (orphanIds.length > 0) {
+          setTabs((prev) => prev.filter((t) => !orphanIds.includes(t.notebookId)));
+          try {
+            const raw = sessionStorage.getItem('nb:tree:notebooks');
+            if (raw) {
+              const expanded: string[] = JSON.parse(raw);
+              const filtered = expanded.filter(id => !orphanIds.includes(id));
+              sessionStorage.setItem('nb:tree:notebooks', JSON.stringify(filtered));
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch {
+      // Offline or API error — continue with local data
+    }
+    // Refresh state from IndexedDB
+    const nbs = await listNotebooks();
+    setNotebooks(nbs);
+    const fileMap: Record<string, FileEntry[]> = {};
+    for (const nb of nbs) {
+      if (nb.sourceType === 'local' || !nb.sourceType) {
+        fileMap[nb.id] = await listFiles(nb.id);
+      }
+    }
+    setFiles(fileMap);
+  }, [userId, isDemoMode]);
+
   // Load notebooks and their files when scope changes
   useEffect(() => {
     setStorageScope(userId ?? null);
-    // Clear tabs synchronously when user scope changes (before async notebook load).
-    // This prevents a race where restoreTabs opens tabs, then the IIFE's setTabs([]) clears them.
     setTabs([]);
     setActiveTabId(null);
-    // NOTE: tabRestorationDone is reset INSIDE the IIFE after real notebooks load.
-    // Resetting it here would allow a premature restoration with stale notebooks.
     (async () => {
-      // Sync remote notebooks from server into IndexedDB (skip in demo mode)
-      if (userId && !isDemoMode) {
-        try {
-          const res = await apiFetch('/api/notebooks');
-          if (res.ok) {
-            const { notebooks: serverNbs } = await res.json();
-            const serverIds = new Set<string>();
-            for (const snb of serverNbs) {
-              serverIds.add(snb.id);
-              await upsertNotebook({
-                id: snb.id,
-                name: snb.name,
-                sourceType: snb.sourceType,
-                sourceConfig: snb.sourceConfig ?? {},
-                sortOrder: new Date(snb.createdAt).getTime(),
-                createdAt: new Date(snb.createdAt).getTime(),
-                updatedAt: new Date(snb.updatedAt).getTime(),
-              });
-            }
-            // Remove orphan remote notebooks from IndexedDB (stale local copies)
-            const localNbs = await listNotebooks();
-            for (const lnb of localNbs) {
-              if (lnb.sourceType && lnb.sourceType !== 'local' && !serverIds.has(lnb.id)) {
-                await deleteNb(lnb.id);
-              }
-            }
-          }
-        } catch {
-          // Offline or API error — continue with local data
-        }
-      }
-
-      const nbs = await listNotebooks();
+      await syncNotebooksFromServer();
       // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
+      // (syncNotebooksFromServer already called setNotebooks, but we reset the flag here)
+      tabRestorationDone.current = false;
+      // Re-read to ensure we have the latest after sync (sync already set state, but
+      // tabRestorationDone needs to be false before the render that triggers restoration)
+      const nbs = await listNotebooks();
       tabRestorationDone.current = false;
       setNotebooks(nbs);
-      const fileMap: Record<string, FileEntry[]> = {};
-      for (const nb of nbs) {
-        if (nb.sourceType === 'local' || !nb.sourceType) {
-          fileMap[nb.id] = await listFiles(nb.id);
-        }
-        // Remote notebooks load their tree on expand (lazy)
-      }
-      setFiles(fileMap);
     })();
   }, [userId]);
+
+  // Poll for permission changes on shared notebooks (every 60s)
+  useEffect(() => {
+    if (!userId || isDemoMode) return;
+    const hasShared = notebooks.some(nb => nb.sharedBy);
+    const hasShares = notebooks.some(nb => nb.hasShares);
+    if (!hasShared && !hasShares) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch('/api/notebooks');
+        if (!res.ok) return;
+        const { notebooks: serverNbs, sharedNotebooks: sharedNbs } = await res.json();
+
+        // Check for permission changes on shared notebooks
+        for (const snb of (sharedNbs ?? [])) {
+          const local = notebooks.find(n => n.id === snb.id);
+          if (local && local.sharedPermission !== snb.permission) {
+            await upsertNotebook({
+              id: snb.id, name: snb.name, sourceType: snb.sourceType,
+              sourceConfig: snb.sourceConfig ?? {},
+              sortOrder: new Date(snb.createdAt).getTime(),
+              createdAt: new Date(snb.createdAt).getTime(),
+              updatedAt: new Date(snb.updatedAt).getTime(),
+              sharedBy: snb.ownerName,
+              sharedPermission: snb.permission,
+            });
+            if (snb.permission === 'viewer') {
+              toast?.(
+                `Your access to "${snb.name}" was changed to Viewer`,
+                'info',
+              );
+            } else {
+              toast?.(
+                `Your access to "${snb.name}" was changed to Editor.`,
+                'info',
+                { label: 'Refresh to edit', onClick: () => window.location.reload() },
+              );
+            }
+          }
+        }
+
+        // Check for hasShares changes on owned notebooks
+        for (const snb of serverNbs) {
+          const local = notebooks.find(n => n.id === snb.id);
+          if (local && local.hasShares !== (snb.hasShares ?? false)) {
+            await upsertNotebook({
+              id: snb.id, name: snb.name, sourceType: snb.sourceType,
+              sourceConfig: snb.sourceConfig ?? {},
+              sortOrder: new Date(snb.createdAt).getTime(),
+              createdAt: new Date(snb.createdAt).getTime(),
+              updatedAt: new Date(snb.updatedAt).getTime(),
+              hasShares: snb.hasShares ?? false,
+            });
+          }
+        }
+
+        // Check for revoked shares (notebook disappeared from shared list)
+        const sharedIds = new Set((sharedNbs ?? []).map((s: { id: string }) => s.id));
+        for (const nb of notebooks) {
+          if (nb.sharedBy && !sharedIds.has(nb.id)) {
+            await deleteNb(nb.id);
+            toast?.(`You were removed from "${nb.name}"`, 'info');
+          }
+        }
+
+        // Refresh notebook list to reflect changes
+        const nbs = await listNotebooks();
+        setNotebooks(nbs);
+      } catch {
+        // Offline or API error — skip this cycle
+      }
+    }, 60_000);
+
+    return () => clearInterval(interval);
+  }, [userId, isDemoMode, notebooks, toast]);
 
   /** Get a notebook by ID from current state */
   const getNotebook = useCallback(
@@ -205,6 +356,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   const refreshFiles = useCallback(async (notebookId: string) => {
     const nb = notebooks.find((n) => n.id === notebookId);
+    // Skip pending invite notebooks — they have no file access yet
+    if (nb?.pendingInvite) return;
     if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
       const entries = await listFiles(notebookId);
       setFiles((prev) => ({ ...prev, [notebookId]: entries }));
@@ -221,13 +374,23 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           rawEntries = await listOneDriveTree(rootPath);
         } else if (nb.sourceType === 'google-drive') {
           rawEntries = await listGoogleDriveTree(rootPath);
+        } else if (nb.sourceType === 'cloud') {
+          rawEntries = await listCloudTree(notebookId);
         } else {
           rawEntries = [];
         }
 
         setFiles((prev) => ({ ...prev, [notebookId]: toFileEntries(notebookId, rawEntries) }));
       } catch (err) {
-        toast?.(`Failed to load files: ${(err as Error).message}`, 'error');
+        // Silently ignore access denied for shared notebooks (revoked access)
+        if (nb.sharedBy && (err as any).status === 403) {
+          // Revoked access — remove from React state (sync IIFE handles IndexedDB cleanup)
+          setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
+          setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
+          setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
+        } else {
+          toast?.(`Failed to load files: ${(err as Error).message}`, 'error');
+        }
       } finally {
         setLoadingNotebooks((prev) => {
           const next = new Set(prev);
@@ -441,6 +604,15 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
               toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
               return;
             }
+          } else if (nb?.sourceType === 'cloud') {
+            try {
+              await createCloudFile(notebookId, filePath, '', type);
+              await refreshFiles(notebookId);
+              toast?.(`Created ${type} "${name}"`, 'success');
+            } catch (err) {
+              toast?.(`Failed to create file: ${(err as Error).message}`, 'error');
+              return;
+            }
           } else {
             await createFile(notebookId, parentPath, name, type);
             await refreshFiles(notebookId);
@@ -631,6 +803,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         } else if (nb?.sourceType === 'google-drive') {
           const rootFolderId = nb.sourceConfig.rootPath as string;
           await deleteGoogleDriveFile(rootFolderId, path);
+        } else if (nb?.sourceType === 'cloud') {
+          await deleteCloudFile(notebookId, path);
         } else {
           await deleteF(notebookId, path);
         }
@@ -758,6 +932,39 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         return;
       }
 
+      if (nb && nb.sourceType === 'cloud') {
+        const fileName = path.split('/').pop() || path;
+        const loadingTab: OpenTab = {
+          id: tabId, notebookId, path, name: fileName,
+          content: '', savedContent: '', hasUnsavedChanges: false, lastSaved: null, loading: true,
+        };
+        setTabs((prev) => prev.some((t) => t.id === tabId) ? prev : [...prev, loadingTab]);
+        setActiveTabId(tabId);
+        try {
+          const file = await readCloudFile(notebookId, path);
+          let content = file.content;
+          if (isMarkdownContent(content)) {
+            content = markdownToHtml(content);
+          }
+          setTabs((prev) => prev.map((t) => t.id === tabId
+            ? { ...t, name: file.name, content, savedContent: content, sha: file.sha, loading: false }
+            : t
+          ));
+        } catch (err) {
+          setTabs((prev) => prev.filter((t) => t.id !== tabId));
+          // Silently handle access denied for shared notebooks (revoked access)
+          if (nb.sharedBy && (err as any).status === 403) {
+            // Revoked — remove from React state (sync IIFE handles IndexedDB)
+            setNotebooks((prev) => prev.filter((n) => n.id !== notebookId));
+            setFiles((prev) => { const next = { ...prev }; delete next[notebookId]; return next; });
+            setTabs((prev) => prev.filter((t) => t.notebookId !== notebookId));
+          } else {
+            toast?.(`Failed to open file: ${(err as Error).message}`, 'error');
+          }
+        }
+        return;
+      }
+
       // Local file
       const entry = await getFile(notebookId, path);
       if (!entry || entry.type === 'folder') return;
@@ -809,6 +1016,10 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       if (nb && nb.sourceType === 'google-drive') {
         const rootFolderId = nb.sourceConfig.rootPath as string;
         const result = await writeGoogleDriveFile(rootFolderId, tab.path, markdown, tab.sha);
+        return result.sha ?? undefined;
+      }
+      if (nb && nb.sourceType === 'cloud') {
+        const result = await writeCloudFile(tab.notebookId, tab.path, markdown);
         return result.sha ?? undefined;
       }
       // Local save
@@ -1224,7 +1435,9 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       }
 
       // Open each tab (errors are swallowed for individual tabs)
+      // Skip tabs for notebooks that no longer exist (e.g., revoked shares)
       for (const t of toOpen) {
+        if (!notebooks.find(n => n.id === t.notebookId)) continue;
         await handleOpenFile(t.notebookId, t.path).catch(() => {});
       }
 
@@ -1235,7 +1448,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     } catch { /* ignore corrupt data */ }
     // Mark restoration as done AFTER all opens complete (prevents premature persistence clearing)
     tabRestorationDone.current = true;
-  }, [handleOpenFile]);
+  }, [handleOpenFile, notebooks]);
 
   const handleCopyFile = useCallback(async (
     sourceNotebookId: string,
@@ -1247,8 +1460,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const sourceNb = notebooks.find((n) => n.id === sourceNotebookId);
       const targetNb = notebooks.find((n) => n.id === targetNotebookId);
       if (!sourceNb || !targetNb) return;
-      if ((sourceNb.sourceType ?? 'local') !== 'local' || (targetNb.sourceType ?? 'local') !== 'local') {
-        toast?.('Cross-notebook copy is only supported between local notebooks', 'warning');
+
+      const srcLocal = (sourceNb.sourceType ?? 'local') === 'local';
+      const tgtLocal = (targetNb.sourceType ?? 'local') === 'local';
+      const tgtCloud = targetNb.sourceType === 'cloud';
+
+      // Allow: local-to-local or any-to-cloud
+      if (!(srcLocal && tgtLocal) && !tgtCloud) {
+        toast?.('Cross-notebook copy is only supported to local or Cloud notebooks', 'warning');
         return;
       }
 
@@ -1271,6 +1490,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
           await createFile(targetNotebookId, childParent, childName, child.type, child.content ?? '');
         }
       }
+
+      toast?.(tgtCloud ? 'File copied to Cloud notebook' : 'File copied', 'success');
 
       // Reload target notebook files
       const updatedFiles = await listFiles(targetNotebookId);
@@ -1411,6 +1632,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
+    syncNotebooksFromServer,
     restoreTabs,
     pendingPrs,
     /** Set the navigation callback for URL-based routing of link clicks */

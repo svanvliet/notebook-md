@@ -19,11 +19,16 @@ import googledriveRoutes from './routes/googledrive.js';
 import webhookRoutes from './routes/webhooks.js';
 import twoFactorRoutes from './routes/two-factor.js';
 import adminRoutes from './routes/admin.js';
+import entitlementsRoutes from './routes/entitlements.js';
+import usageRoutes from './routes/usage.js';
+import sharingRoutes from './routes/sharing.js';
+import cloudRoutes from './routes/cloud.js';
 
 // Register source adapters (side-effect imports)
 import './services/sources/github.js';
 import './services/sources/onedrive.js';
 import './services/sources/googledrive.js';
+import './services/sources/cloud.js';
 
 const app = express();
 
@@ -146,6 +151,9 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 });
 
+import { isFeatureEnabled, isKillSwitched, resolveAllFlags, clearFlagCache } from './services/featureFlags.js';
+import { optionalAuth, requireAuth } from './middleware/auth.js';
+
 app.use('/auth', authRoutes);
 app.use('/auth/2fa', twoFactorRoutes);
 app.use('/auth/oauth', oauthRoutes);
@@ -155,7 +163,121 @@ app.use('/api/sources', sourcesRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/onedrive', onedriveRoutes);
 app.use('/api/googledrive', googledriveRoutes);
+app.use('/api/entitlements', entitlementsRoutes);
+app.use('/api/usage', usageRoutes);
+app.use('/api/cloud', sharingRoutes);
+app.use('/api/cloud', cloudRoutes);
+
+// Public share link routes (no auth, separate mount point)
+import { Router as PublicRouter } from 'express';
+import { resolvePublicLink as resolveLink } from './services/shareLinks.js';
+import { decrypt as decryptContent } from './lib/encryption.js';
+const publicShareRouter = PublicRouter();
+publicShareRouter.get('/shares/:token/resolve', async (req, res) => {
+  const killed = await isKillSwitched('cloud_public_links');
+  if (killed) { res.status(403).json({ error: 'Public links are currently disabled' }); return; }
+  const result = await resolveLink(req.params.token);
+  if (!result) { res.status(404).json({ error: 'Link not found or not public' }); return; }
+  const { query: dbQuery } = await import('./db/pool.js');
+  const files = await dbQuery<{ path: string; size_bytes: number }>(
+    'SELECT path, size_bytes FROM cloud_documents WHERE notebook_id = $1 ORDER BY path',
+    [result.notebookId],
+  );
+  res.json({ notebookName: result.notebookName, ownerName: result.ownerName, files: files.rows.map(f => ({ path: f.path, size: f.size_bytes })) });
+});
+publicShareRouter.get('/shares/:token/documents/{*filePath}', async (req, res) => {
+  const killed = await isKillSwitched('cloud_public_links');
+  if (killed) { res.status(403).json({ error: 'Public links are currently disabled' }); return; }
+  const result = await resolveLink(req.params.token);
+  if (!result) { res.status(404).json({ error: 'Link not found or not public' }); return; }
+  const rawPath = (req.params as any).filePath;
+  const filePath = Array.isArray(rawPath) ? rawPath.join('/') : rawPath;
+  const { query: dbQuery } = await import('./db/pool.js');
+  const doc = await dbQuery<{ content_enc: string | null }>(
+    'SELECT content_enc FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
+    [result.notebookId, filePath],
+  );
+  if (doc.rows.length === 0) { res.status(404).json({ error: 'Document not found' }); return; }
+  const content = doc.rows[0].content_enc ? decryptContent(doc.rows[0].content_enc) : '';
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.json({ content, path: filePath });
+});
+app.use('/api/public', publicShareRouter);
+
 app.use('/admin', adminRoutes);
+
+// Feature flag check (public — used by web client to gate UI)
+app.get('/api/feature-flags/:key', optionalAuth, async (req, res) => {
+  const key = req.params.key as string;
+  const enabled = await isFeatureEnabled(key, req.userId ?? null);
+  res.json({ key, enabled });
+});
+
+// Batch flag resolution (returns all flags for the current user)
+app.get('/api/flags', optionalAuth, async (req, res) => {
+  const userId = req.userId ?? null;
+  const allFlags = await resolveAllFlags(userId);
+  // Only return enabled flags and their metadata (omit disabled flags for security)
+  const flags: Record<string, { enabled: boolean; variant: string | null; badge: string | null }> = {};
+  for (const [key, resolved] of Object.entries(allFlags)) {
+    flags[key] = { enabled: resolved.enabled, variant: resolved.variant, badge: resolved.badge };
+  }
+  res.json({ flags });
+});
+
+// ── Self-enrollment groups (user-facing) ─────────────────────────────────────
+
+app.get('/api/groups/joinable', requireAuth, async (req, res) => {
+  const { query: dbQuery } = await import('./db/pool.js');
+  const result = await dbQuery<{
+    id: string;
+    name: string;
+    description: string | null;
+    is_member: boolean;
+  }>(
+    `SELECT g.id, g.name, g.description,
+            EXISTS(SELECT 1 FROM user_group_members ugm WHERE ugm.group_id = g.id AND ugm.user_id = $1) as is_member
+     FROM user_groups g
+     WHERE g.allow_self_enroll = true
+     ORDER BY g.name`,
+    [req.userId],
+  );
+  res.json({
+    groups: result.rows.map(g => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      isMember: g.is_member,
+    })),
+  });
+});
+
+app.post('/api/groups/:id/join', requireAuth, async (req, res) => {
+  const { query: dbQuery } = await import('./db/pool.js');
+  const group = await dbQuery<{ allow_self_enroll: boolean }>(
+    'SELECT allow_self_enroll FROM user_groups WHERE id = $1',
+    [req.params.id],
+  );
+  if (group.rows.length === 0) { res.status(404).json({ error: 'Group not found' }); return; }
+  if (!group.rows[0].allow_self_enroll) { res.status(403).json({ error: 'This group does not allow self-enrollment' }); return; }
+
+  await dbQuery(
+    'INSERT INTO user_group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [req.params.id, req.userId],
+  );
+  clearFlagCache(req.userId!);
+  res.json({ message: 'Joined group' });
+});
+
+app.post('/api/groups/:id/leave', requireAuth, async (req, res) => {
+  const { query: dbQuery } = await import('./db/pool.js');
+  await dbQuery(
+    'DELETE FROM user_group_members WHERE group_id = $1 AND user_id = $2',
+    [req.params.id, req.userId],
+  );
+  clearFlagCache(req.userId!);
+  res.json({ message: 'Left group' });
+});
 
 // Error handler (must be last)
 app.use(errorHandler);

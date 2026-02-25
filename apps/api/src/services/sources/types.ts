@@ -19,6 +19,8 @@ export interface FileContent {
   encoding: 'utf-8' | 'base64';
   sha?: string;
   lastModified?: string;
+  /** Cloud document UUID — only returned by cloud adapter */
+  documentId?: string;
 }
 
 export interface WriteResult {
