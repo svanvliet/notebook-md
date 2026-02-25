@@ -15,6 +15,7 @@ import { AddNotebookModal } from './components/notebook/AddNotebookModal';
 import { PublishModal } from './components/notebook/PublishModal';
 import { DiscardModal } from './components/notebook/DiscardModal';
 import { DemoBanner } from './components/common/DemoBanner';
+import QuotaBanner from './components/layout/QuotaBanner';
 import { OnboardingTwoFactor } from './components/welcome/OnboardingTwoFactor';
 import { useDisplayMode } from './hooks/useDisplayMode';
 import { useSidebarResize } from './hooks/useSidebarResize';
@@ -27,6 +28,7 @@ import { useCookieConsent } from './hooks/useCookieConsent';
 import { useModalHistory } from './hooks/useModalHistory';
 import { ToastContainer } from './components/common/ToastContainer';
 import { useAnalytics, AnalyticsEvents } from './hooks/useAnalytics';
+import { useFlag } from './hooks/useFlagProvider';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { migrateAnonymousNotebooks, setStorageScope } from './stores/localNotebookStore';
 import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './stores/demoContent';
@@ -48,6 +50,7 @@ export default function App() {
   const { settings, updateSettings } = useSettings(auth.isSignedIn && !auth.isDemoMode);
   const cookieConsent = useCookieConsent();
   const { track } = useAnalytics(cookieConsent.analyticsAllowed, auth.user?.id);
+  const collabEnabled = useFlag('cloud_collab');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -292,6 +295,28 @@ export default function App() {
       }).then(() => {
         navigate('/', { replace: true });
       });
+    } else if (path === '/app/invite' && magicToken) {
+      // Share invite acceptance — requires auth
+      if (auth.isSignedIn) {
+        fetch(`${API_BASE}/api/cloud/invites/${encodeURIComponent(magicToken)}/accept`, {
+          method: 'POST',
+          credentials: 'include',
+        }).then(async (res) => {
+          if (res.ok) {
+            const data = await res.json();
+            addToast('Invite accepted! The shared notebook is now in your sidebar.', 'success');
+            nb.reloadNotebooks();
+            navigate('/', { replace: true });
+          } else {
+            const data = await res.json().catch(() => ({}));
+            addToast(data.error ?? 'Failed to accept invite', 'error');
+            navigate('/', { replace: true });
+          }
+        });
+      } else {
+        // Store invite token and show login — will re-run after auth
+        sessionStorage.setItem('pendingInviteToken', magicToken);
+      }
     }
 
     // Clean up auth=success from OAuth callback
@@ -316,20 +341,45 @@ export default function App() {
     }
   }, []);
 
+  // Accept pending invite after sign-in
+  useEffect(() => {
+    if (!auth.isSignedIn) return;
+    const pendingToken = sessionStorage.getItem('pendingInviteToken');
+    if (!pendingToken) return;
+    sessionStorage.removeItem('pendingInviteToken');
+    fetch(`${API_BASE}/api/cloud/invites/${encodeURIComponent(pendingToken)}/accept`, {
+      method: 'POST',
+      credentials: 'include',
+    }).then(async (res) => {
+      if (res.ok) {
+        addToast('Invite accepted! The shared notebook is now in your sidebar.', 'success');
+        nb.reloadNotebooks();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast(data.error ?? 'Failed to accept invite', 'error');
+      }
+      navigate('/', { replace: true });
+    });
+  }, [auth.isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleWordCountChange = useCallback((words: number, chars: number) => {
     setWordCount(words);
     setCharCount(chars);
   }, []);
 
   // Map OpenTab[] to Tab[] for DocumentPane
-  const docTabs: Tab[] = nb.tabs.map((t) => ({
-    id: t.id,
-    name: t.name,
-    hasUnsavedChanges: t.hasUnsavedChanges,
-    content: t.content,
-    loading: t.loading,
-    readOnly: nb.pendingPrs.has(t.notebookId),
-  }));
+  const docTabs: Tab[] = nb.tabs.map((t) => {
+    const notebook = nb.notebooks.find((n) => n.id === t.notebookId);
+    return {
+      id: t.id,
+      name: t.name,
+      hasUnsavedChanges: t.hasUnsavedChanges,
+      content: t.content,
+      loading: t.loading,
+      readOnly: nb.pendingPrs.has(t.notebookId) || notebook?.sharedPermission === 'viewer' || (!collabEnabled && notebook?.sharedPermission && notebook.sharedPermission !== 'owner'),
+      cloudDoc: notebook?.sourceType === 'cloud' ? { notebookId: t.notebookId, path: t.path } : undefined,
+    };
+  });
 
   const lastSaved = nb.activeTab?.lastSaved
     ? new Date(nb.activeTab.lastSaved).toLocaleTimeString()
@@ -490,6 +540,7 @@ export default function App() {
         onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
       {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }} />}
+      {auth.user && <QuotaBanner />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -512,7 +563,7 @@ export default function App() {
           onExpandNotebook={(notebookId: string) => {
             // Lazy-load files for remote notebooks when expanded
             const notebook = nb.notebooks.find((n) => n.id === notebookId);
-            if (notebook && notebook.sourceType !== 'local' && notebook.sourceType) {
+            if (notebook && notebook.sourceType !== 'local' && notebook.sourceType && !notebook.pendingInvite) {
               // Only fetch if we don't already have files for this notebook
               if (!nb.files[notebookId] || nb.files[notebookId].length === 0) {
                 nb.refreshFiles(notebookId);
@@ -531,6 +582,55 @@ export default function App() {
           activeFilePath={nb.activeTabId}
           mobileOpen={mobilePaneOpen}
           onMobileClose={() => setMobilePaneOpen(false)}
+          onLeaveNotebook={async (notebookId: string) => {
+            try {
+              const API_BASE = import.meta.env.VITE_API_URL || '';
+              const res = await fetch(`${API_BASE}/api/cloud/notebooks/${notebookId}/leave`, {
+                method: 'POST',
+                credentials: 'include',
+              });
+              if (res.ok) {
+                addToast('Left shared notebook', 'success');
+                nb.reloadNotebooks();
+              } else {
+                addToast('Failed to leave notebook', 'error');
+              }
+            } catch {
+              addToast('Failed to leave notebook', 'error');
+            }
+          }}
+          onAcceptInvite={async (shareId: string) => {
+            const API_BASE = import.meta.env.VITE_API_URL || '';
+            const res = await fetch(`${API_BASE}/api/cloud/invites/accept-by-id`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ shareId }),
+            });
+            if (res.ok) {
+              addToast('Invitation accepted!', 'success');
+              await nb.syncNotebooksFromServer();
+            } else {
+              const data = await res.json().catch(() => ({}));
+              addToast(data.error || 'Failed to accept invitation', 'error');
+            }
+          }}
+          onDeclineInvite={async (shareId: string) => {
+            const API_BASE = import.meta.env.VITE_API_URL || '';
+            const res = await fetch(`${API_BASE}/api/cloud/invites/decline-by-id`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ shareId }),
+            });
+            if (res.ok) {
+              addToast('Invitation declined', 'info');
+              await nb.syncNotebooksFromServer();
+            } else {
+              const data = await res.json().catch(() => ({}));
+              addToast(data.error || 'Failed to decline invitation', 'error');
+            }
+          }}
         />
         <OutlinePane
           headings={headings}
@@ -561,6 +661,7 @@ export default function App() {
           spellCheck={settings.spellCheck}
           margins={settings.margins}
           lineNumbers={settings.lineNumbers}
+          currentUser={auth.user ? { name: auth.user.displayName } : undefined}
         />
       </div>
       <StatusBar

@@ -27,6 +27,7 @@ NC='\033[0m' # No Color
 
 LOG_DIR="$SCRIPT_DIR/.dev-logs"
 API_PID_FILE="$LOG_DIR/api.pid"
+COLLAB_PID_FILE="$LOG_DIR/collab.pid"
 WEB_PID_FILE="$LOG_DIR/web.pid"
 ADMIN_PID_FILE="$LOG_DIR/admin.pid"
 SMEE_PID_FILE="$LOG_DIR/smee.pid"
@@ -47,6 +48,7 @@ print_urls() {
   echo -e "    ${CYAN}Admin Console${NC}  http://localhost:5174"
   echo -e "    ${CYAN}API Server${NC}     http://localhost:3001"
   echo -e "    ${CYAN}API Health${NC}     http://localhost:3001/api/health"
+  echo -e "    ${CYAN}Collab Server${NC}  ws://localhost:3002"
   echo -e "    ${CYAN}Mailpit UI${NC}     http://localhost:8025"
   echo -e "    ${CYAN}PostgreSQL${NC}     localhost:5432  (notebookmd / localdev)"
   echo -e "    ${CYAN}Redis${NC}          localhost:6379"
@@ -128,6 +130,14 @@ do_stop() {
     rm -f "$API_PID_FILE"
   fi
 
+  # Stop collab server
+  if is_running "$COLLAB_PID_FILE"; then
+    local pid; pid=$(cat "$COLLAB_PID_FILE")
+    echo "  Stopping collab server (PID $pid)"
+    kill "$pid" 2>/dev/null || true
+    rm -f "$COLLAB_PID_FILE"
+  fi
+
   # Stop Docker services
   echo "  Stopping Docker services..."
   docker compose down 2>/dev/null || true
@@ -159,6 +169,13 @@ do_status() {
     echo -e "  ${GREEN}●${NC} api (PID $(cat "$API_PID_FILE"), health: $health)"
   else
     echo -e "  ${RED}●${NC} api (stopped)"
+  fi
+
+  # Collab
+  if is_running "$COLLAB_PID_FILE"; then
+    echo -e "  ${GREEN}●${NC} collab (PID $(cat "$COLLAB_PID_FILE"))"
+  else
+    echo -e "  ${RED}●${NC} collab (stopped)"
   fi
 
   # Web
@@ -209,7 +226,7 @@ do_start() {
   fi
 
   # ── 1. Docker services ──────────────────────────────────────────────────
-  echo -e "${BOLD}[1/6] Starting Docker services...${NC}"
+  echo -e "${BOLD}[1/7] Starting Docker services...${NC}"
   docker compose up -d
 
   # Wait for Docker health checks
@@ -242,7 +259,7 @@ do_start() {
 
   # ── 2. Run migrations ───────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[2/6] Running database migrations...${NC}"
+  echo -e "${BOLD}[2/7] Running database migrations...${NC}"
   DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd" \
     npx --workspace=apps/api node-pg-migrate up --migrations-dir apps/api/migrations --migration-file-language sql 2>&1 | \
     grep -E "(Migrating|complete|already)" || echo "  Migrations up to date"
@@ -257,7 +274,7 @@ do_start() {
 
   # ── 3. Start API server ─────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[3/6] Starting API server...${NC}"
+  echo -e "${BOLD}[3/7] Starting API server...${NC}"
   npx --workspace=apps/api tsx watch src/index.ts > "$LOG_DIR/api.log" 2>&1 &
   echo $! > "$API_PID_FILE"
   echo "  API server starting (PID $(cat "$API_PID_FILE"))..."
@@ -265,25 +282,32 @@ do_start() {
   # Wait for API to be ready
   wait_for_service "API" "http://localhost:3001/api/health" 15
 
-  # ── 4. Start web dev server ─────────────────────────────────────────────
+  # ── 4. Start collab server ─────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[4/6] Starting web dev server...${NC}"
+  echo -e "${BOLD}[4/7] Starting collab server...${NC}"
+  npx --workspace=apps/collab tsx watch src/server.ts > "$LOG_DIR/collab.log" 2>&1 &
+  echo $! > "$COLLAB_PID_FILE"
+  echo "  Collab server starting (PID $(cat "$COLLAB_PID_FILE"))..."
+
+  # ── 5. Start web dev server ─────────────────────────────────────────────
+  echo ""
+  echo -e "${BOLD}[5/7] Starting web dev server...${NC}"
   npx --workspace=apps/web vite --host > "$LOG_DIR/web.log" 2>&1 &
   echo $! > "$WEB_PID_FILE"
   echo "  Web dev server starting (PID $(cat "$WEB_PID_FILE"))..."
 
   wait_for_service "Web" "http://localhost:5173" 15
 
-  # ── 5. Start admin dev server ──────────────────────────────────────────
+  # ── 6. Start admin dev server ──────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}[5/6] Starting admin dev server...${NC}"
+  echo -e "${BOLD}[6/7] Starting admin dev server...${NC}"
   npx --workspace=apps/admin vite --host > "$LOG_DIR/admin.log" 2>&1 &
   echo $! > "$ADMIN_PID_FILE"
   echo "  Admin dev server starting (PID $(cat "$ADMIN_PID_FILE"))..."
 
   wait_for_service "Admin" "http://localhost:5174" 15
 
-  # ── 6. Start webhook proxy (smee.io) if configured ────────────────────
+  # ── 7. Start webhook proxy (smee.io) if configured ────────────────────
   # Load WEBHOOK_PROXY_URL from .env
   WEBHOOK_PROXY_URL=""
   if [ -f .env ]; then
@@ -292,7 +316,7 @@ do_start() {
 
   if [ -n "$WEBHOOK_PROXY_URL" ]; then
     echo ""
-    echo -e "${BOLD}[6/6] Starting webhook proxy (smee.io)...${NC}"
+    echo -e "${BOLD}[7/7] Starting webhook proxy (smee.io)...${NC}"
     npx smee -u "$WEBHOOK_PROXY_URL" -t http://localhost:3001/webhooks/github -p 3001 > "$LOG_DIR/smee.log" 2>&1 &
     echo $! > "$SMEE_PID_FILE"
     echo "  Smee proxy starting (PID $(cat "$SMEE_PID_FILE"))..."
@@ -316,7 +340,7 @@ do_start() {
   echo ""
 
   # Tail logs
-  local logfiles=("$LOG_DIR/api.log" "$LOG_DIR/web.log" "$LOG_DIR/admin.log")
+  local logfiles=("$LOG_DIR/api.log" "$LOG_DIR/collab.log" "$LOG_DIR/web.log" "$LOG_DIR/admin.log")
   [ -f "$LOG_DIR/smee.log" ] && logfiles+=("$LOG_DIR/smee.log")
   tail -f "${logfiles[@]}" 2>/dev/null || true
 }
@@ -337,8 +361,14 @@ case "${1:-start}" in
     DATABASE_URL="postgres://notebookmd:localdev@localhost:5432/notebookmd" \
       node apps/api/cli/promote-admin.js "$2"
     ;;
+  flighting)
+    echo -e "${YELLOW}⚡ Flighting mode: DEV_FLIGHTING=true${NC}"
+    echo -e "  Feature flags will resolve via flights/groups (not auto-enabled)"
+    export DEV_FLIGHTING=true
+    do_start
+    ;;
   *)
-    echo "Usage: ./dev.sh [start|stop|status|logs|promote-admin <email>]"
+    echo "Usage: ./dev.sh [start|stop|status|logs|flighting|promote-admin <email>]"
     exit 1
     ;;
 esac

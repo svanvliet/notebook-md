@@ -1,5 +1,5 @@
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { getEditorExtensions } from './extensions';
 import { DragHandle } from './DragHandle';
@@ -36,6 +36,11 @@ interface MarkdownEditorProps {
   margins?: 'narrow' | 'regular' | 'wide';
   lineNumbers?: boolean;
   readOnly?: boolean;
+  /** Collaboration options — when set, enables real-time collaborative editing */
+  collaborative?: {
+    provider: import('@hocuspocus/provider').HocuspocusProvider;
+    user: { name: string; color: string };
+  };
 }
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -106,11 +111,13 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly, collaborative }: MarkdownEditorProps) {
   const { addToast } = useToast();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
   const [viewMode, setViewMode] = useState<ViewMode>('wysiwyg');
+  // Force WYSIWYG during collaborative editing
+  const effectiveViewMode = collaborative ? 'wysiwyg' : viewMode;
   const [rawContent, setRawContent] = useState('');
   const [wordWrap, setWordWrap] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -128,19 +135,29 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
 
   const marginPx = margins === 'narrow' ? '2rem' : margins === 'wide' ? '12rem' : '4rem';
 
-  const extensions = [...getEditorExtensions(), SlashCommandExtension, DragHandle];
+  // Memoize extensions to prevent TipTap from re-registering them on every render.
+  // CollaborationCursor re-init triggers awareness updates → re-render → infinite loop.
+  const extensions = useMemo(
+    () => [...getEditorExtensions(undefined, collaborative ? { provider: collaborative.provider, user: collaborative.user } : undefined), SlashCommandExtension, DragHandle],
+    [collaborative?.provider],
+  );
+
+  // Memoize editorProps — TipTap's compareOptions checks all keys by reference.
+  // A new editorProps object on each render triggers setOptions → view.updateState →
+  // CollaborationCursor awareness update → setConnectedUsers → re-render → infinite loop.
+  const editorProps = useMemo(() => ({
+    attributes: {
+      class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] py-6',
+      spellcheck: spellCheckProp === false ? 'false' : 'true',
+    },
+  }), [spellCheckProp]);
 
   const editor = useEditor({
     extensions,
-    content: sanitize(content),
+    content: collaborative ? undefined : sanitize(content),
     editable: !readOnly,
     immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[200px] py-6',
-        spellcheck: spellCheckProp === false ? 'false' : 'true',
-      },
-    },
+    editorProps,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       // Skip the initial onUpdate fired when Tiptap parses the content on mount
@@ -148,7 +165,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
         isInitialMount.current = false;
         return;
       }
-      onChange(html);
+
+      // In collaborative mode, Yjs handles persistence — don't feed back to parent content state
+      if (!collaborative) {
+        onChange(html);
+      }
 
       // Keep raw content in sync during split view, but skip if update came from source pane
       if (viewMode === 'split' && !syncingFromSource.current) {
@@ -175,13 +196,15 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
   }, [editor, readOnly]);
 
   // Sync content from outside (e.g., when switching tabs)
+  // Skip in collaborative mode — Yjs document is the source of truth
   useEffect(() => {
+    if (collaborative) return;
     if (editor && editor.view?.dom && content !== editor.getHTML()) {
       editor.commands.setContent(sanitize(content));
     }
     // Only trigger when content prop changes, not when editor types
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content]);
+  }, [content, collaborative]);
 
   // Sync spellcheck attribute when setting changes
   useEffect(() => {
@@ -495,7 +518,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
           {/* Source toggle */}
           <button
             onClick={() => {
-              if (!editor) return;
+              if (!editor || collaborative) return;
               if (viewMode === 'wysiwyg') {
                 setRawContent(htmlToMarkdown(editor.getHTML()));
                 setViewMode('source');
@@ -509,12 +532,15 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
                 setViewMode('wysiwyg');
               }
             }}
+            disabled={!!collaborative}
             className={`px-1.5 py-1 rounded transition-colors ${
-              viewMode === 'source'
-                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              collaborative
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : viewMode === 'source'
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
             }`}
-            title="Toggle source view (⌘⇧M)"
+            title={collaborative ? 'Source view is disabled during real-time collaboration' : 'Toggle source view (⌘⇧M)'}
           >
             <svg className="w-5 h-3.5" viewBox="0 0 208 128" fill="currentColor">
               <rect x="5" y="5" width="198" height="118" rx="15" fill="none" stroke="currentColor" strokeWidth="10"/>
@@ -524,7 +550,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
           {/* Split view toggle — hidden on mobile (unusable on narrow screens) */}
           <button
             onClick={() => {
-              if (!editor) return;
+              if (!editor || collaborative) return;
               if (viewMode !== 'split') {
                 setRawContent(htmlToMarkdown(editor.getHTML()));
                 setViewMode('split');
@@ -532,12 +558,15 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
                 setViewMode('wysiwyg');
               }
             }}
+            disabled={!!collaborative}
             className={`hidden md:inline-flex px-1.5 py-1 rounded transition-colors ${
-              viewMode === 'split'
-                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              collaborative
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : viewMode === 'split'
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
             }`}
-            title="Toggle split view"
+            title={collaborative ? 'Split view is disabled during real-time collaboration' : 'Toggle split view'}
           >
             <svg className="w-4 h-3.5" viewBox="0 0 16 14" fill="none" stroke="currentColor" strokeWidth="1.5">
               <rect x="0.75" y="0.75" width="14.5" height="12.5" rx="2" />
@@ -550,9 +579,9 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
       {/* Editor area */}
       <div className="flex-1 overflow-hidden flex">
         {/* Source pane — shown in source-only or split mode */}
-        {(viewMode === 'source' || viewMode === 'split') && (
+        {(effectiveViewMode === 'source' || effectiveViewMode === 'split') && (
           <div
-            className={`source-pane relative border-r border-gray-200 dark:border-gray-800 ${viewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}
+            className={`source-pane relative border-r border-gray-200 dark:border-gray-800 ${effectiveViewMode === 'split' ? 'w-1/2' : 'w-full h-full'}`}
             onMouseEnter={() => { scrollSource.current = null; }}
           >
             {lineNumbers && (
@@ -590,7 +619,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
               onChange={(e) => handleSourceChange(e.target.value)}
               onScroll={(e) => {
                 syncLineNumScroll();
-                if (viewMode === 'split') handleSourceScroll(e);
+                if (effectiveViewMode === 'split') handleSourceScroll(e);
               }}
               className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none w-full h-full ${
                 wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'
@@ -619,7 +648,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
           </div>
         )}
         {/* WYSIWYG pane — shown in wysiwyg-only or split mode */}
-        {(viewMode === 'wysiwyg' || viewMode === 'split') && (
+        {(effectiveViewMode === 'wysiwyg' || effectiveViewMode === 'split') && (
           <div
             ref={(el) => {
               (editorWrapperRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -627,11 +656,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
               (editorContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
             }}
             className={`relative editor-wrapper overflow-auto ${
-              viewMode === 'split' ? 'w-1/2' : 'w-full'
+              effectiveViewMode === 'split' ? 'w-1/2' : 'w-full'
             }`}
             onMouseEnter={() => { scrollSource.current = null; }}
             onContextMenu={handleContextMenu}
-            onScroll={viewMode === 'split' ? handleWysiwygScroll : undefined}
+            onScroll={effectiveViewMode === 'split' ? handleWysiwygScroll : undefined}
             onDrop={handleEditorDrop}
             onDragOver={handleEditorDragOver}
             onDragLeave={handleEditorDragLeave}

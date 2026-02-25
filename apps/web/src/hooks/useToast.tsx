@@ -7,11 +7,12 @@ export interface Toast {
   message: string;
   type: ToastType;
   dismissAt?: number; // timestamp when auto-dismiss fires
+  action?: { label: string; onClick: () => void };
 }
 
 interface ToastContextValue {
   toasts: Toast[];
-  addToast: (message: string, type?: ToastType) => void;
+  addToast: (message: string, type?: ToastType, action?: { label: string; onClick: () => void }) => void;
   dismissToast: (id: string) => void;
 }
 
@@ -40,9 +41,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addToast = useCallback(
-    (message: string, type: ToastType = 'info') => {
+    (message: string, type: ToastType = 'info', action?: { label: string; onClick: () => void }) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const toast: Toast = { id, message, type };
+      const toast: Toast = { id, message, type, action };
 
       setToasts((prev) => {
         const next = [toast, ...prev];
@@ -57,7 +58,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      const ms = AUTO_DISMISS_MS[type];
+      const ms = action ? null : AUTO_DISMISS_MS[type];
       if (ms) {
         const timer = setTimeout(() => {
           timers.current.delete(id);

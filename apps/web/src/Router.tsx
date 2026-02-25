@@ -8,6 +8,7 @@ const AboutPage = lazy(() => import('./components/marketing/AboutPage'));
 const ContactPage = lazy(() => import('./components/marketing/ContactPage'));
 const TermsPage = lazy(() => import('./components/legal/TermsPage'));
 const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage'));
+const PublicDocumentViewer = lazy(() => import('./components/public/PublicDocumentViewer'));
 
 function AppRoutes() {
   const location = useLocation();
@@ -28,6 +29,9 @@ function AppRoutes() {
         <Route path="/app/magic-link" element={<App />} />
         <Route path="/app/verify-email" element={<App />} />
         <Route path="/app/auth-error" element={<App />} />
+        <Route path="/app/invite" element={<App />} />
+        {/* Public share link viewer */}
+        <Route path="/s/:token" element={<PublicDocumentViewer />} />
         {/* Main app with document deep links */}
         <Route path="/app" element={<App />} />
         <Route path="/app/:notebookName/*" element={<App />} />

@@ -69,3 +69,20 @@ resource "azurerm_key_vault_secret" "encryption_key" {
 
   depends_on = [azurerm_key_vault_access_policy.deployer]
 }
+
+# Individual secrets for collab server (uses separate DB params, not connection string)
+resource "azurerm_key_vault_secret" "db_admin_password" {
+  name         = "db-admin-password"
+  value        = var.db_admin_password
+  key_vault_id = azurerm_key_vault.main.id
+
+  depends_on = [azurerm_key_vault_access_policy.deployer]
+}
+
+resource "azurerm_key_vault_secret" "redis_primary_key" {
+  name         = "redis-primary-key"
+  value        = azurerm_redis_cache.main.primary_access_key
+  key_vault_id = azurerm_key_vault.main.id
+
+  depends_on = [azurerm_key_vault_access_policy.deployer]
+}

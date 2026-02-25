@@ -47,7 +47,67 @@ interface FeatureFlag {
   key: string;
   enabled: boolean;
   description: string | null;
+  variants: string[] | null;
+  staleAt: string | null;
   updatedAt: string;
+}
+
+interface FlagOverride {
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+  enabled: boolean;
+  variant: string | null;
+  reason: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+interface UserGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  allowSelfEnroll: boolean;
+  emailDomain: string | null;
+  createdAt: string;
+  memberCount: number;
+}
+
+interface GroupMember {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  addedAt: string;
+}
+
+interface Flight {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  rolloutPercentage: number;
+  showBadge: boolean;
+  badgeLabel: string;
+  isPermanent: boolean;
+  createdAt: string;
+  flagCount: number;
+  assignmentCount: number;
+}
+
+interface FlightAssignment {
+  id: string;
+  groupId: string | null;
+  groupName: string | null;
+  userId: string | null;
+  email: string | null;
+  assignedAt: string;
+}
+
+interface ResolvedFlag {
+  enabled: boolean;
+  variant: string | null;
+  badge: string | null;
+  source: string;
 }
 
 interface Announcement {
@@ -139,8 +199,120 @@ export function useAdmin() {
   const getFeatureFlags = useCallback(() => api<{ flags: FeatureFlag[] }>('/admin/feature-flags'), []);
 
   const saveFeatureFlag = useCallback(
-    (data: { key: string; enabled: boolean; description?: string }) =>
+    (data: { key: string; enabled: boolean; description?: string; variants?: string[] | null; staleAt?: string | null }) =>
       api<{ message: string }>('/admin/feature-flags', { method: 'POST', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const getFlagOverrides = useCallback(
+    (key: string) => api<{ overrides: FlagOverride[] }>(`/admin/feature-flags/${key}/overrides`),
+    [],
+  );
+
+  const createFlagOverride = useCallback(
+    (key: string, data: { userId: string; enabled: boolean; variant?: string; reason?: string; expiresAt?: string }) =>
+      api<{ message: string }>(`/admin/feature-flags/${key}/overrides`, { method: 'POST', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const deleteFlagOverride = useCallback(
+    (key: string, userId: string) =>
+      api<{ message: string }>(`/admin/feature-flags/${key}/overrides/${userId}`, { method: 'DELETE' }),
+    [],
+  );
+
+  // ── Groups ────────────────────────────────────────────────────────
+
+  const getGroups = useCallback(() => api<{ groups: UserGroup[] }>('/admin/groups'), []);
+
+  const createGroup = useCallback(
+    (data: { name: string; description?: string; allowSelfEnroll?: boolean; emailDomain?: string }) =>
+      api<{ id: string; message: string }>('/admin/groups', { method: 'POST', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const getGroup = useCallback(
+    (id: string) => api<{ group: UserGroup; members: GroupMember[] }>(`/admin/groups/${id}`),
+    [],
+  );
+
+  const updateGroup = useCallback(
+    (id: string, data: { name?: string; description?: string; allowSelfEnroll?: boolean; emailDomain?: string | null }) =>
+      api<{ message: string }>(`/admin/groups/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const deleteGroup = useCallback(
+    (id: string) => api<{ message: string }>(`/admin/groups/${id}`, { method: 'DELETE' }),
+    [],
+  );
+
+  const addGroupMembers = useCallback(
+    (id: string, userIds: string[]) =>
+      api<{ message: string }>(`/admin/groups/${id}/members`, { method: 'POST', body: JSON.stringify({ userIds }) }),
+    [],
+  );
+
+  const removeGroupMember = useCallback(
+    (groupId: string, userId: string) =>
+      api<{ message: string }>(`/admin/groups/${groupId}/members/${userId}`, { method: 'DELETE' }),
+    [],
+  );
+
+  // ── Flights ───────────────────────────────────────────────────────
+
+  const getFlights = useCallback(() => api<{ flights: Flight[] }>('/admin/flights'), []);
+
+  const createFlight = useCallback(
+    (data: { name: string; description?: string; flagKeys?: string[]; showBadge?: boolean; badgeLabel?: string; rolloutPercentage?: number }) =>
+      api<{ id: string; message: string }>('/admin/flights', { method: 'POST', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const getFlight = useCallback(
+    (id: string) => api<{ flight: Flight; flags: string[]; assignments: FlightAssignment[] }>(`/admin/flights/${id}`),
+    [],
+  );
+
+  const updateFlight = useCallback(
+    (id: string, data: { name?: string; description?: string; enabled?: boolean; showBadge?: boolean; badgeLabel?: string; rolloutPercentage?: number }) =>
+      api<{ message: string }>(`/admin/flights/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const deleteFlight = useCallback(
+    (id: string) => api<{ message: string }>(`/admin/flights/${id}`, { method: 'DELETE' }),
+    [],
+  );
+
+  const addFlightFlags = useCallback(
+    (id: string, flagKeys: string[]) =>
+      api<{ message: string }>(`/admin/flights/${id}/flags`, { method: 'POST', body: JSON.stringify({ flagKeys }) }),
+    [],
+  );
+
+  const removeFlightFlag = useCallback(
+    (flightId: string, flagKey: string) =>
+      api<{ message: string }>(`/admin/flights/${flightId}/flags/${flagKey}`, { method: 'DELETE' }),
+    [],
+  );
+
+  const assignToFlight = useCallback(
+    (flightId: string, data: { groupId?: string; userId?: string }) =>
+      api<{ id: string; message: string }>(`/admin/flights/${flightId}/assign`, { method: 'POST', body: JSON.stringify(data) }),
+    [],
+  );
+
+  const removeFlightAssignment = useCallback(
+    (flightId: string, assignmentId: string) =>
+      api<{ message: string }>(`/admin/flights/${flightId}/assignments/${assignmentId}`, { method: 'DELETE' }),
+    [],
+  );
+
+  // ── User Flags ────────────────────────────────────────────────────
+
+  const getUserFlags = useCallback(
+    (userId: string) => api<{ flags: Record<string, ResolvedFlag> }>(`/admin/users/${userId}/flags`),
     [],
   );
 
@@ -199,6 +371,26 @@ export function useAdmin() {
     deleteUser,
     getFeatureFlags,
     saveFeatureFlag,
+    getFlagOverrides,
+    createFlagOverride,
+    deleteFlagOverride,
+    getGroups,
+    createGroup,
+    getGroup,
+    updateGroup,
+    deleteGroup,
+    addGroupMembers,
+    removeGroupMember,
+    getFlights,
+    createFlight,
+    getFlight,
+    updateFlight,
+    deleteFlight,
+    addFlightFlags,
+    removeFlightFlag,
+    assignToFlight,
+    removeFlightAssignment,
+    getUserFlags,
     getAnnouncements,
     createAnnouncement,
     updateAnnouncement,
@@ -215,5 +407,11 @@ export type {
   Metrics,
   AuditEntry,
   FeatureFlag,
+  FlagOverride,
+  UserGroup,
+  GroupMember,
+  Flight,
+  FlightAssignment,
+  ResolvedFlag,
   Announcement,
 };
