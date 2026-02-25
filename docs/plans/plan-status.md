@@ -4593,3 +4593,11 @@ Commit: cc3d3d4
 Shared cloud notebooks appeared as "Empty notebook" on first load because the file listing effect in NotebookTree only triggered for notebooks already in the expanded set (restored from sessionStorage). New notebooks shared with the user were never expanded, so files never loaded. Fix: the effect now also loads files for any notebook with `sharedBy` set, regardless of expansion state.
 
 Commit: 84747ae
+
+### All cloud_collab Bugs Resolved (2026-02-25)
+
+Both remaining bugs verified fixed:
+- **Content sync**: Confirmed working. Shared docs load current content in view-only mode after collab server dual-write fix.
+- **File listing**: Confirmed working. Shared cloud notebooks show files on initial load after clearing stale IndexedDB cache.
+
+All flighting and cloud_collab gating work is complete.
