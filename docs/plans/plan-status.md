@@ -4640,3 +4640,45 @@ All co-auth feature flags are now fully enforced (API + UI):
 | cloud_sharing | Gates invite/member endpoints | Hides Share menu, Shared badge, Shared with me | Existing shares still function for data access |
 | cloud_collab | Gates WebSocket connections | Skips collab provider, forces view-only | Owners edit solo, non-owners view-only |
 | cloud_public_links | Gates link CRUD + public viewer | Hides Links tab in Share modal | Error page for existing links |
+
+### Flight Rollout Scoping Fix (2026-02-25)
+
+Rollout percentage was applying to ALL users regardless of group assignments. Fixed: when a flight has group/user/domain assignments, rollout % only applies within that audience. Flights with no assignments apply rollout to everyone (general population). Added `has_assignments` subquery to the resolution engine.
+
+Commit: a52d1fe
+
+### Group Member Add: Email Support (2026-02-25)
+
+Admin group member add was returning 500 on invalid user IDs (FK constraint). Fixed: API now resolves email addresses to user IDs, returns 400 with clear error for unknown emails. UI placeholder updated to "Email address".
+
+Commit: 6f8bb35
+
+### Migration 010: Production Seed Data (2026-02-25)
+
+Created migration to seed production with current collab rollout configuration:
+- Beta Testers group
+- Collab Features flight (100%, 5 co-auth flags, Beta Testers group assigned)
+- Co-auth flags removed from GA flight
+Fully idempotent. User assignments done via admin UI per-environment.
+
+Commit: 118f105
+
+### CI/CD: Collab Server Pipeline (2026-02-25)
+
+Added collab server to the CI/CD pipeline and fixed Express v5 TypeScript errors:
+
+- **New Dockerfile.collab**: 4-stage build (deps → build → prod-deps → production) for HocusPocus WebSocket server
+- **Workspace deps**: Added `COPY apps/collab/package.json apps/collab/` to api/web/admin Dockerfiles (npm workspace requires all package.json files at install time)
+- **docker-compose.prod.yml**: Added collab service with DB + Redis dependencies
+- **CI workflow**: Collab change detection, `build-collab-image` job, collab typecheck step, e2e dependencies updated
+- **Root package.json**: Added collab to `build` script
+- **Express v5 fix**: `req.params` returns `string | string[]` in Express 5 — cast to `string` in admin.ts, cloud.ts, sharing.ts (18 type errors)
+- **Migration 010 fix**: Join on `feature_flags` table instead of VALUES list for FK safety in test DB
+
+All 333 API tests pass. Docker builds succeed for both API and collab images.
+
+Commit: cfcbebb
+
+### Test Timeout Root Cause (2026-02-25)
+
+The 6 test failures in `flighting-admin.test.ts` (Groups CRUD) were caused by Mailpit being down after `./dev.sh` was stopped. The `createAdmin()` helper calls `signUp()` which sends a verification email — SMTP connection to port 1025 timed out at 30s, hitting the Vitest hook timeout. Restarting Docker services (`docker compose up -d db cache mailpit`) resolved all failures. Not a code bug.
