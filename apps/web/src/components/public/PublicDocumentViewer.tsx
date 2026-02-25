@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiFetch';
 
 interface ShareInfo {
@@ -15,6 +15,7 @@ interface DocumentContent {
 
 export default function PublicDocumentViewer() {
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [document, setDocument] = useState<DocumentContent | null>(null);
@@ -24,14 +25,21 @@ export default function PublicDocumentViewer() {
   useEffect(() => {
     if (!token) return;
     apiFetch(`/api/public/shares/${token}/resolve`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(res.status === 403 ? 'disabled' : 'invalid');
+        return res.json();
+      })
       .then(data => {
         setShareInfo(data);
-        // Auto-select first .md file
         const mdFile = data.files?.find((f: any) => f.path.endsWith('.md'));
         if (mdFile) setSelectedFile(mdFile.path);
       })
-      .catch(() => setError('This share link is invalid or has been revoked.'))
+      .catch((err) => {
+        const msg = err.message === 'disabled'
+          ? 'Public links are currently disabled.'
+          : 'This share link is invalid or has been revoked.';
+        setError(msg);
+      })
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -44,7 +52,19 @@ export default function PublicDocumentViewer() {
   }, [token, selectedFile]);
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
-  if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="text-center">
+        <p className="text-lg text-red-600 dark:text-red-400 mb-4">{error}</p>
+        <button
+          onClick={() => navigate('/', { replace: true })}
+          className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+        >
+          Go to Notebook.md
+        </button>
+      </div>
+    </div>
+  );
   if (!shareInfo) return null;
 
   return (
