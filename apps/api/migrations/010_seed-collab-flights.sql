@@ -13,18 +13,13 @@ INSERT INTO flights (name, description, enabled, rollout_percentage, show_badge,
 VALUES ('Collab Features', 'Cloud collaboration features for beta testers', true, 100, false, '')
 ON CONFLICT (name) DO NOTHING;
 
--- 3. Assign co-auth flags to the Collab Features flight
+-- 3. Assign co-auth flags to the Collab Features flight (only if flags exist)
 INSERT INTO flight_flags (flight_id, flag_key)
-SELECT f.id, flag.key
+SELECT f.id, ff.key
 FROM flights f
-CROSS JOIN (VALUES
-  ('cloud_notebooks'),
-  ('cloud_sharing'),
-  ('cloud_collab'),
-  ('cloud_public_links'),
-  ('soft_quota_banners')
-) AS flag(key)
+CROSS JOIN feature_flags ff
 WHERE f.name = 'Collab Features'
+  AND ff.key IN ('cloud_notebooks', 'cloud_sharing', 'cloud_collab', 'cloud_public_links', 'soft_quota_banners')
 ON CONFLICT DO NOTHING;
 
 -- 4. Remove co-auth flags from GA flight (they graduate back to GA when ready)

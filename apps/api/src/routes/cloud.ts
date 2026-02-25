@@ -33,7 +33,7 @@ async function hasDocumentAccess(docId: string, userId: string): Promise<{ hasAc
 
 // GET /api/cloud/notebooks/:id/export — Download as .zip
 router.get('/notebooks/:id/export', requireAuth, requireFeature('cloud_notebooks'), async (req: Request, res: Response) => {
-  const notebookId = req.params.id;
+  const notebookId = req.params.id as string;
 
   // Verify access (owner or shared member)
   const { hasAccess } = await hasNotebookAccess(notebookId, req.userId!);
@@ -80,7 +80,7 @@ router.get('/notebooks/:id/export', requireAuth, requireFeature('cloud_notebooks
 
 // GET /api/cloud/documents/:docId/versions — List versions
 router.get('/documents/:docId/versions', requireAuth, requireFeature('cloud_notebooks'), async (req: Request, res: Response) => {
-  const docId = req.params.docId;
+  const docId = req.params.docId as string;
   const page = parseInt(req.query.page as string) || 1;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
   const offset = (page - 1) * limit;
@@ -131,7 +131,8 @@ router.get('/documents/:docId/versions', requireAuth, requireFeature('cloud_note
 
 // GET /api/cloud/documents/:docId/versions/:versionId — Get version content
 router.get('/documents/:docId/versions/:versionId', requireAuth, requireFeature('cloud_notebooks'), async (req: Request, res: Response) => {
-  const { docId, versionId } = req.params;
+  const docId = req.params.docId as string;
+  const versionId = req.params.versionId as string;
 
   // Verify access
   const { hasAccess } = await hasDocumentAccess(docId, req.userId!);
@@ -156,7 +157,8 @@ router.get('/documents/:docId/versions/:versionId', requireAuth, requireFeature(
 
 // POST /api/cloud/documents/:docId/versions/:versionId/restore — Restore version
 router.post('/documents/:docId/versions/:versionId/restore', requireAuth, requireFeature('cloud_notebooks'), async (req: Request, res: Response) => {
-  const { docId, versionId } = req.params;
+  const docId = req.params.docId as string;
+  const versionId = req.params.versionId as string;
 
   // Verify editor access
   const { hasAccess, permission } = await hasDocumentAccess(docId, req.userId!);

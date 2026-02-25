@@ -452,7 +452,8 @@ router.post('/feature-flags/:key/overrides', async (req: Request, res: Response)
 });
 
 router.delete('/feature-flags/:key/overrides/:userId', async (req: Request, res: Response) => {
-  const { key, userId } = req.params;
+  const key = req.params.key as string;
+  const userId = req.params.userId as string;
 
   const result = await query('DELETE FROM flag_overrides WHERE flag_key = $1 AND user_id = $2', [key, userId]);
   if (result.rowCount === 0) {
@@ -476,7 +477,7 @@ router.delete('/feature-flags/:key/overrides/:userId', async (req: Request, res:
 // ── User Flag Resolution ─────────────────────────────────────────────────────
 
 router.get('/users/:id/flags', async (req: Request, res: Response) => {
-  const targetId = req.params.id;
+  const targetId = req.params.id as string;
 
   const user = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [targetId]);
   if (user.rows.length === 0) {
@@ -714,7 +715,8 @@ router.post('/groups/:id/members', async (req: Request, res: Response) => {
 });
 
 router.delete('/groups/:id/members/:userId', async (req: Request, res: Response) => {
-  const { id: groupId, userId } = req.params;
+  const groupId = req.params.id as string;
+  const userId = req.params.userId as string;
 
   const result = await query('DELETE FROM user_group_members WHERE group_id = $1 AND user_id = $2', [groupId, userId]);
   if (result.rowCount === 0) {

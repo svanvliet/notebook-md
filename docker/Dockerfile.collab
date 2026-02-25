@@ -14,7 +14,7 @@ FROM --platform=linux/amd64 node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app .
 COPY . .
-RUN npx tsc -p apps/api/tsconfig.build.json
+RUN npx tsc -p apps/collab/tsconfig.json
 
 # ── Stage 3: Production dependencies ──
 FROM --platform=linux/amd64 node:22-alpine AS prod-deps
@@ -32,15 +32,9 @@ FROM --platform=linux/amd64 node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy built output and production dependencies
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/package.json ./
+COPY --from=build /app/apps/collab/dist ./dist
+COPY --from=build /app/apps/collab/package.json ./
 COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Copy migrations for production DB setup
-COPY apps/api/migrations ./migrations
-# Copy CLI tools
-COPY apps/api/cli ./cli
-
-EXPOSE 3001
-CMD ["sh", "-c", "npx node-pg-migrate up --migrations-dir migrations --migration-file-language sql 2>&1 && node dist/index.js"]
+EXPOSE 3002
+CMD ["node", "dist/server.js"]
