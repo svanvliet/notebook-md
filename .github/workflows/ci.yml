@@ -370,6 +370,16 @@ jobs:
           docker compose -f docker-compose.prod.yml exec -T db \
             psql -U notebookmd -d notebookmd -c \
             "UPDATE feature_flags SET enabled = true;"
+          # Restart API to clear the in-memory flag cache (30s TTL)
+          docker compose -f docker-compose.prod.yml restart api
+          # Wait for API to be healthy again
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api/health > /dev/null 2>&1; then
+              echo "API healthy after restart"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Run E2E smoke tests
         run: npm run test:e2e
