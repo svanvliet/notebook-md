@@ -49,10 +49,14 @@ import {
 } from '../api/googledrive';
 import { listCloudTree, createCloudFile, deleteCloudFile } from '../api/cloud';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+
+/** Encode a file path for use in a URL, encoding each segment but preserving `/`. */
+function encodeFilePath(filePath: string): string {
+  return filePath.split('/').map(encodeURIComponent).join('/');
+}
 
 async function readCloudFile(notebookId: string, filePath: string) {
-  const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`);
+  const res = await apiFetch(`/api/sources/cloud/files/${encodeFilePath(filePath)}?root=${notebookId}`);
   if (!res.ok) {
     const err = new Error('Failed to read cloud file');
     (err as any).status = res.status;
@@ -62,7 +66,7 @@ async function readCloudFile(notebookId: string, filePath: string) {
 }
 
 async function writeCloudFile(notebookId: string, filePath: string, content: string) {
-  const res = await apiFetch(`${API_BASE}/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`, {
+  const res = await apiFetch(`/api/sources/cloud/files/${encodeFilePath(filePath)}?root=${notebookId}`, {
     method: 'PUT',
     body: JSON.stringify({ content }),
   });

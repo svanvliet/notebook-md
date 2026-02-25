@@ -1,5 +1,10 @@
 import { apiFetch } from './apiFetch';
 
+/** Encode a file path for use in a URL, encoding each segment but preserving `/`. */
+function encodeFilePath(filePath: string): string {
+  return filePath.split('/').map(encodeURIComponent).join('/');
+}
+
 export interface CloudFileEntry {
   path: string;
   name: string;
@@ -21,7 +26,7 @@ export async function listCloudTree(notebookId: string): Promise<CloudFileEntry[
 }
 
 export async function createCloudFile(notebookId: string, filePath: string, content: string = '', type: 'file' | 'folder' = 'file'): Promise<void> {
-  const res = await apiFetch(`/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`, {
+  const res = await apiFetch(`/api/sources/cloud/files/${encodeFilePath(filePath)}?root=${notebookId}`, {
     method: 'POST',
     body: JSON.stringify({ content: type === 'folder' ? '' : content, type }),
   });
@@ -32,7 +37,7 @@ export async function createCloudFile(notebookId: string, filePath: string, cont
 }
 
 export async function deleteCloudFile(notebookId: string, filePath: string): Promise<void> {
-  const res = await apiFetch(`/api/sources/cloud/files/${encodeURIComponent(filePath)}?root=${notebookId}`, {
+  const res = await apiFetch(`/api/sources/cloud/files/${encodeFilePath(filePath)}?root=${notebookId}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete file');
