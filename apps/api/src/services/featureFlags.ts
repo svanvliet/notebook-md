@@ -119,6 +119,7 @@ export async function resolveAllFlags(userId?: string | null, userEmail?: string
     badge_label: string;
     rollout_percentage: number;
     is_assigned: boolean;
+    has_assignments: boolean;
   }>(
     `SELECT
        ff.flag_key,
@@ -137,7 +138,10 @@ export async function resolveAllFlags(userId?: string | null, userEmail?: string
                SELECT id FROM user_groups WHERE email_domain IS NOT NULL AND $2 LIKE '%@' || email_domain
              )
            )
-       ) as is_assigned
+       ) as is_assigned,
+       EXISTS(
+         SELECT 1 FROM flight_assignments fa WHERE fa.flight_id = f.id
+       ) as has_assignments
      FROM flight_flags ff
      JOIN flights f ON ff.flight_id = f.id
      WHERE f.enabled = true
@@ -186,7 +190,9 @@ export async function resolveAllFlags(userId?: string | null, userEmail?: string
         }
 
         // 3b: Flight rollout percentage
-        if (flight.rollout_percentage > 0) {
+        // When a flight has assignments, rollout % applies only to assigned users.
+        // When a flight has no assignments, rollout % applies to everyone.
+        if (flight.rollout_percentage > 0 && (!flight.has_assignments || flight.is_assigned)) {
           const bucket = getUserBucket(flight.flight_name, userId);
           if (bucket < flight.rollout_percentage) {
             result[f.key] = {
