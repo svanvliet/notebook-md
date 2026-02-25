@@ -117,8 +117,7 @@ services:
       DB_NAME: notebookmd
       DB_USER: notebookmd
       DB_PASSWORD: localdev
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
+      REDIS_URL: redis://redis:6379
     depends_on:
       db:
         condition: service_healthy
