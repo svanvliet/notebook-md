@@ -267,8 +267,102 @@ resource "azurerm_container_app" "api" {
 }
 
 # ──────────────────────────────────────────────
-# Web Container App (SPA)
+# Collab Container App (WebSocket / HocusPocus)
 # ──────────────────────────────────────────────
+
+resource "azurerm_container_app" "collab" {
+  name                         = "ca-${var.project}-collab"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = azurerm_resource_group.main.name
+  revision_mode                = "Multiple"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.container_apps.id]
+  }
+
+  registry {
+    server   = azurerm_container_registry.main.login_server
+    identity = azurerm_user_assigned_identity.container_apps.id
+  }
+
+  ingress {
+    external_enabled = true
+    target_port      = 3002
+    transport        = "auto"
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 5
+
+    container {
+      name   = "collab"
+      image  = "${azurerm_container_registry.main.login_server}/collab:latest"
+      cpu    = 0.5
+      memory = "1Gi"
+
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      env {
+        name  = "COLLAB_PORT"
+        value = "3002"
+      }
+      env {
+        name  = "DB_HOST"
+        value = azurerm_postgresql_flexible_server.main.fqdn
+      }
+      env {
+        name  = "DB_PORT"
+        value = "5432"
+      }
+      env {
+        name  = "DB_NAME"
+        value = local.db_name
+      }
+      env {
+        name  = "DB_USER"
+        value = "notebookmd_admin"
+      }
+      env {
+        name        = "DB_PASSWORD"
+        secret_name = "db-admin-password"
+      }
+      env {
+        name  = "REDIS_HOST"
+        value = azurerm_redis_cache.main.hostname
+      }
+      env {
+        name  = "REDIS_PORT"
+        value = tostring(azurerm_redis_cache.main.ssl_port)
+      }
+      env {
+        name        = "ENCRYPTION_KEY"
+        secret_name = "encryption-key"
+      }
+    }
+  }
+
+  secret {
+    name                = "db-admin-password"
+    key_vault_secret_id = azurerm_key_vault_secret.db_admin_password.id
+    identity            = azurerm_user_assigned_identity.container_apps.id
+  }
+  secret {
+    name                = "encryption-key"
+    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.id
+    identity            = azurerm_user_assigned_identity.container_apps.id
+  }
+
+  tags = local.tags
+}
 
 resource "azurerm_container_app" "web" {
   name                         = "ca-${var.project}-web"

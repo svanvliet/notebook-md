@@ -1103,57 +1103,50 @@ Per risk mitigation (§14 of requirements):
 
 ### 6.3 Infrastructure updates
 
+**Architecture decision:** Route WebSocket traffic through `api.notebookmd.io/collab` using a dedicated Front Door route (no new subdomain). Collab runs as a separate Container App for independent scaling.
+
 **File:** `infra/terraform/container_apps.tf`
 
-Add collab Container App:
+Add collab Container App (`ca-notebookmd-collab`):
+- Port 3002, `transport = "auto"` (WebSocket upgrade support)
+- CPU 0.5, Memory 1Gi, replicas 1–5
+- Env vars: DB_HOST (pg FQDN), DB_PORT (5432), DB_NAME, DB_USER, DB_PASSWORD (KV secret), REDIS_HOST, REDIS_PORT, ENCRYPTION_KEY (KV secret), COLLAB_PORT (3002), NODE_ENV (production)
+- Revision mode: Multiple (enables rollback)
+- Same user-assigned identity as API (ACR pull)
 
-```hcl
-resource "azurerm_container_app" "collab" {
-  name                         = "collab"
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  resource_group_name          = azurerm_resource_group.main.name
-  revision_mode                = "Single"
+New Key Vault secrets needed: `db-admin-password`, `redis-primary-key` (individual values for collab's env vars — it uses individual DB params, not a single DATABASE_URL)
 
-  template {
-    container {
-      name   = "collab"
-      image  = "${azurerm_container_registry.main.login_server}/collab:${var.image_tag}"
-      cpu    = 0.5
-      memory = "1Gi"
+**File:** `infra/terraform/frontdoor.tf`
 
-      env { name = "DATABASE_URL" secret_name = "database-url" }
-      env { name = "REDIS_URL"    secret_name = "redis-url" }
-      env { name = "COLLAB_PORT"  value = "3002" }
-    }
-    min_replicas = 1
-    max_replicas = 5
-  }
+- New origin group: `og-collab` → collab Container App FQDN (no health probe — HocusPocus has no health endpoint)
+- New origin: `origin-collab` → `ca-notebookmd-collab.{region}.azurecontainerapps.io`
+- New route: `route-collab` on **API endpoint** with pattern `/collab/*` → `og-collab` (more specific than API catch-all `/*`, so takes priority)
+- Associated with `api.notebookmd.io` custom domain — no DNS changes needed
 
-  ingress {
-    external_enabled = true
-    target_port      = 3002
-    transport        = "auto"  # supports WebSocket upgrade
-  }
-}
-```
+**File:** `infra/terraform/outputs.tf`
+- Add `container_app_collab_fqdn` output
 
-**File:** Azure Front Door / Application Gateway routing:
-
-- Add rule: `api.notebookmd.io/collab/*` → collab Container App (with WebSocket upgrade)
+**⚠️ Known issue:** Collab server's Redis client uses plain `host:port` without TLS. Production Azure Redis requires TLS. Before deploying, add `tls: {}` option to ioredis constructor in `apps/collab/src/server.ts` (or use REDIS_URL with `rediss://` scheme).
 
 ### 6.4 CI/CD updates
 
-**File:** `.github/workflows/ci.yml`
-
-- Add collab to change detection (path filter)
-- Add `build-collab` job: typecheck + build `apps/collab`
-- Add `test-collab` job: run Markdown fidelity tests and any HocusPocus integration tests
+**CI (already done in PR #40):**
+- Collab change detection, build-collab-image job, collab typecheck added to `.github/workflows/ci.yml`
 
 **File:** `.github/workflows/deploy.yml`
 
-- Add collab image build + push to ACR (`crnotebookmdprod.azurecr.io/collab`)
-- Add collab container deploy step
-- Health check: collab WebSocket endpoint accepts connections
+Changes:
+1. **Preflight job** — Add `collab` filter to `dorny/paths-filter` (watch `apps/collab/**`, `docker/Dockerfile.collab`) and `collab-changed` output
+2. **build-collab job** — Mirror `build-api`: condition on `collab-changed`, build `Dockerfile.collab`, push to `crnotebookmdprod.azurecr.io/collab:TAG+latest`, Trivy scan
+3. **deploy-collab job** — Deploy to `ca-notebookmd-collab` via `azure/container-apps-deploy-action@v2`, no HTTP health check (WebSocket-only service)
+4. **summary job** — Add collab row to deploy summary markdown table
+
+**File:** `.github/workflows/rollback.yml`
+
+Changes:
+1. Add `collab` to `app` input choice options
+2. Add "Rollback Collab" step (same pattern as web/admin — revision list + traffic set)
+3. No health check for collab (same as web/admin)
 
 ### 6.5 Marketing & legal updates
 

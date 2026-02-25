@@ -74,6 +74,14 @@ resource "azurerm_cdn_frontdoor_origin_group" "admin" {
   load_balancing {}
 }
 
+resource "azurerm_cdn_frontdoor_origin_group" "collab" {
+  name                     = "og-collab"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  session_affinity_enabled = true
+
+  load_balancing {}
+}
+
 # ── Origins ──
 
 resource "azurerm_cdn_frontdoor_origin" "web" {
@@ -109,7 +117,30 @@ resource "azurerm_cdn_frontdoor_origin" "admin" {
   certificate_name_check_enabled = true
 }
 
+resource "azurerm_cdn_frontdoor_origin" "collab" {
+  name                          = "origin-collab"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.collab.id
+  enabled                       = true
+  host_name                     = azurerm_container_app.collab.ingress[0].fqdn
+  origin_host_header            = azurerm_container_app.collab.ingress[0].fqdn
+  http_port                     = 80
+  https_port                    = 443
+  certificate_name_check_enabled = true
+}
+
 # ── Routes ──
+# Collab route on API endpoint — /collab/* is more specific than API catch-all /*
+resource "azurerm_cdn_frontdoor_route" "collab" {
+  name                          = "route-collab"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.api.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.collab.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.collab.id]
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.api.id]
+  patterns_to_match             = ["/collab", "/collab/*"]
+  supported_protocols           = ["Http", "Https"]
+  https_redirect_enabled        = true
+  forwarding_protocol           = "HttpsOnly"
+}
 
 resource "azurerm_cdn_frontdoor_route" "web" {
   name                          = "route-web"
@@ -205,7 +236,7 @@ resource "azurerm_cdn_frontdoor_custom_domain_association" "www" {
 
 resource "azurerm_cdn_frontdoor_custom_domain_association" "api" {
   cdn_frontdoor_custom_domain_id = azurerm_cdn_frontdoor_custom_domain.api.id
-  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.api.id]
+  cdn_frontdoor_route_ids        = [azurerm_cdn_frontdoor_route.api.id, azurerm_cdn_frontdoor_route.collab.id]
 }
 
 resource "azurerm_cdn_frontdoor_custom_domain_association" "admin" {
