@@ -285,35 +285,16 @@ const server = Server.configure({
         try {
           const { notebookId, filePath } = parseDocumentName(documentName);
           const result = await pool.query(
-            'SELECT ydoc_state, content_enc FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
+            'SELECT ydoc_state FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
             [notebookId, filePath],
           );
-          if (result.rows.length > 0) {
-            const row = result.rows[0];
-            // If we have a stored Yjs state, use it
-            if (row.ydoc_state) {
-              return new Uint8Array(row.ydoc_state);
-            }
-            // Seed Yjs doc from existing encrypted content (file created via REST API)
-            if (row.content_enc) {
-              try {
-                const markdown = decrypt(row.content_enc);
-                const state = htmlToYdocState(markdown);
-                // Persist the generated ydoc_state so this only happens once
-                await pool.query(
-                  'UPDATE cloud_documents SET ydoc_state = $1 WHERE notebook_id = $2 AND path = $3',
-                  [Buffer.from(state), notebookId, filePath],
-                );
-                console.log(`[collab] seeded ydoc from content_enc for ${documentName}`);
-                return state;
-              } catch (seedErr) {
-                console.error('[collab] failed to seed ydoc from content_enc:', seedErr);
-              }
-            }
+          if (result.rows.length > 0 && result.rows[0].ydoc_state) {
+            return new Uint8Array(result.rows[0].ydoc_state);
           }
         } catch (err) {
           console.error('[collab] fetch error:', err);
         }
+        // Return null — client will seed from REST content if ydoc is empty
         return null;
       },
       async store({ documentName, state }) {

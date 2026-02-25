@@ -214,7 +214,11 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
     if (!collaborative?.isSynced || !editor || !content || seededRef.current) return;
     // Check if the Yjs doc is empty (only has a single empty paragraph)
     if (editor.isEmpty) {
-      editor.commands.setContent(sanitize(content));
+      // Content from REST API may be raw markdown (imported files) or HTML (editor-saved).
+      // Detect markdown by checking for common syntax and convert if needed.
+      const isMarkdown = /^#{1,6}\s|^\*\*|^!\[|^\[.*\]\(|^---\s*$/m.test(content);
+      const html = isMarkdown ? markdownToHtml(content) : content;
+      editor.commands.setContent(sanitize(html));
       seededRef.current = true;
     }
   }, [collaborative?.isSynced, editor, content]);
