@@ -4915,3 +4915,33 @@ Before running `terraform apply` and the first deploy, these manual steps are ne
 5. **First production deploy** — tag + deploy
 6. **Marketing/legal page updates** (Phase 6.5)
 7. **Progressive rollout** — internal alpha → private beta → public beta → GA
+
+### Collab Server Production Deployment (2026-02-25)
+
+Successfully deployed the collab (HocusPocus WebSocket) server to Azure production.
+
+#### Timeline
+1. `terraform apply` #1 — Created Container App, Front Door route, KV secrets (6 added, 4 changed)
+2. Hit `NOAUTH Authentication required` — Redis needs password, but collab used individual host/port without auth
+3. Fixed: Switched collab to use `REDIS_URL` connection string (matches API pattern, includes auth + TLS)
+4. `terraform apply` #2 — Updated collab env vars (REDIS_HOST/PORT → REDIS_URL)
+5. Hit `ECONNREFUSED` — Docker cache served stale image without the fix
+6. Rebuilt with `--no-cache`, tagged `fix-redis`, pushed and deployed
+7. ✅ `HocusPocus server listening on port 3002` — Ready
+
+#### Issues Encountered & Fixes
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| `NOAUTH Authentication required` | Azure Redis requires password; collab used bare host/port | Switched to `REDIS_URL` with embedded credentials (commit `f4b38b0`) |
+| `ECONNREFUSED` after Terraform update | Docker build cache served old code; `COPY . .` layer was cached | Rebuilt with `--no-cache` flag |
+| Image tag `latest` didn't trigger new revision | Container Apps sees same tag name, skips pull | Used unique tag `fix-redis` |
+| Terraform image drift on api/web/admin | Deploy workflow uses versioned tags, TF hardcodes `latest` | Applied as-is; consider `lifecycle { ignore_changes }` later |
+
+#### Production Verification
+- ✅ `ca-notebookmd-collab` running (revision `--0000002`)
+- ✅ Front Door route `route-collab` provisioned (`/collab/*` on API endpoint)
+- ✅ API health check passing (no disruption from revision churn)
+- ✅ Redis connected (via `REDIS_URL` with TLS)
+- ✅ PostgreSQL connected (with SSL)
+
+Commits: `d5344f0` (infra), `ce4a905` (DEPLOY.md), `4dfdbdb` (pg SSL + redis TLS), `f4b38b0` (REDIS_URL fix)
