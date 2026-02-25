@@ -367,9 +367,16 @@ jobs:
 
       - name: Enable feature flags for E2E tests
         run: |
+          # Un-kill-switch all flags AND configure flights for 100% rollout.
+          # The flight system only delivers flags via flights; just enabling the
+          # flag row is not enough. Removing targeted assignments makes rollout
+          # apply to every authenticated user.
           docker compose -f docker-compose.prod.yml exec -T db \
-            psql -U notebookmd -d notebookmd -c \
-            "UPDATE feature_flags SET enabled = true;"
+            psql -U notebookmd -d notebookmd -c "
+              UPDATE feature_flags SET enabled = true;
+              UPDATE flights SET enabled = true, rollout_percentage = 100;
+              DELETE FROM flight_assignments;
+            "
           # Restart API to clear the in-memory flag cache (30s TTL)
           docker compose -f docker-compose.prod.yml restart api
           # Wait for API to be healthy again
