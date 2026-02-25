@@ -229,7 +229,7 @@ router.post('/notebooks/:id/leave', requireAuth, requireFeature('cloud_sharing')
 // ── Share Links ──────────────────────────────────────────────────────────
 
 // POST /api/cloud/notebooks/:id/share-links — Create share link
-router.post('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+router.post('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
   try {
     const link = await createShareLink(req.params.id, req.userId!, req.body.visibility);
     res.status(201).json({ link });
@@ -239,13 +239,13 @@ router.post('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sha
 });
 
 // GET /api/cloud/notebooks/:id/share-links — List share links
-router.get('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+router.get('/notebooks/:id/share-links', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
   const links = await getShareLinks(req.params.id, req.userId!);
   res.json({ links });
 });
 
 // PATCH /api/cloud/share-links/:linkId — Toggle visibility
-router.patch('/share-links/:linkId', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+router.patch('/share-links/:linkId', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
   const { visibility } = req.body;
   if (!visibility || !['private', 'public'].includes(visibility)) {
     res.status(400).json({ error: 'Valid visibility (private/public) required' });
@@ -261,7 +261,7 @@ router.patch('/share-links/:linkId', requireAuth, requireFeature('cloud_sharing'
 });
 
 // POST /api/cloud/share-links/:linkId/revoke — Revoke link
-router.post('/share-links/:linkId/revoke', requireAuth, requireFeature('cloud_sharing'), async (req: Request, res: Response) => {
+router.post('/share-links/:linkId/revoke', requireAuth, requireFeature('cloud_sharing'), requireFeature('cloud_public_links'), async (req: Request, res: Response) => {
   try {
     await revokeShareLink(req.params.linkId, req.userId!);
     res.json({ message: 'Link revoked' });

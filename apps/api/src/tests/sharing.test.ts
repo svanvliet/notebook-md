@@ -21,6 +21,7 @@ describe('Sharing & Permissions (Phase 3)', () => {
       { key: 'cloud_notebooks' },
       { key: 'cloud_sharing' },
       { key: 'cloud_collab' },
+      { key: 'cloud_public_links' },
     ]);
     clearFlagCache();
 

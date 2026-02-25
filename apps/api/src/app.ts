@@ -151,7 +151,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 });
 
-import { isFeatureEnabled, resolveAllFlags, clearFlagCache } from './services/featureFlags.js';
+import { isFeatureEnabled, isKillSwitched, resolveAllFlags, clearFlagCache } from './services/featureFlags.js';
 import { optionalAuth, requireAuth } from './middleware/auth.js';
 
 app.use('/auth', authRoutes);
@@ -174,6 +174,8 @@ import { resolvePublicLink as resolveLink } from './services/shareLinks.js';
 import { decrypt as decryptContent } from './lib/encryption.js';
 const publicShareRouter = PublicRouter();
 publicShareRouter.get('/shares/:token/resolve', async (req, res) => {
+  const killed = await isKillSwitched('cloud_public_links');
+  if (killed) { res.status(403).json({ error: 'Public links are currently disabled' }); return; }
   const result = await resolveLink(req.params.token);
   if (!result) { res.status(404).json({ error: 'Link not found or not public' }); return; }
   const { query: dbQuery } = await import('./db/pool.js');
@@ -184,6 +186,8 @@ publicShareRouter.get('/shares/:token/resolve', async (req, res) => {
   res.json({ notebookName: result.notebookName, ownerName: result.ownerName, files: files.rows.map(f => ({ path: f.path, size: f.size_bytes })) });
 });
 publicShareRouter.get('/shares/:token/documents/{*filePath}', async (req, res) => {
+  const killed = await isKillSwitched('cloud_public_links');
+  if (killed) { res.status(403).json({ error: 'Public links are currently disabled' }); return; }
   const result = await resolveLink(req.params.token);
   if (!result) { res.status(404).json({ error: 'Link not found or not public' }); return; }
   const rawPath = (req.params as any).filePath;
