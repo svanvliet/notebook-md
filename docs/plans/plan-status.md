@@ -4679,6 +4679,61 @@ All 333 API tests pass. Docker builds succeed for both API and collab images.
 
 Commit: cfcbebb
 
+### API Test Performance Optimization (2026-02-25)
+
+Reduced full API test suite from **207s → 78s (62% faster, 2.7x speedup)**:
+
+- **Batched `cleanDb()`**: 26 individual DELETE queries → single multi-statement SQL query (minimal gain ~1s, eliminates 25 round-trips)
+- **`createTestUser()` / `createTestAdmin()` helpers**: Direct SQL insert + session creation, bypassing HTTP + SMTP entirely (~1ms vs ~3s per user). This was the big win — tests that just need an authenticated user no longer send emails through Mailpit.
+- **Cached bcrypt hash**: Cost 4 instead of 12, computed once per test run and reused
+- Tests that specifically test signup/auth flows still use `signUp()` via the API
+
+Updated test files: `flighting-admin.test.ts`, `flighting.test.ts`, `admin.test.ts`
+
+Commit: 979f06f
+
 ### Test Timeout Root Cause (2026-02-25)
 
 The 6 test failures in `flighting-admin.test.ts` (Groups CRUD) were caused by Mailpit being down after `./dev.sh` was stopped. The `createAdmin()` helper calls `signUp()` which sends a verification email — SMTP connection to port 1025 timed out at 30s, hitting the Vitest hook timeout. Restarting Docker services (`docker compose up -d db cache mailpit`) resolved all failures. Not a code bug.
+
+---
+
+## Next Steps: Production Deployment for Collab Server
+
+### What's Done
+- ✅ `Dockerfile.collab` — production-ready multi-stage Docker image
+- ✅ `ci.yml` — collab change detection, typecheck, Docker build
+- ✅ `docker-compose.prod.yml` — collab service for local prod-like testing
+- ✅ All 333 API tests pass, Docker builds succeed
+
+### What's Needed Before Production Deploy
+
+**1. Terraform: Add Collab Container App** (infra change)
+- Add `azurerm_container_app.collab` to `container_apps.tf`
+- WebSocket-capable (requires `transport: "auto"` or explicit WS support)
+- Needs DB + Redis connection strings from Key Vault
+- Internal-only networking (fronted by Front Door or direct from web app)
+- Consider: does collab need its own Front Door endpoint (e.g., `collab.notebookmd.io`) or can web app proxy to it?
+
+**2. deploy.yml: Add Collab Build & Deploy Jobs**
+- Preflight: add `collab-changed` output with paths (`apps/collab/**`, `docker/Dockerfile.collab`)
+- `build-collab` job: mirrors existing build-api pattern (Docker build + push to ACR + Trivy scan)
+- `deploy-collab` job: Container Apps deploy targeting the new collab resource
+- No health check endpoint needed (WebSocket server, no HTTP health route) — or add one
+
+**3. rollback.yml: Add Collab Option**
+- Add `collab` to the `app` choice options dropdown
+- Add collab rollback step mirroring existing api/web/admin pattern
+
+**4. Web App: Production WebSocket URL**
+- Currently web app proxies `/collab` to `ws://localhost:3002` via Vite dev server
+- In production, need `VITE_COLLAB_URL` env var (e.g., `wss://collab.notebookmd.io`) or proxy through Front Door
+- Update `useCollaboration.ts` to use the env var for WebSocket connection
+
+**5. Front Door / Networking Decision**
+- Option A: Dedicated `collab.notebookmd.io` subdomain via Front Door → collab Container App (requires custom domain + TLS)
+- Option B: Route `/collab` on `api.notebookmd.io` through Front Door to collab app (simpler, but mixes HTTP + WS on same domain)
+- Option C: Direct Container App FQDN with TLS (simplest, but exposes Azure URLs)
+
+### Recommendation
+Test CI first via PR to main (current step). Then plan the infra + deploy changes as a follow-up, since they require Terraform changes and a networking decision for WebSocket routing.
