@@ -40,6 +40,7 @@ interface MarkdownEditorProps {
   collaborative?: {
     provider: import('@hocuspocus/provider').HocuspocusProvider;
     user: { name: string; color: string };
+    isSynced?: boolean;
   };
 }
 
@@ -205,6 +206,23 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
     // Only trigger when content prop changes, not when editor types
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content, collaborative]);
+
+  // Seed collaborative doc from REST content when Yjs doc is empty after sync.
+  // This handles files created via REST API that have no ydoc_state yet.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (!collaborative?.isSynced || !editor || !content || seededRef.current) return;
+    // Check if the Yjs doc is empty (only has a single empty paragraph)
+    if (editor.isEmpty) {
+      editor.commands.setContent(sanitize(content));
+      seededRef.current = true;
+    }
+  }, [collaborative?.isSynced, editor, content]);
+
+  // Reset seeded flag when switching documents
+  useEffect(() => {
+    seededRef.current = false;
+  }, [collaborative?.provider]);
 
   // Sync spellcheck attribute when setting changes
   useEffect(() => {

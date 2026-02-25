@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import pg from 'pg';
 import Redis from 'ioredis';
 import * as Y from 'yjs';
-import { createCipheriv, createHash, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -67,17 +67,59 @@ function assignColor(userId: string): string {
 }
 
 // ── Encrypt helper (mirrors apps/api/src/lib/encryption.ts) ───────────────
-function encrypt(plaintext: string): string {
+function getEncryptionKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
   if (!raw) throw new Error('ENCRYPTION_KEY not set');
-  const key = Buffer.byteLength(raw, 'utf8') === 32
+  return Buffer.byteLength(raw, 'utf8') === 32
     ? Buffer.from(raw, 'utf8')
     : createHash('sha256').update(raw).digest();
+}
+
+function encrypt(plaintext: string): string {
+  const key = getEncryptionKey();
   const iv = randomBytes(16);
   const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`;
+}
+
+function decrypt(encrypted: string): string {
+  const parts = encrypted.split(':');
+  if (parts.length !== 3) throw new Error('Invalid encrypted format');
+  const [ivHex, authTagHex, ciphertext] = parts;
+  const key = getEncryptionKey();
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+/**
+ * Seed a Yjs document from plain text/HTML content.
+ * Creates a minimal Yjs XML fragment that TipTap can render.
+ */
+function htmlToYdocState(html: string): Uint8Array {
+  const doc = new Y.Doc();
+  const frag = doc.getXmlFragment('default');
+  // Insert content as a paragraph per line
+  const lines = html.split('\n').filter(l => l.trim());
+  if (lines.length === 0) {
+    const p = new Y.XmlElement('paragraph');
+    frag.push([p]);
+  } else {
+    for (const line of lines) {
+      const p = new Y.XmlElement('paragraph');
+      p.insert(0, [new Y.XmlText(line)]);
+      frag.push([p]);
+    }
+  }
+  const state = Y.encodeStateAsUpdate(doc);
+  doc.destroy();
+  return state;
 }
 
 // ── Yjs XML fragment → HTML converter ─────────────────────────────────────
@@ -243,11 +285,31 @@ const server = Server.configure({
         try {
           const { notebookId, filePath } = parseDocumentName(documentName);
           const result = await pool.query(
-            'SELECT ydoc_state FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
+            'SELECT ydoc_state, content_enc FROM cloud_documents WHERE notebook_id = $1 AND path = $2',
             [notebookId, filePath],
           );
-          if (result.rows.length > 0 && result.rows[0].ydoc_state) {
-            return new Uint8Array(result.rows[0].ydoc_state);
+          if (result.rows.length > 0) {
+            const row = result.rows[0];
+            // If we have a stored Yjs state, use it
+            if (row.ydoc_state) {
+              return new Uint8Array(row.ydoc_state);
+            }
+            // Seed Yjs doc from existing encrypted content (file created via REST API)
+            if (row.content_enc) {
+              try {
+                const markdown = decrypt(row.content_enc);
+                const state = htmlToYdocState(markdown);
+                // Persist the generated ydoc_state so this only happens once
+                await pool.query(
+                  'UPDATE cloud_documents SET ydoc_state = $1 WHERE notebook_id = $2 AND path = $3',
+                  [Buffer.from(state), notebookId, filePath],
+                );
+                console.log(`[collab] seeded ydoc from content_enc for ${documentName}`);
+                return state;
+              } catch (seedErr) {
+                console.error('[collab] failed to seed ydoc from content_enc:', seedErr);
+              }
+            }
           }
         } catch (err) {
           console.error('[collab] fetch error:', err);
