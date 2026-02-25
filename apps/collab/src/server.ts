@@ -27,13 +27,18 @@ const pool = new pg.Pool({
 });
 
 // Redis connection for collab token validation
-const redis = new Redis({
-  host: process.env.REDIS_HOST ?? 'localhost',
-  port: Number(process.env.REDIS_PORT ?? 6379),
-  maxRetriesPerRequest: 3,
-  lazyConnect: true,
-  tls: isProduction ? {} : undefined,
-});
+const redisUrl = process.env.REDIS_URL;
+const redis = redisUrl
+  ? new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+    })
+  : new Redis({
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: Number(process.env.REDIS_PORT ?? 6379),
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+    });
 
 /**
  * Parse document name format: "notebook:{notebookId}:file:{encodedPath}"
