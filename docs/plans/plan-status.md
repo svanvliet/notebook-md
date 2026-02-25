@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated:** 2026-02-23
+**Last Updated: 2026-02-24
 
 ---
 
@@ -4581,3 +4581,15 @@ Commit: f8bb4b5
 When cloud_collab is kill-switched, non-owners default to view-only (no last-write-wins risk). Share modal hides Editor option and defaults to Viewer. API rejects editor invites and role changes with a clear error message. Owners retain full editing in solo mode. 333 tests pass.
 
 Commits: f8bb4b5 (collab gate), 26c4e76 (loading fix), e91b3d7 (view-only enforcement)
+
+### Content Sync: Collab Server Dual-Write
+
+The collab server's HocusPocus Database `store` callback previously only wrote `ydoc_state`, leaving `content_enc` stale. This meant REST reads (view-only mode, public links, exports) returned the original file content, not the latest collab edits. Fix: the store callback now converts Yjs state to HTML via a lightweight XML-to-HTML walker, encrypts it, and updates `content_enc` alongside `ydoc_state`. No new dependencies — uses `yjs` (already installed) and Node.js `crypto`.
+
+Commit: cc3d3d4
+
+### Auto-Load File Listing for Shared Notebooks
+
+Shared cloud notebooks appeared as "Empty notebook" on first load because the file listing effect in NotebookTree only triggered for notebooks already in the expanded set (restored from sessionStorage). New notebooks shared with the user were never expanded, so files never loaded. Fix: the effect now also loads files for any notebook with `sharedBy` set, regardless of expansion state.
+
+Commit: 84747ae
