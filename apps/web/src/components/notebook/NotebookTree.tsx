@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
 import { ChevronRightIcon, FolderIcon } from '../icons/Icons';
 import { SourceIcon } from './SourceTypes';
+import { useFlag } from '../../hooks/useFlagProvider';
 
 const ShareNotebookModal = lazy(() => import('./ShareNotebookModal'));
 
@@ -171,6 +172,7 @@ export function NotebookTree({
   onDeclineInvite,
 }: NotebookTreeProps) {
   const { t } = useTranslation();
+  const sharingEnabled = useFlag('cloud_sharing');
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string; initialTab?: 'invite' | 'members' | 'links' } | null>(null);
   const [leaveConfirm, setLeaveConfirm] = useState<{ id: string; name: string } | null>(null);
   const [inviteModal, setInviteModal] = useState<{ nb: NotebookMeta } | null>(null);
@@ -674,7 +676,7 @@ export function NotebookTree({
                   PR
                 </span>
               )}
-              {nb.sourceType === 'cloud' && nb.hasShares && (
+              {sharingEnabled && nb.sourceType === 'cloud' && nb.hasShares && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setShareTarget({ id: nb.id, name: nb.name, initialTab: 'members' }); }}
                   className="shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
@@ -708,7 +710,7 @@ export function NotebookTree({
       })}
 
       {/* Shared with me */}
-      {(sharedNotebooks.length > 0 || pendingNotebooks.length > 0) && (
+      {sharingEnabled && (sharedNotebooks.length > 0 || pendingNotebooks.length > 0) && (
         <>
           <div className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
             Shared with me
@@ -809,7 +811,7 @@ export function NotebookTree({
                   {onRefreshNotebook && (
                     <CtxItem icon={<RefreshIcon />} label="Refresh" onClick={() => { onRefreshNotebook(ctxNbId); setContextMenu(null); }} />
                   )}
-                  {ctxNb?.sourceType === 'cloud' && !ctxNb.sharedBy && (
+                  {sharingEnabled && ctxNb?.sourceType === 'cloud' && !ctxNb.sharedBy && (
                     <CtxItem icon={<ShareIcon />} label={ctxNb.hasShares ? 'Manage Sharing' : 'Share…'} onClick={() => { setShareTarget({ id: ctxNb.id, name: ctxNb.name }); setContextMenu(null); }} />
                   )}
                   {ctxNb?.sharedBy ? (
