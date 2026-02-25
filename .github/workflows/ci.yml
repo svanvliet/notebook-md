@@ -343,7 +343,7 @@ jobs:
           key: docker-e2e-${{ hashFiles('docker/**', 'package-lock.json') }}
           restore-keys: docker-e2e-
 
-      - name: Build and start production stack
+      - name: Build production images (parallel)
         run: |
           for svc in api web admin collab; do
             docker buildx build \
@@ -356,11 +356,14 @@ jobs:
               --build-arg VITE_ADMIN_URL="" \
               --build-arg VITE_APP_URL="" \
               --build-arg VITE_POSTHOG_KEY="" \
-              .
+              . &
           done
+          wait
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-          docker compose -f docker-compose.prod.yml up -d --wait
+
+      - name: Start production stack
+        run: docker compose -f docker-compose.prod.yml up -d --wait
 
       - name: Run E2E smoke tests
         run: npm run test:e2e
