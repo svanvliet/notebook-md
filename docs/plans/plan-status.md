@@ -4611,3 +4611,32 @@ The cloud_public_links flag was created in migration 004 but never enforced. Now
 - Added isKillSwitched() to featureFlags.ts for anonymous endpoint checks
 
 Commit: 28e0ee7
+
+### Public Share Link Error Handling (2026-02-25)
+
+PublicDocumentViewer was showing a blank screen when the resolve API returned 403 (disabled) or 404 (revoked) because it parsed the error JSON without checking res.ok. Now checks res.ok, shows contextual error message ("Public links are currently disabled" vs "This share link is invalid or has been revoked"), and includes a "Go to Notebook.md" link.
+
+Commit: a768586
+
+### cloud_sharing Flag Wired to UI (2026-02-25)
+
+The cloud_sharing flag was enforced on API endpoints but not in the UI. Now gates three spots in NotebookTree:
+- "Share..." / "Manage Sharing" context menu item hidden
+- "Shared" badge on owned notebooks hidden
+- "Shared with me" section entirely hidden
+
+Commit: 97d6635
+
+### cloud_notebooks Flag Review (2026-02-25)
+
+Confirmed correct behavior: flag gates creation of new cloud notebooks (Add Notebook dialog), but existing cloud notebooks remain visible and accessible. This is intentional -- users must retain access to their data.
+
+### Feature Flag Wiring Summary
+
+All co-auth feature flags are now fully enforced (API + UI):
+| Flag | API | UI | Behavior when disabled |
+|------|-----|-----|----------------------|
+| cloud_notebooks | Gates notebook creation | Hides Cloud option in Add dialog | Existing notebooks accessible |
+| cloud_sharing | Gates invite/member endpoints | Hides Share menu, Shared badge, Shared with me | Existing shares still function for data access |
+| cloud_collab | Gates WebSocket connections | Skips collab provider, forces view-only | Owners edit solo, non-owners view-only |
+| cloud_public_links | Gates link CRUD + public viewer | Hides Links tab in Share modal | Error page for existing links |
