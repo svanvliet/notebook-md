@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated: 2026-02-25
+**Last Updated: 2026-02-26
 
 ---
 
@@ -5164,3 +5164,17 @@ These bugs all stem from **environmental differences** between local dev and pro
 - Audit CSV export happens client-side via blob download (no server-side file generation)
 - Nav uses collapsible sections (local state + auto-expand based on current route)
 - tsconfig excludes `__tests__/` from build to avoid test type issues
+
+#### Validation (2026-02-26)
+- Wrote automated Playwright validation script (`scripts/validate-admin.ts`) — 31 checks across all 8 admin pages
+- Authenticates as admin with full 2FA email flow (signin → send code → read from Mailpit → verify)
+- All 31 checks pass: Dashboard, Navigation, Users, Feature Flags, Flights, Groups, Audit Log, Announcements
+- Discovered and fixed pre-existing `ERR_ERL_STORE_REUSE` crash in `apps/api/src/routes/auth.ts` — two rate limiters shared one RedisStore instance; fixed by creating unique store per limiter with prefixed keys
+- Validation checklist at `docs/plans/admin-plan-validation.md`
+- Run with: `npx tsx scripts/validate-admin.ts` (requires `./dev.sh` running)
+
+#### Current State
+- **Branch:** `feature/admin` (9 commits ahead of main)
+- **Ready for:** Manual review → merge to main → deploy as admin:v0.3.0 + api:v0.3.0
+- **Migration 011** must run on deploy (adds `last_active_at`, `archived`, `announcement_groups`)
+- **Deferred work:** Bulk CSV user import, announcement scheduling, admin notifications, audit retention policies, dashboard customization
