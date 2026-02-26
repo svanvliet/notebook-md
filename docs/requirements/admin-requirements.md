@@ -1,8 +1,8 @@
 # Admin Console — Upgraded Experience Requirements
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-02-26  
-**Status:** Draft — Pending Owner Review  
+**Status:** Approved — Questions Resolved  
 
 ---
 
@@ -81,11 +81,11 @@ The current admin console (`admin.notebookmd.io`) is functional but difficult to
 | Show user avatar (or initials fallback) | P2 | Visual identification |
 | "Last active" column | P2 | Most recent session timestamp |
 
-### 4.2 User Detail (`/users/:id`)
+### 4.2 User Detail (Slide-Over Panel)
 
-**Current state:** Modal with basic info. Replace with a full page or slide-over panel.
+**Current state:** Modal with basic info. Replace with a **wide slide-over panel** (keeps user list visible).
 
-The user detail view should be a **full page** (not a modal) with tabbed sections:
+The user detail view should be a **slide-over panel** (right side, ~50% width) with tabbed sections:
 
 **Header:**
 - Avatar / initials, display name, email, status badge, admin badge
@@ -99,7 +99,7 @@ The user detail view should be a **full page** (not a modal) with tabbed section
 | **Notebooks** | List of user's notebooks (name, source type, file count, storage used, created date) |
 | **Flags & Flights** | Resolved flag state for this user (computed values), which flights they're in, which groups they belong to, any per-user overrides. **This is the single place to see the complete flag picture for a user.** |
 | **Activity** | Filtered audit log for this user (recent sign-ins, actions) |
-| **Sessions** | Active sessions with device/IP info, ability to revoke individual sessions |
+| **Sessions** | Active sessions with device/IP info, ability to revoke individual sessions or force-logout all sessions for this user |
 
 ### 4.3 User Picker Component
 
@@ -134,10 +134,11 @@ The flighting system has three concepts: **Flags** (what), **Flights** (how/when
 | Show override count per flag | P1 | e.g., "3 overrides" |
 | Flag detail view (click to expand or navigate) | P1 | Shows: description, kill-switch status, associated flights, all overrides, created/updated dates |
 | Stale flag indicator | P1 | Visual warning when past `stale_at` date |
-| Search/filter flags | P1 | By name, by enabled/disabled, by flight |
+| Search/filter flags | P1 | By name, by enabled/disabled, by flight, by archived status |
 | User picker for overrides | P1 | Replace raw user ID input with autocomplete (§4.3) |
 | Override expiration date picker | P2 | Calendar/date input for `expires_at` |
 | Variant management UI | P2 | Currently in schema but not exposed in UI |
+| Flag archival | P1 | Add `archived` state. Default list hides archived flags. Toggle filter to show/hide. Archived flags remain in DB and can be unarchived. |
 | Flag creation wizard with flight association | P2 | Create flag + optionally add to existing/new flight in one flow |
 | Bulk enable/disable flags | P3 | |
 
@@ -219,8 +220,9 @@ Basic CRUD with title, body, and active toggle. Functional.
 | Markdown preview for body | P1 | Split or tabbed edit/preview |
 | Scheduling UI (starts_at, ends_at) | P1 | Date pickers; already in API but not in UI |
 | Announcement type selection | P2 | info / warning / critical — with color preview |
+| Group targeting | P1 | Target announcements to specific user groups (reuse group system from flights). Platform-wide remains the default. |
 | Preview as user would see it | P2 | Render in a mock notification bar |
-| Pagination | P3 | Only needed at scale |
+| Pagination | P1 | 20 per page default |
 
 ---
 
@@ -294,12 +296,23 @@ Every page currently builds its own tables, buttons, forms, and badges from scra
 | `GET /admin/groups/:id` | Add pagination for members | Large groups |
 | `GET /admin/audit-log` | Add `start_date`, `end_date` query params | Date range filtering |
 | `GET /admin/audit-log` | Add `format=csv` option | CSV export |
+| `POST /admin/users/:id/logout` | New — force-logout all sessions for a user | Bulk session revocation |
+| `POST /admin/groups/:id/logout` | New — force-logout all users in a group | Group-wide session revocation |
+| `GET /admin/flights` | Add `page`, `per_page` query params | Pagination |
+| `GET /admin/groups` | Add `page`, `per_page` query params | Pagination |
+| `GET /admin/feature-flags` | Add `page`, `per_page`, `archived` query params | Pagination + archival filter |
+| `PATCH /admin/feature-flags/:key` | New — update flag (including `archived` field) | Flag archival |
+| `GET /admin/announcements` | Add `page`, `per_page` query params | Pagination |
+| `POST /admin/announcements` | Add `groupIds[]` field | Group targeting |
+| `PUT /admin/announcements/:id` | Add `groupIds[]` field | Group targeting |
 
 ### 9.2 Frontend Architecture
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Component library | Custom components in `src/components/ui/` | Lightweight, Tailwind-native, no external dependency |
+| Component primitives | **Headless UI** (modals, dropdowns, combobox, transitions) + custom Tailwind styling | Production-ready accessibility, keyboard nav, focus management out of the box. Minimal bundle size. Easy to maintain. |
+| Date picker | **Headless UI Popover** + custom calendar or a lightweight lib (e.g., react-day-picker) | Avoid building date picker from scratch |
+| Component library | Custom components in `src/components/ui/` built on Headless UI primitives | Lightweight, Tailwind-native, accessible |
 | State management | Keep local state (useState) | Admin app is simple enough; no need for Redux/Zustand |
 | Data fetching | Extract API functions to `src/api/` module | Currently mixed into useAdmin hook; separate concerns |
 | Form handling | React Hook Form or keep manual | Manual is fine for the number of forms we have |
@@ -315,6 +328,10 @@ Every page currently builds its own tables, buttons, forms, and badges from scra
 - **Dark mode** — nice-to-have only, not required
 - **Real-time updates** (WebSocket push for admin data) — polling or manual refresh is fine
 - **Admin user creation via UI** — remains CLI-only per security requirements
+- **Bulk user import (CSV)** — deferred, nice-to-have for later
+- **Dashboard customization** — fixed layout is fine for now
+- **Admin email notifications** — deferred unless simple to implement; note for future
+- **Audit log retention policy** — indefinite for now; **revisit when usage grows** (will need cleanup strategy at scale)
 
 ---
 
@@ -344,24 +361,21 @@ Build the shared components (DataTable, ConfirmDialog, Toast, Badge, PageHeader,
 
 ---
 
-## 11. Open Questions for Owner
+## 11. Open Questions — Resolved
 
-1. **User detail page vs. slide panel:** Should the user detail be a full-page route (`/users/:id`) or a wide slide-over panel? Full page allows more room for tabs; slide panel keeps the user list visible.
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | User detail: full page vs. slide panel? | **Slide-over panel** — keeps user list visible |
+| 2 | Flight detail: full page vs. expanded row? | **Full page** (`/features/flights/:id`) |
+| 3 | Audit log retention policy? | **Indefinite for now** — note: revisit when usage grows; will need retention policy eventually |
+| 4 | Admin notifications (email/push)? | **Nice-to-have** — implement if simple; defer if complex |
+| 5 | Feature flag archival? | **Yes** — add `archived` state; default list view hides archived; filter to show them |
+| 6 | Bulk user import (CSV)? | **Deferred** — nice-to-have for later |
+| 7 | Dashboard customization? | **Deferred** — fixed layout is fine for now |
+| 8 | Announcement targeting? | **Yes** — target announcements to specific groups |
+| 9 | Session management scope? | **Yes** — force-logout all users or specific groups |
+| 10 | Component library: build vs. use existing? | **Use Headless UI / Radix** for complex components (modals, dropdowns, date pickers) if it doesn't add too much complexity. Goal: easy to update/manage. |
 
-2. **Flight detail page vs. expanded row:** Same question for flights — full page (`/features/flights/:id`) or an expanded in-place view?
+### Additional Decisions
 
-3. **Audit log retention:** Do we need to set a retention policy (e.g., keep 90 days) or keep everything indefinitely?
-
-4. **Admin notifications:** Should admins get email/push notifications for certain events (e.g., user signup spikes, failed auth attempts)? Or is the dashboard + audit log sufficient?
-
-5. **Feature flag archival:** Should there be a way to archive old flags (hide from default view but keep history) vs. just deleting them?
-
-6. **Bulk user import:** Is there a need to import users from a CSV (e.g., for pre-populating beta tester groups), or is manual add-by-email sufficient?
-
-7. **Dashboard customization:** Should the dashboard metrics be configurable (choose which metrics to show), or is the current fixed layout fine?
-
-8. **Announcement targeting:** Should announcements be targetable to specific groups/users (like flights), or remain platform-wide only?
-
-9. **Session management scope:** Should admins be able to force-logout all users of a specific type (e.g., all OAuth users), or just individual session revocation?
-
-10. **Component library scope:** Should we consider using an existing Tailwind component library (e.g., Headless UI, Radix) for complex components like modals, dropdowns, and date pickers, or build everything custom?
+- **Pagination on all list pages** — all list views (Flags, Flights, Groups, Announcements, Audit Log) must be paginated. Users page already has pagination. Default 20 items per page for most lists, 50 for audit log.
