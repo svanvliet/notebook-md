@@ -366,6 +366,9 @@ router.get('/audit-log', async (req: Request, res: Response) => {
   const offset = (page - 1) * perPage;
   const action = req.query.action as string | undefined;
   const userId = req.query.user_id as string | undefined;
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const format = req.query.format as string | undefined;
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -378,8 +381,53 @@ router.get('/audit-log', async (req: Request, res: Response) => {
     params.push(userId);
     conditions.push(`a.user_id = $${params.length}`);
   }
+  if (from) {
+    params.push(from);
+    conditions.push(`a.created_at >= $${params.length}`);
+  }
+  if (to) {
+    params.push(to);
+    conditions.push(`a.created_at <= $${params.length}`);
+  }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  if (format === 'csv') {
+    const entries = await query<{
+      created_at: Date;
+      display_name: string | null;
+      email: string | null;
+      action: string;
+      details: Record<string, unknown>;
+      ip_address: string | null;
+      user_agent: string | null;
+    }>(
+      `SELECT a.created_at, u.display_name, u.email, a.action, a.details, a.ip_address, a.user_agent
+       FROM audit_log a LEFT JOIN users u ON a.user_id = u.id
+       ${whereClause}
+       ORDER BY a.created_at DESC`,
+      params,
+    );
+
+    const csvQuote = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const lines = ['Time,User,Email,Action,Details,IP,UserAgent'];
+    for (const e of entries.rows) {
+      lines.push([
+        csvQuote(new Date(e.created_at).toISOString()),
+        csvQuote(e.display_name || ''),
+        csvQuote(e.email || ''),
+        csvQuote(e.action),
+        csvQuote(JSON.stringify(e.details)),
+        csvQuote(e.ip_address || ''),
+        csvQuote(e.user_agent || ''),
+      ].join(','));
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="audit-log.csv"');
+    res.send(lines.join('\n'));
+    return;
+  }
 
   const [entries, total] = await Promise.all([
     query<{
@@ -1330,6 +1378,75 @@ router.delete('/announcements/:id', async (req: Request, res: Response) => {
   });
 
   res.json({ message: 'Announcement deleted' });
+});
+
+// ── Dashboard Summary ────────────────────────────────────────────────────────
+
+router.get('/dashboard/summary', async (_req: Request, res: Response) => {
+  const [recentActions, staleFlags, activeFlights] = await Promise.all([
+    query<{
+      id: string;
+      user_id: string | null;
+      action: string;
+      details: Record<string, unknown>;
+      ip_address: string | null;
+      user_agent: string | null;
+      created_at: Date;
+      user_email: string | null;
+      user_name: string | null;
+    }>(
+      `SELECT al.*, u.email as user_email, u.display_name as user_name
+       FROM audit_log al LEFT JOIN users u ON al.user_id = u.id
+       ORDER BY al.created_at DESC LIMIT 10`,
+    ),
+    query<{
+      key: string;
+      description: string | null;
+      stale_at: string;
+      updated_at: string;
+    }>(
+      `SELECT key, description, stale_at, updated_at FROM feature_flags
+       WHERE stale_at IS NOT NULL AND stale_at < now() AND archived = false`,
+    ),
+    query<{
+      id: string;
+      name: string;
+      rollout_percentage: number;
+      flag_count: string;
+      assignment_count: string;
+    }>(
+      `SELECT id, name, rollout_percentage,
+         (SELECT count(*) FROM flight_flags WHERE flight_id = flights.id) as flag_count,
+         (SELECT count(*) FROM flight_assignments WHERE flight_id = flights.id) as assignment_count
+       FROM flights WHERE enabled = true`,
+    ),
+  ]);
+
+  res.json({
+    recentActions: recentActions.rows.map((e) => ({
+      id: e.id,
+      userId: e.user_id,
+      userEmail: e.user_email,
+      userName: e.user_name,
+      action: e.action,
+      details: e.details,
+      ipAddress: e.ip_address,
+      createdAt: e.created_at,
+    })),
+    staleFlags: staleFlags.rows.map((f) => ({
+      key: f.key,
+      description: f.description,
+      staleAt: f.stale_at,
+      updatedAt: f.updated_at,
+    })),
+    activeFlights: activeFlights.rows.map((f) => ({
+      id: f.id,
+      name: f.name,
+      rolloutPercentage: f.rollout_percentage,
+      flagCount: Number(f.flag_count),
+      assignmentCount: Number(f.assignment_count),
+    })),
+  });
 });
 
 export default router;

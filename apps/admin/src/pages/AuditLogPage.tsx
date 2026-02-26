@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { AuditEntry, Pagination } from '../hooks/useAdmin';
-import { PageHeader, DataTable, Badge, type Column } from '../components/ui';
+import { PageHeader, DataTable, Badge, Button, type Column } from '../components/ui';
 
 const ACTION_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
   sign_in: 'success',
@@ -16,22 +16,34 @@ const ACTION_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'in
 
 export default function AuditLogPage({
   getAuditLog,
+  exportAuditLogCsv,
 }: {
-  getAuditLog: (p: { page?: number; limit?: number; action?: string; userId?: string }) => Promise<{ entries: AuditEntry[]; pagination: Pagination }>;
+  getAuditLog: (p: { page?: number; limit?: number; action?: string; userId?: string; from?: string; to?: string }) => Promise<{ entries: AuditEntry[]; pagination: Pagination }>;
+  exportAuditLogCsv: (p: { action?: string; from?: string; to?: string }) => Promise<void>;
 }) {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [actionFilter, setActionFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [userFilter, setUserFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
     setLoading(true);
-    getAuditLog({ page, limit: 50, action: actionFilter || undefined }).then((data) => {
+    getAuditLog({
+      page,
+      limit: 50,
+      action: actionFilter || undefined,
+      userId: userFilter || undefined,
+      from: fromDate || undefined,
+      to: toDate || undefined,
+    }).then((data) => {
       setEntries(data.entries);
       setPagination(data.pagination);
     }).finally(() => setLoading(false));
-  }, [getAuditLog, page, actionFilter]);
+  }, [getAuditLog, page, actionFilter, userFilter, fromDate, toDate]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -71,9 +83,16 @@ export default function AuditLogPage({
 
   return (
     <div className="p-6">
-      <PageHeader title="Audit Log" />
+      <PageHeader
+        title="Audit Log"
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => exportAuditLogCsv({ action: actionFilter || undefined, from: fromDate || undefined, to: toDate || undefined })}>
+            📥 Export CSV
+          </Button>
+        }
+      />
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
         <select
           value={actionFilter}
           onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
@@ -90,6 +109,19 @@ export default function AuditLogPage({
           <option value="provider_link">Provider Link</option>
           <option value="provider_unlink">Provider Unlink</option>
         </select>
+        <input
+          type="text"
+          value={userFilter}
+          onChange={(e) => { setUserFilter(e.target.value); setPage(1); }}
+          placeholder="Filter by user ID..."
+          className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+        />
+        <div className="flex gap-2 items-center">
+          <label className="text-sm text-gray-500">From:</label>
+          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1); }} className="border border-gray-300 rounded-md px-2 py-1 text-sm" />
+          <label className="text-sm text-gray-500">To:</label>
+          <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1); }} className="border border-gray-300 rounded-md px-2 py-1 text-sm" />
+        </div>
       </div>
 
       <DataTable

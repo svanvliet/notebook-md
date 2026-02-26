@@ -385,14 +385,44 @@ export function useAdmin() {
   // ── Audit Log ──────────────────────────────────────────────────────
 
   const getAuditLog = useCallback(
-    (params: { page?: number; limit?: number; action?: string; userId?: string } = {}) => {
+    (params: { page?: number; limit?: number; action?: string; userId?: string; from?: string; to?: string } = {}) => {
       const sp = new URLSearchParams();
       if (params.page) sp.set('page', String(params.page));
-      if (params.limit) sp.set('limit', String(params.limit));
+      if (params.limit) sp.set('per_page', String(params.limit));
       if (params.action) sp.set('action', params.action);
-      if (params.userId) sp.set('userId', params.userId);
+      if (params.userId) sp.set('user_id', params.userId);
+      if (params.from) sp.set('from', params.from);
+      if (params.to) sp.set('to', params.to);
       return api<{ entries: AuditEntry[]; pagination: Pagination }>(`/admin/audit-log?${sp}`);
     },
+    [],
+  );
+
+  const exportAuditLogCsv = useCallback(
+    async (params: { action?: string; from?: string; to?: string } = {}) => {
+      const sp = new URLSearchParams({ format: 'csv' });
+      if (params.action) sp.set('action', params.action);
+      if (params.from) sp.set('from', params.from);
+      if (params.to) sp.set('to', params.to);
+      const res = await fetch(`${API_BASE}/admin/audit-log?${sp}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [],
+  );
+
+  const getDashboardSummary = useCallback(
+    () => api<{
+      recentActions: AuditEntry[];
+      staleFlags: { key: string; description: string | null; staleAt: string; updatedAt: string }[];
+      activeFlights: { id: string; name: string; rolloutPercentage: number; flagCount: number; assignmentCount: number }[];
+    }>('/admin/dashboard/summary'),
     [],
   );
 
@@ -444,6 +474,8 @@ export function useAdmin() {
     updateAnnouncement,
     deleteAnnouncement,
     getAuditLog,
+    exportAuditLogCsv,
+    getDashboardSummary,
     signOut,
   };
 }

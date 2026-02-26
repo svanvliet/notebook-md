@@ -53,7 +53,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout user={admin.currentUser} onSignOut={admin.signOut} />}>
-          <Route index element={<DashboardPage getHealth={admin.getHealth} getMetrics={admin.getMetrics} />} />
+          <Route index element={<DashboardPage getHealth={admin.getHealth} getMetrics={admin.getMetrics} getDashboardSummary={admin.getDashboardSummary} />} />
           <Route
             path="users"
             element={
@@ -67,7 +67,7 @@ export default function App() {
               />
             }
           />
-          <Route path="audit-log" element={<AuditLogPage getAuditLog={admin.getAuditLog} />} />
+          <Route path="audit-log" element={<AuditLogPage getAuditLog={admin.getAuditLog} exportAuditLogCsv={admin.exportAuditLogCsv} />} />
           <Route
             path="feature-flags"
             element={
