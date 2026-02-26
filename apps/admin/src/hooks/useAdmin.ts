@@ -10,6 +10,7 @@ interface AdminUser {
   twoFactorEnabled: boolean;
   twoFactorMethod: string | null;
   createdAt: string;
+  lastActiveAt: string | null;
 }
 
 interface Pagination {
@@ -162,11 +163,14 @@ export function useAdmin() {
   // ── Users ────────────────────────────────────────────────────────────
 
   const getUsers = useCallback(
-    (params: { page?: number; limit?: number; search?: string } = {}) => {
+    (params: { page?: number; limit?: number; search?: string; sort?: string; order?: 'asc' | 'desc'; status?: string } = {}) => {
       const sp = new URLSearchParams();
       if (params.page) sp.set('page', String(params.page));
-      if (params.limit) sp.set('limit', String(params.limit));
+      if (params.limit) sp.set('per_page', String(params.limit));
       if (params.search) sp.set('search', params.search);
+      if (params.sort) sp.set('sort', params.sort);
+      if (params.order) sp.set('order', params.order);
+      if (params.status) sp.set('status', params.status);
       return api<{ users: AdminUser[]; pagination: Pagination }>(`/admin/users?${sp}`);
     },
     [],
@@ -174,9 +178,15 @@ export function useAdmin() {
 
   const getUser = useCallback(
     (id: string) =>
-      api<{ user: AdminUser; notebookCount: number; activeSessions: number; linkedProviders: { provider: string; email: string }[] }>(
-        `/admin/users/${id}`,
-      ),
+      api<{
+        user: AdminUser;
+        notebookCount: number;
+        activeSessions: number;
+        linkedProviders: { provider: string; email: string }[];
+        groups: { id: string; name: string }[];
+        flights: { id: string; name: string }[];
+        resolvedFlags: Record<string, { enabled: boolean; variant: string | null; badge: string | null; source: string }>;
+      }>(`/admin/users/${id}`),
     [],
   );
 
@@ -191,6 +201,16 @@ export function useAdmin() {
 
   const deleteUser = useCallback(
     (id: string) => api<{ message: string }>(`/admin/users/${id}`, { method: 'DELETE' }),
+    [],
+  );
+
+  const searchUsers = useCallback(
+    (q: string) => api<{ id: string; email: string; displayName: string; avatarUrl: string | null }[]>(`/admin/users/search?q=${encodeURIComponent(q)}`),
+    [],
+  );
+
+  const forceLogout = useCallback(
+    (userId: string) => api<{ message: string; count: number }>(`/admin/users/${userId}/logout`, { method: 'POST' }),
     [],
   );
 
@@ -369,6 +389,8 @@ export function useAdmin() {
     getUser,
     updateUser,
     deleteUser,
+    searchUsers,
+    forceLogout,
     getFeatureFlags,
     saveFeatureFlag,
     getFlagOverrides,
