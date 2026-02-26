@@ -5065,3 +5065,25 @@ These bugs all stem from **environmental differences** between local dev and pro
 - Add E2E coverage for drag-drop file import to cloud notebooks
 - Add E2E test for collab mode with pre-existing REST-created content
 - Consider a pre-deploy integration test that runs against a staging environment with production-like config
+
+### Production Hotfixes v0.2.6 + Local Fix (2026-02-26)
+
+#### v0.2.6 — Collab WebSocket reconnection (web only, deployed)
+- **Bug:** After leaving a document open for ~2 hours, the collab connection dot turned red. Typing still worked locally but nothing saved to server. Console showed `net::ERR_TIMED_OUT` on API requests.
+- **Root cause:** Collab token was fetched once at connection time and passed as a static string. The token has a 5-minute TTL in Redis. When Azure Container Apps idle-timeout'd the WebSocket and HocusPocus tried to reconnect, it reused the expired token — auth failed silently.
+- **Fix:** Changed `token` option from a static string to an async function (`() => Promise<string>`) that fetches a fresh token on each connect/reconnect attempt. Also simplified the hook by removing the async wrapper — HocusPocus provider handles async token resolution internally.
+- **Commit:** `fc2980f`
+
+#### TipTap history warning fix (local only, not yet deployed)
+- **Bug:** Console warning: `"@tiptap/extension-collaboration" comes with its own history support and is not compatible with "@tiptap/extension-undo-redo"`
+- **Root cause:** StarterKit v3.19 renamed the `history` option to `undoRedo`. Our `history: false` was silently ignored (TypeScript had already flagged it as unknown property), so the UndoRedo extension loaded alongside Collaboration.
+- **Fix:** Changed `history: collab ? false : undefined` → `undoRedo: collab ? false : undefined` in `extensions.ts`.
+- **Commit:** `ec5e540` (will deploy with next release)
+
+#### Production State (v0.2.6)
+| Service | Image | Notes |
+|---------|-------|-------|
+| API | api:v0.2.0 | Unchanged |
+| Web | web:v0.2.6 | 6 hotfixes applied |
+| Admin | admin:v0.2.0 | Unchanged |
+| Collab | collab:v0.2.5 | 2 hotfixes applied |
