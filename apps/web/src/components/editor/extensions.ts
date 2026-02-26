@@ -90,8 +90,8 @@ export function getEditorExtensions(placeholder?: string, collab?: CollabOptions
       // We configure Link and Underline separately with custom options
       link: false,
       underline: false,
-      // When collaborative, disable built-in history (Yjs has its own undo manager)
-      history: collab ? false : undefined,
+      // When collaborative, disable built-in undo/redo (Yjs has its own undo manager)
+      undoRedo: collab ? false : undefined,
     }),
     Placeholder.configure({
       placeholder: placeholder ?? 'Start writing…',
