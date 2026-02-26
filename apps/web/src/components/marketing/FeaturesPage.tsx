@@ -15,7 +15,7 @@ export function FeaturesPage() {
     },
     {
       title: 'Your Storage, Your Data',
-      description: 'Connect GitHub repos, OneDrive folders, or Google Drive — your documents stay in your cloud storage. We never store your content.',
+      description: 'Connect GitHub repos, OneDrive folders, or Google Drive — your documents stay in your cloud storage. We never store your content on our servers.',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
@@ -73,6 +73,15 @@ export function FeaturesPage() {
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Create with AI',
+      description: 'Generate beautifully formatted content with AI. Type a prompt, choose the length, and get Markdown content streamed directly into your document — review and accept or discard.',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
         </svg>
       ),
     },

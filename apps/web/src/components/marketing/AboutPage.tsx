@@ -16,7 +16,7 @@ export function AboutPage() {
           <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/50 rounded-xl p-6 not-prose">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Our Philosophy</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-              Your documents are yours. We don't store your content — it lives in your GitHub repos, OneDrive folders, or Google Drive. Notebook.md is a window into your files, not a walled garden.
+              Your documents are yours. We don't store your content — it lives in your GitHub repos, OneDrive folders, or Google Drive. Notebook.md is a window into your files, not a walled garden. When you use our optional AI feature, your content is sent to Azure OpenAI solely to generate a response and is never stored.
             </p>
           </div>
 
