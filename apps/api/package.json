@@ -22,6 +22,7 @@
     "test:misc": "vitest run admin contact encryption settings provider-revocation"
   },
   "dependencies": {
+    "@azure-rest/ai-inference": "^1.0.0-beta.6",
     "@notebook-md/shared": "*",
     "@types/archiver": "^7.0.0",
     "archiver": "^7.0.1",

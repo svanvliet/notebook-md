@@ -464,3 +464,100 @@
   outline: 2px solid #3b82f6;
   outline-offset: 1px;
 }
+
+/* --- AI Generation Widget --- */
+
+@property --ai-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.ai-widget {
+  position: relative;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.dark .ai-widget {
+  background: #111827;
+  border-color: #374151;
+}
+
+/* Animated gradient border for active states */
+.ai-widget--active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  padding: 2px;
+  background: linear-gradient(
+    var(--ai-angle, 0deg),
+    #3b82f6,
+    #8b5cf6,
+    #ec4899,
+    #3b82f6
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: ai-border-rotate 3s linear infinite;
+  pointer-events: none;
+}
+
+.ai-widget--error {
+  border-color: #f87171;
+}
+
+.dark .ai-widget--error {
+  border-color: #991b1b;
+}
+
+@keyframes ai-border-rotate {
+  to { --ai-angle: 360deg; }
+}
+
+/* Shimmer skeleton lines */
+.ai-shimmer-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    #e5e7eb 25%,
+    #f3f4f6 50%,
+    #e5e7eb 75%
+  );
+  background-size: 200% 100%;
+  animation: ai-shimmer 1.5s ease-in-out infinite;
+}
+
+.dark .ai-shimmer-line {
+  background: linear-gradient(
+    90deg,
+    #374151 25%,
+    #4b5563 50%,
+    #374151 75%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes ai-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Reduced motion fallback */
+@media (prefers-reduced-motion: reduce) {
+  .ai-widget--active::before {
+    animation: none;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  }
+  .ai-shimmer-line {
+    animation: none;
+  }
+}
