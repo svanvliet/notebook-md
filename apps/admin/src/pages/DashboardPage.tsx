@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { HealthStatus } from '../hooks/useAdmin';
+import { PageHeader, Badge, LoadingSpinner } from '../components/ui';
 
 interface Metrics {
   users: { total: number; active24h: number; active7d: number; signupsToday: number };
@@ -24,21 +25,24 @@ export default function DashboardPage({
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
+      <PageHeader title="Dashboard" />
 
       {/* Health */}
       <section className="mb-8">
         <h3 className="text-lg font-semibold mb-3">System Health</h3>
         {health ? (
           <>
-            <p className="text-sm text-gray-500 mb-3">
-              Status: <span className={health.status === 'ok' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{health.status === 'ok' ? 'All systems operational' : 'Degraded'}</span>
+            <div className="flex items-center gap-3 text-sm text-gray-500 mb-3">
+              <span>Status:</span>
+              <Badge variant={health.status === 'ok' ? 'success' : 'error'} dot>
+                {health.status === 'ok' ? 'All systems operational' : 'Degraded'}
+              </Badge>
               {health.uptimeSeconds != null && (
-                <span className="ml-4">
+                <span className="ml-2">
                   API uptime: {Math.floor(health.uptimeSeconds / 3600)}h {Math.floor((health.uptimeSeconds % 3600) / 60)}m
                 </span>
               )}
-            </p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               {Object.entries(health.services).map(([name, svc]) => (
                 <div
@@ -50,12 +54,9 @@ export default function DashboardPage({
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        svc.status === 'ok' ? 'bg-green-500' : 'bg-red-500'
-                      }`}
-                    />
-                    <span className="font-medium capitalize">{name}</span>
+                    <Badge variant={svc.status === 'ok' ? 'success' : 'error'} dot>
+                      <span className="capitalize">{name}</span>
+                    </Badge>
                   </div>
                   {svc.latencyMs != null && (
                     <p className="text-xs text-gray-500">{svc.latencyMs}ms latency</p>
@@ -65,7 +66,7 @@ export default function DashboardPage({
             </div>
           </>
         ) : (
-          <p className="text-gray-500">Loading...</p>
+          <LoadingSpinner fullPage />
         )}
       </section>
 

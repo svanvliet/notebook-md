@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { Flight, FlightAssignment, FeatureFlag, UserGroup } from '../hooks/useAdmin';
+import { PageHeader, Button, DataTable, SlidePanel, ConfirmDialog, FormField, Badge, useToast, type Column } from '../components/ui';
 
 interface FlightsPageProps {
   getFlights: () => Promise<{ flights: Flight[] }>;
@@ -20,8 +21,11 @@ export default function FlightsPage({
   addFlightFlags, removeFlightFlag, assignToFlight, removeFlightAssignment,
   getFeatureFlags, getGroups,
 }: FlightsPageProps) {
+  const { addToast } = useToast();
   const [flights, setFlights] = useState<Flight[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newBadge, setNewBadge] = useState(false);
@@ -38,7 +42,16 @@ export default function FlightsPage({
   const [assignUserId, setAssignUserId] = useState('');
   const [assignGroupId, setAssignGroupId] = useState('');
 
-  const load = () => getFlights().then(d => setFlights(d.flights));
+  // Confirm dialogs
+  const [deleteTarget, setDeleteTarget] = useState<Flight | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [removeAssignmentTarget, setRemoveAssignmentTarget] = useState<FlightAssignment | null>(null);
+  const [removingAssignment, setRemovingAssignment] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    getFlights().then(d => setFlights(d.flights)).finally(() => setLoading(false));
+  };
   useEffect(() => { load(); }, [getFlights]);
 
   const loadDetail = (id: string) => {
@@ -51,147 +64,196 @@ export default function FlightsPage({
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    await createFlight({ name: newName.trim(), description: newDesc.trim() || undefined, showBadge: newBadge, badgeLabel: newBadgeLabel });
-    setNewName(''); setNewDesc(''); setNewBadge(false); setNewBadgeLabel('Beta');
-    setShowCreate(false);
-    load();
+    setCreating(true);
+    try {
+      await createFlight({ name: newName.trim(), description: newDesc.trim() || undefined, showBadge: newBadge, badgeLabel: newBadgeLabel });
+      setNewName(''); setNewDesc(''); setNewBadge(false); setNewBadgeLabel('Beta');
+      setShowCreate(false);
+      addToast('Flight created', 'success');
+      load();
+    } catch {
+      addToast('Failed to create flight', 'error');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleToggle = async (flight: Flight) => {
-    await updateFlight(flight.id, { enabled: !flight.enabled });
-    load();
-    if (selectedId === flight.id) loadDetail(flight.id);
+    try {
+      await updateFlight(flight.id, { enabled: !flight.enabled });
+      addToast(`Flight ${flight.enabled ? 'disabled' : 'enabled'}`, 'success');
+      load();
+      if (selectedId === flight.id) loadDetail(flight.id);
+    } catch {
+      addToast('Failed to update flight', 'error');
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this flight? All assignments will be removed.')) return;
-    await deleteFlight(id);
-    if (selectedId === id) { setSelectedId(null); setDetail(null); }
-    load();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteFlight(deleteTarget.id);
+      if (selectedId === deleteTarget.id) { setSelectedId(null); setDetail(null); }
+      addToast('Flight deleted', 'success');
+      load();
+    } catch {
+      addToast('Failed to delete flight', 'error');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const handleAddFlag = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addFlagKey || !selectedId) return;
-    await addFlightFlags(selectedId, [addFlagKey]);
-    setAddFlagKey('');
-    loadDetail(selectedId);
+    try {
+      await addFlightFlags(selectedId, [addFlagKey]);
+      setAddFlagKey('');
+      addToast('Flag added', 'success');
+      loadDetail(selectedId);
+    } catch {
+      addToast('Failed to add flag', 'error');
+    }
   };
 
   const handleRemoveFlag = async (flagKey: string) => {
     if (!selectedId) return;
-    await removeFlightFlag(selectedId, flagKey);
-    loadDetail(selectedId);
+    try {
+      await removeFlightFlag(selectedId, flagKey);
+      addToast('Flag removed', 'success');
+      loadDetail(selectedId);
+    } catch {
+      addToast('Failed to remove flag', 'error');
+    }
   };
 
   const handleAssignUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignUserId.trim() || !selectedId) return;
-    await assignToFlight(selectedId, { userId: assignUserId.trim() });
-    setAssignUserId('');
-    loadDetail(selectedId);
-    load();
+    try {
+      await assignToFlight(selectedId, { userId: assignUserId.trim() });
+      setAssignUserId('');
+      addToast('User assigned', 'success');
+      loadDetail(selectedId);
+      load();
+    } catch {
+      addToast('Failed to assign user', 'error');
+    }
   };
 
   const handleAssignGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignGroupId || !selectedId) return;
-    await assignToFlight(selectedId, { groupId: assignGroupId });
-    setAssignGroupId('');
-    loadDetail(selectedId);
-    load();
+    try {
+      await assignToFlight(selectedId, { groupId: assignGroupId });
+      setAssignGroupId('');
+      addToast('Group assigned', 'success');
+      loadDetail(selectedId);
+      load();
+    } catch {
+      addToast('Failed to assign group', 'error');
+    }
   };
 
-  const handleRemoveAssignment = async (assignmentId: string) => {
-    if (!selectedId) return;
-    await removeFlightAssignment(selectedId, assignmentId);
-    loadDetail(selectedId);
-    load();
+  const handleRemoveAssignment = async () => {
+    if (!selectedId || !removeAssignmentTarget) return;
+    setRemovingAssignment(true);
+    try {
+      await removeFlightAssignment(selectedId, removeAssignmentTarget.id);
+      addToast('Assignment removed', 'success');
+      loadDetail(selectedId);
+      load();
+    } catch {
+      addToast('Failed to remove assignment', 'error');
+    } finally {
+      setRemovingAssignment(false);
+      setRemoveAssignmentTarget(null);
+    }
   };
 
   const availableFlags = allFlags.filter(f => !detail?.flags.includes(f.key));
 
+  const columns = useMemo<Column<Flight>[]>(() => [
+    { key: 'name', header: 'Name', render: (f) => <span className="font-medium">{f.name}</span> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (f) => <Badge variant={f.enabled ? 'success' : 'neutral'}>{f.enabled ? 'Active' : 'Disabled'}</Badge>,
+    },
+    { key: 'rollout', header: 'Rollout', render: (f) => <span className="text-xs font-mono">{f.rolloutPercentage}%</span> },
+    { key: 'flagCount', header: 'Flags', render: (f) => f.flagCount },
+    { key: 'assignmentCount', header: 'Assignments', render: (f) => f.assignmentCount },
+    {
+      key: 'badge',
+      header: 'Badge',
+      render: (f) => f.showBadge ? <Badge variant="info">{f.badgeLabel}</Badge> : <span>—</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (f) => (
+        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+          <Button variant={f.enabled ? 'danger' : 'primary'} size="sm" onClick={() => handleToggle(f)}>
+            {f.enabled ? 'Disable' : 'Enable'}
+          </Button>
+          {!f.isPermanent && (
+            <Button variant="danger" size="sm" onClick={() => setDeleteTarget(f)}>Delete</Button>
+          )}
+        </div>
+      ),
+    },
+  ], [selectedId]);
+
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Flights</h2>
-        <button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-blue-700">
-          + New Flight
-        </button>
-      </div>
+      <PageHeader
+        title="Flights"
+        actions={<Button onClick={() => setShowCreate(!showCreate)}>+ New Flight</Button>}
+      />
 
       {showCreate && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Flight name" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm" required />
-            <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optional)" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm" />
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={newBadge} onChange={e => setNewBadge(e.target.checked)} />
-              Show badge
-            </label>
+            <FormField label="Flight name" required>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Flight name" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full" required />
+            </FormField>
+            <FormField label="Description">
+              <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optional)" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full" />
+            </FormField>
+            <FormField label="Show badge">
+              <label className="flex items-center gap-2 text-sm mt-1">
+                <input type="checkbox" checked={newBadge} onChange={e => setNewBadge(e.target.checked)} />
+                Show badge
+              </label>
+            </FormField>
             {newBadge && (
-              <input value={newBadgeLabel} onChange={e => setNewBadgeLabel(e.target.value)} placeholder="Badge label" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm" />
+              <FormField label="Badge label">
+                <input value={newBadgeLabel} onChange={e => setNewBadgeLabel(e.target.value)} placeholder="Badge label" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full" />
+              </FormField>
             )}
           </div>
-          <button type="submit" className="bg-green-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-green-700">Create</button>
+          <Button type="submit" loading={creating}>Create</Button>
         </form>
       )}
 
-      <div className="flex gap-6">
-        {/* Flights list */}
-        <div className="flex-1">
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            {flights.length === 0 ? (
-              <p className="text-gray-500 text-sm p-4">No flights created yet.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-medium">Name</th>
-                    <th className="text-left px-4 py-2 font-medium">Status</th>
-                    <th className="text-left px-4 py-2 font-medium">Rollout</th>
-                    <th className="text-left px-4 py-2 font-medium">Flags</th>
-                    <th className="text-left px-4 py-2 font-medium">Assignments</th>
-                    <th className="text-left px-4 py-2 font-medium">Badge</th>
-                    <th className="text-left px-4 py-2 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {flights.map(f => (
-                    <tr key={f.id} className={`border-b last:border-b-0 hover:bg-gray-50 cursor-pointer ${selectedId === f.id ? 'bg-blue-50' : ''}`} onClick={() => loadDetail(f.id)}>
-                      <td className="px-4 py-2 font-medium">{f.name}</td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${f.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {f.enabled ? 'Active' : 'Disabled'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-xs font-mono">{f.rolloutPercentage}%</td>
-                      <td className="px-4 py-2">{f.flagCount}</td>
-                      <td className="px-4 py-2">{f.assignmentCount}</td>
-                      <td className="px-4 py-2">
-                        {f.showBadge ? <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">{f.badgeLabel}</span> : '—'}
-                      </td>
-                      <td className="px-4 py-2 space-x-2">
-                        <button onClick={e => { e.stopPropagation(); handleToggle(f); }} className={`text-xs hover:underline ${f.enabled ? 'text-red-600' : 'text-green-600'}`}>
-                          {f.enabled ? 'Disable' : 'Enable'}
-                        </button>
-                        {!f.isPermanent && (
-                          <button onClick={e => { e.stopPropagation(); handleDelete(f.id); }} className="text-red-600 text-xs hover:underline">Delete</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+      <DataTable
+        columns={columns}
+        data={flights}
+        keyField="id"
+        loading={loading}
+        emptyIcon="✈️"
+        emptyMessage="No flights created yet."
+        onRowClick={(f) => loadDetail(f.id)}
+        selectedKey={selectedId}
+      />
 
-        {/* Detail panel */}
+      {/* Detail panel */}
+      <SlidePanel open={!!detail} onClose={() => { setSelectedId(null); setDetail(null); }} title={detail?.flight.name ?? 'Flight Details'} wide>
         {detail && (
-          <div className="w-96 bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+          <div className="space-y-4">
             <div>
-              <h3 className="font-semibold">{detail.flight.name}</h3>
               {detail.flight.description && <p className="text-sm text-gray-500">{detail.flight.description}</p>}
             </div>
 
@@ -206,7 +268,7 @@ export default function FlightsPage({
                     const pct = Number(e.target.value);
                     setDetail(prev => prev ? { ...prev, flight: { ...prev.flight, rolloutPercentage: pct } } : prev);
                   }}
-                  onMouseUp={() => { if (selectedId) updateFlight(selectedId, { rolloutPercentage: detail.flight.rolloutPercentage }).then(() => load()); }}
+                  onMouseUp={() => { if (selectedId) updateFlight(selectedId, { rolloutPercentage: detail.flight.rolloutPercentage }).then(() => { addToast('Rollout updated', 'success'); load(); }).catch(() => addToast('Failed to update rollout', 'error')); }}
                   className="flex-1"
                 />
                 <span className="text-sm font-mono w-10 text-right">{detail.flight.rolloutPercentage}%</span>
@@ -221,7 +283,7 @@ export default function FlightsPage({
                 {detail.flags.map(fk => (
                   <div key={fk} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
                     <span className="font-mono">{fk}</span>
-                    <button onClick={() => handleRemoveFlag(fk)} className="text-red-500 hover:underline">✕</button>
+                    <Button variant="ghost" size="sm" onClick={() => handleRemoveFlag(fk)}>✕</Button>
                   </div>
                 ))}
               </div>
@@ -230,7 +292,7 @@ export default function FlightsPage({
                   <option value="">Select flag…</option>
                   {availableFlags.map(f => <option key={f.key} value={f.key}>{f.key}</option>)}
                 </select>
-                <button type="submit" className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700" disabled={!addFlagKey}>Add</button>
+                <Button type="submit" size="sm" disabled={!addFlagKey}>Add</Button>
               </form>
             </div>
 
@@ -241,7 +303,7 @@ export default function FlightsPage({
                 {detail.assignments.map(a => (
                   <div key={a.id} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
                     <span>{a.groupId ? `👥 ${a.groupName}` : `👤 ${a.email}`}</span>
-                    <button onClick={() => handleRemoveAssignment(a.id)} className="text-red-500 hover:underline">✕</button>
+                    <Button variant="ghost" size="sm" onClick={() => setRemoveAssignmentTarget(a)}>✕</Button>
                   </div>
                 ))}
               </div>
@@ -249,7 +311,7 @@ export default function FlightsPage({
               {/* Assign user */}
               <form onSubmit={handleAssignUser} className="flex gap-2 mb-2">
                 <input value={assignUserId} onChange={e => setAssignUserId(e.target.value)} placeholder="User ID" className="border border-gray-300 rounded px-2 py-1 text-xs flex-1" />
-                <button type="submit" className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">+ User</button>
+                <Button type="submit" size="sm">+ User</Button>
               </form>
 
               {/* Assign group */}
@@ -258,12 +320,34 @@ export default function FlightsPage({
                   <option value="">Select group…</option>
                   {allGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
-                <button type="submit" className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700" disabled={!assignGroupId}>+ Group</button>
+                <Button type="submit" size="sm" disabled={!assignGroupId}>+ Group</Button>
               </form>
             </div>
           </div>
         )}
-      </div>
+      </SlidePanel>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Delete Flight"
+        message="Delete this flight? All assignments will be removed."
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={!!removeAssignmentTarget}
+        onClose={() => setRemoveAssignmentTarget(null)}
+        onConfirm={handleRemoveAssignment}
+        title="Remove Assignment"
+        message={`Remove ${removeAssignmentTarget?.groupId ? removeAssignmentTarget.groupName : removeAssignmentTarget?.email ?? 'this assignment'} from the flight?`}
+        confirmLabel="Remove"
+        destructive
+        loading={removingAssignment}
+      />
     </div>
   );
 }

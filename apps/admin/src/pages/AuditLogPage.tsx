@@ -1,5 +1,18 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { AuditEntry, Pagination } from '../hooks/useAdmin';
+import { PageHeader, DataTable, Badge, type Column } from '../components/ui';
+
+const ACTION_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
+  sign_in: 'success',
+  sign_up: 'info',
+  sign_out: 'neutral',
+  password_change: 'warning',
+  '2fa_enable': 'success',
+  '2fa_disable': 'warning',
+  admin_action: 'error',
+  provider_link: 'info',
+  provider_unlink: 'warning',
+};
 
 export default function AuditLogPage({
   getAuditLog,
@@ -10,19 +23,55 @@ export default function AuditLogPage({
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [actionFilter, setActionFilter] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
+    setLoading(true);
     getAuditLog({ page, limit: 50, action: actionFilter || undefined }).then((data) => {
       setEntries(data.entries);
       setPagination(data.pagination);
-    });
+    }).finally(() => setLoading(false));
   }, [getAuditLog, page, actionFilter]);
 
   useEffect(() => { load(); }, [load]);
 
+  const columns = useMemo<Column<AuditEntry>[]>(() => [
+    {
+      key: 'createdAt',
+      header: 'Time',
+      render: (e) => <span className="text-xs text-gray-500 whitespace-nowrap">{new Date(e.createdAt).toLocaleString()}</span>,
+    },
+    {
+      key: 'user',
+      header: 'User',
+      render: (e) => (
+        <div>
+          <p className="text-xs">{e.userName || 'Unknown'}</p>
+          <p className="text-xs text-gray-400">{e.userEmail}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      render: (e) => <Badge variant={ACTION_BADGE_VARIANT[e.action] ?? 'neutral'}>{e.action}</Badge>,
+    },
+    {
+      key: 'details',
+      header: 'Details',
+      className: 'max-w-xs truncate',
+      render: (e) => <span className="text-xs text-gray-600">{JSON.stringify(e.details)}</span>,
+    },
+    {
+      key: 'ipAddress',
+      header: 'IP',
+      render: (e) => <span className="text-xs text-gray-500">{e.ipAddress}</span>,
+    },
+  ], []);
+
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Audit Log</h2>
+      <PageHeader title="Audit Log" />
 
       <div className="flex gap-2 mb-4">
         <select
@@ -43,55 +92,16 @@ export default function AuditLogPage({
         </select>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="text-left px-4 py-2 font-medium">Time</th>
-              <th className="text-left px-4 py-2 font-medium">User</th>
-              <th className="text-left px-4 py-2 font-medium">Action</th>
-              <th className="text-left px-4 py-2 font-medium">Details</th>
-              <th className="text-left px-4 py-2 font-medium">IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.id} className="border-b last:border-b-0 hover:bg-gray-50">
-                <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
-                  {new Date(e.createdAt).toLocaleString()}
-                </td>
-                <td className="px-4 py-2">
-                  <p className="text-xs">{e.userName || 'Unknown'}</p>
-                  <p className="text-xs text-gray-400">{e.userEmail}</p>
-                </td>
-                <td className="px-4 py-2">
-                  <span className="inline-block px-2 py-0.5 bg-gray-100 rounded text-xs font-mono">
-                    {e.action}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-xs text-gray-600 max-w-xs truncate">
-                  {JSON.stringify(e.details)}
-                </td>
-                <td className="px-4 py-2 text-xs text-gray-500">{e.ipAddress}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center gap-2 mt-4">
-          <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border rounded text-sm disabled:opacity-50">
-            Prev
-          </button>
-          <span className="text-sm text-gray-600">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <button disabled={page >= pagination.totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border rounded text-sm disabled:opacity-50">
-            Next
-          </button>
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={entries}
+        keyField="id"
+        loading={loading}
+        emptyIcon="📋"
+        emptyMessage="No audit log entries found"
+        pagination={pagination ?? undefined}
+        onPageChange={setPage}
+      />
     </div>
   );
 }
