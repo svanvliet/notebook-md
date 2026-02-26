@@ -1,5 +1,3 @@
-import ModelClient from '@azure-rest/ai-inference';
-import { AzureKeyCredential } from '@azure/core-auth';
 import { isFeatureEnabled } from './featureFlags.js';
 import { redis } from '../lib/redis.js';
 
@@ -93,44 +91,68 @@ export async function* streamGeneration(
     return;
   }
 
-  const client = ModelClient(endpoint, new AzureKeyCredential(apiKey));
   const messages = buildMessages(prompt, length, documentContext, cursorContext);
   const maxTokens = MAX_TOKENS[length];
 
+  // Azure OpenAI REST API: POST /openai/deployments/{model}/chat/completions?api-version=2024-10-21
+  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=2024-10-21`;
+
   try {
-    const response = await client.path('/chat/completions').post({
-      body: {
-        messages: messages as any,
-        model,
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify({
+        messages,
         max_tokens: maxTokens,
         temperature: 0.7,
         stream: true,
-      },
+      }),
     });
 
-    if (response.status !== '200') {
-      yield { type: 'error', message: `AI service returned status ${response.status}` };
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      yield { type: 'error', message: `AI service returned status ${response.status}: ${errBody.slice(0, 200)}` };
       return;
     }
 
-    const body = response.body as any;
+    const reader = response.body?.getReader();
+    if (!reader) {
+      yield { type: 'error', message: 'Streaming not supported' };
+      return;
+    }
 
-    if (body && typeof body[Symbol.asyncIterator] === 'function') {
-      for await (const event of body) {
-        const data = typeof event === 'string' ? JSON.parse(event) : event;
-        const delta = data?.choices?.[0]?.delta?.content;
-        if (delta) {
-          yield { type: 'token', content: delta };
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') {
+          yield { type: 'done' };
+          return;
         }
-        if (data?.choices?.[0]?.finish_reason) {
-          break;
+        if (!data) continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            yield { type: 'token', content: delta };
+          }
+        } catch {
+          // Skip malformed SSE lines
         }
-      }
-    } else {
-      // Non-streaming fallback
-      const content = (response.body as any)?.choices?.[0]?.message?.content;
-      if (content) {
-        yield { type: 'token', content };
       }
     }
 
