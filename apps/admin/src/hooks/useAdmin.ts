@@ -51,6 +51,8 @@ interface FeatureFlag {
   variants: string[] | null;
   staleAt: string | null;
   updatedAt: string;
+  archived: boolean;
+  flights: { id: string; name: string }[];
 }
 
 interface FlagOverride {
@@ -216,7 +218,16 @@ export function useAdmin() {
 
   // ── Feature Flags ──────────────────────────────────────────────────
 
-  const getFeatureFlags = useCallback(() => api<{ flags: FeatureFlag[] }>('/admin/feature-flags'), []);
+  const getFeatureFlags = useCallback(
+    (params: { archived?: string; page?: number; perPage?: number } = {}) => {
+      const sp = new URLSearchParams();
+      if (params.archived) sp.set('archived', params.archived);
+      if (params.page) sp.set('page', String(params.page));
+      if (params.perPage) sp.set('per_page', String(params.perPage));
+      return api<{ flags: FeatureFlag[]; pagination: Pagination }>(`/admin/feature-flags?${sp}`);
+    },
+    [],
+  );
 
   const saveFeatureFlag = useCallback(
     (data: { key: string; enabled: boolean; description?: string; variants?: string[] | null; staleAt?: string | null }) =>
@@ -241,9 +252,23 @@ export function useAdmin() {
     [],
   );
 
+  const archiveFlag = useCallback(
+    (key: string, archived: boolean) =>
+      api<{ message: string }>(`/admin/feature-flags/${key}/archive`, { method: 'POST', body: JSON.stringify({ archived }) }),
+    [],
+  );
+
   // ── Groups ────────────────────────────────────────────────────────
 
-  const getGroups = useCallback(() => api<{ groups: UserGroup[] }>('/admin/groups'), []);
+  const getGroups = useCallback(
+    (params: { page?: number; perPage?: number } = {}) => {
+      const sp = new URLSearchParams();
+      if (params.page) sp.set('page', String(params.page));
+      if (params.perPage) sp.set('per_page', String(params.perPage));
+      return api<{ groups: UserGroup[]; pagination: Pagination }>(`/admin/groups?${sp}`);
+    },
+    [],
+  );
 
   const createGroup = useCallback(
     (data: { name: string; description?: string; allowSelfEnroll?: boolean; emailDomain?: string }) =>
@@ -396,6 +421,7 @@ export function useAdmin() {
     getFlagOverrides,
     createFlagOverride,
     deleteFlagOverride,
+    archiveFlag,
     getGroups,
     createGroup,
     getGroup,

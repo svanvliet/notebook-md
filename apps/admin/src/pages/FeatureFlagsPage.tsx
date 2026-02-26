@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
-import type { FeatureFlag, FlagOverride } from '../hooks/useAdmin';
+import { useNavigate } from 'react-router-dom';
+import type { FeatureFlag, FlagOverride, Pagination } from '../hooks/useAdmin';
+import type { UserOption } from '../components/ui/UserPicker';
 import {
   Badge, Button, ConfirmDialog, DataTable, type Column,
-  PageHeader, SlidePanel, FormField, useToast,
+  PageHeader, SlidePanel, FormField, useToast, UserPicker,
 } from '../components/ui';
 
 export default function FeatureFlagsPage({
@@ -11,14 +13,19 @@ export default function FeatureFlagsPage({
   getFlagOverrides,
   createFlagOverride,
   deleteFlagOverride,
+  archiveFlag,
+  searchUsers,
 }: {
-  getFeatureFlags: () => Promise<{ flags: FeatureFlag[] }>;
+  getFeatureFlags: (params?: { archived?: string; page?: number; perPage?: number }) => Promise<{ flags: FeatureFlag[]; pagination: Pagination }>;
   saveFeatureFlag: (data: { key: string; enabled: boolean; description?: string }) => Promise<{ message: string }>;
   getFlagOverrides: (key: string) => Promise<{ overrides: FlagOverride[] }>;
   createFlagOverride: (key: string, data: { userId: string; enabled: boolean; reason?: string }) => Promise<{ message: string }>;
   deleteFlagOverride: (key: string, userId: string) => Promise<{ message: string }>;
+  archiveFlag: (key: string, archived: boolean) => Promise<{ message: string }>;
+  searchUsers: (q: string) => Promise<UserOption[]>;
 }) {
   const { addToast } = useToast();
+  const navigate = useNavigate();
 
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,27 +34,35 @@ export default function FeatureFlagsPage({
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Archive filter & pagination
+  const [archivedFilter, setArchivedFilter] = useState<string>('false');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination | undefined>(undefined);
+
   // Override detail
   const [selectedFlag, setSelectedFlag] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<FlagOverride[]>([]);
-  const [ovUserId, setOvUserId] = useState('');
   const [ovEnabled, setOvEnabled] = useState(true);
   const [ovReason, setOvReason] = useState('');
   const [addingOverride, setAddingOverride] = useState(false);
 
-  // Toggle / delete confirm state
+  // Toggle / delete / archive confirm state
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   const [confirmToggle, setConfirmToggle] = useState<FeatureFlag | null>(null);
   const [confirmDeleteOverride, setConfirmDeleteOverride] = useState<string | null>(null);
   const [deletingOverride, setDeletingOverride] = useState(false);
+  const [archivingKey, setArchivingKey] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
-    getFeatureFlags()
-      .then((d) => setFlags(d.flags))
+    getFeatureFlags({ archived: archivedFilter, page })
+      .then((d) => {
+        setFlags(d.flags);
+        setPagination(d.pagination);
+      })
       .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, [getFeatureFlags]);
+  useEffect(() => { load(); }, [getFeatureFlags, archivedFilter, page]);
 
   const loadOverrides = (key: string) => {
     setSelectedFlag(key);
@@ -85,14 +100,13 @@ export default function FeatureFlagsPage({
     }
   };
 
-  const handleAddOverride = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ovUserId.trim() || !selectedFlag) return;
+  const handleAddOverride = async (userId: string) => {
+    if (!userId.trim() || !selectedFlag) return;
     setAddingOverride(true);
     try {
-      await createFlagOverride(selectedFlag, { userId: ovUserId.trim(), enabled: ovEnabled, reason: ovReason.trim() || undefined });
+      await createFlagOverride(selectedFlag, { userId: userId.trim(), enabled: ovEnabled, reason: ovReason.trim() || undefined });
       addToast('Override created', 'success');
-      setOvUserId(''); setOvReason(''); setOvEnabled(true);
+      setOvReason(''); setOvEnabled(true);
       loadOverrides(selectedFlag);
     } catch {
       addToast('Failed to create override', 'error');
@@ -116,24 +130,68 @@ export default function FeatureFlagsPage({
     }
   };
 
+  const handleArchive = async (flag: FeatureFlag) => {
+    setArchivingKey(flag.key);
+    try {
+      await archiveFlag(flag.key, !flag.archived);
+      addToast(`Flag "${flag.key}" ${flag.archived ? 'unarchived' : 'archived'}`, 'success');
+      load();
+    } catch {
+      addToast(`Failed to ${flag.archived ? 'unarchive' : 'archive'} flag`, 'error');
+    } finally {
+      setArchivingKey(null);
+    }
+  };
+
+  const archiveTabs: { label: string; value: string }[] = [
+    { label: 'Active', value: 'false' },
+    { label: 'Archived', value: 'true' },
+    { label: 'All', value: '' },
+  ];
+
   const columns = useMemo<Column<FeatureFlag>[]>(() => [
     { key: 'key', header: 'Key', render: (f: FeatureFlag) => <span className="font-mono text-xs">{f.key}</span> },
     { key: 'description', header: 'Description', render: (f: FeatureFlag) => <span className="text-gray-600">{f.description || '—'}</span> },
     { key: 'status', header: 'Status', render: (f: FeatureFlag) => (
       <Badge variant={f.enabled ? 'success' : 'neutral'} dot>{f.enabled ? 'Enabled' : 'Disabled'}</Badge>
     )},
+    { key: 'flights', header: 'Flights', render: (f: FeatureFlag) => (
+      f.flights && f.flights.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {f.flights.map(fl => (
+            <Badge
+              key={fl.id}
+              variant="info"
+              onClick={() => navigate('/flights')}
+            >
+              ✈️ {fl.name}
+            </Badge>
+          ))}
+        </div>
+      ) : <span className="text-gray-400 text-xs">—</span>
+    )},
     { key: 'updatedAt', header: 'Updated', render: (f: FeatureFlag) => <span className="text-xs text-gray-500">{new Date(f.updatedAt).toLocaleString()}</span> },
     { key: 'actions', header: 'Actions', render: (f: FeatureFlag) => (
-      <Button
-        variant={f.enabled ? 'danger' : 'primary'}
-        size="sm"
-        loading={togglingKey === f.key}
-        onClick={(e: React.MouseEvent) => { e.stopPropagation(); setConfirmToggle(f); }}
-      >
-        {f.enabled ? 'Disable' : 'Enable'}
-      </Button>
+      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+        <Button
+          variant={f.enabled ? 'danger' : 'primary'}
+          size="sm"
+          loading={togglingKey === f.key}
+          onClick={() => setConfirmToggle(f)}
+        >
+          {f.enabled ? 'Disable' : 'Enable'}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={archivingKey === f.key}
+          onClick={() => handleArchive(f)}
+        >
+          {f.archived ? 'Unarchive' : 'Archive'}
+        </Button>
+      </div>
     )},
-  ], [togglingKey]);
+  ], [togglingKey, archivingKey]);
 
   return (
     <div className="p-6">
@@ -141,6 +199,23 @@ export default function FeatureFlagsPage({
         title="Feature Flags"
         actions={<Button onClick={() => setShowCreate(true)}>+ New Flag</Button>}
       />
+
+      {/* Archive filter tabs */}
+      <div className="flex gap-1 mb-4">
+        {archiveTabs.map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => { setArchivedFilter(tab.value); setPage(1); }}
+            className={`px-3 py-1.5 text-sm rounded-md border ${
+              archivedFilter === tab.value
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {/* Create flag slide panel */}
       <SlidePanel open={showCreate} onClose={() => setShowCreate(false)} title="Create Feature Flag">
@@ -171,9 +246,14 @@ export default function FeatureFlagsPage({
           {overrides.length === 0 && <p className="text-gray-400 text-xs">No overrides</p>}
         </div>
 
-        <form onSubmit={handleAddOverride} className="space-y-3">
-          <FormField label="User ID" required>
-            <input value={ovUserId} onChange={e => setOvUserId(e.target.value)} placeholder="User ID" className="border border-gray-300 rounded px-2 py-1 text-xs w-full" required />
+        <div className="space-y-3">
+          <FormField label="User">
+            <UserPicker
+              searchUsers={searchUsers}
+              onSelect={(user: UserOption) => handleAddOverride(user.id)}
+              placeholder="Search for user…"
+              excludeIds={overrides.map(o => o.userId)}
+            />
           </FormField>
           <div className="flex gap-2">
             <FormField label="State" className="shrink-0">
@@ -186,8 +266,8 @@ export default function FeatureFlagsPage({
               <input value={ovReason} onChange={e => setOvReason(e.target.value)} placeholder="Reason (optional)" className="border border-gray-300 rounded px-2 py-1 text-xs w-full" />
             </FormField>
           </div>
-          <Button type="submit" loading={addingOverride} className="w-full">Add Override</Button>
-        </form>
+          {addingOverride && <p className="text-xs text-gray-400">Adding override…</p>}
+        </div>
       </SlidePanel>
 
       {/* Confirm toggle dialog */}
@@ -223,6 +303,8 @@ export default function FeatureFlagsPage({
         emptyMessage="No feature flags configured"
         onRowClick={(f: FeatureFlag) => loadOverrides(f.key)}
         selectedKey={selectedFlag}
+        pagination={pagination}
+        onPageChange={setPage}
       />
     </div>
   );

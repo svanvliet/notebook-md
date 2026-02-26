@@ -1,12 +1,23 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import type { AdminUser } from '../hooks/useAdmin';
 
-const navItems = [
+type NavItem =
+  | { to: string; label: string; icon: string }
+  | { label: string; icon: string; children: { to: string; label: string; icon: string }[] };
+
+const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: '📊' },
   { to: '/users', label: 'Users', icon: '👤' },
-  { to: '/feature-flags', label: 'Feature Flags', icon: '🚩' },
-  { to: '/groups', label: 'Groups', icon: '👥' },
-  { to: '/flights', label: 'Flights', icon: '✈️' },
+  {
+    label: 'Feature Management',
+    icon: '⚙️',
+    children: [
+      { to: '/feature-flags', label: 'Flags', icon: '🚩' },
+      { to: '/flights', label: 'Flights', icon: '✈️' },
+      { to: '/groups', label: 'Groups', icon: '👥' },
+    ],
+  },
   { to: '/announcements', label: 'Announcements', icon: '📢' },
   { to: '/audit-log', label: 'Audit Log', icon: '📋' },
 ];
@@ -18,6 +29,11 @@ export default function Layout({
   user: AdminUser;
   onSignOut: () => void;
 }) {
+  const location = useLocation();
+  const featureMgmtPaths = ['/feature-flags', '/flights', '/groups'];
+  const childActive = featureMgmtPaths.some((p) => location.pathname.startsWith(p));
+  const [expanded, setExpanded] = useState(childActive);
+
   return (
     <div className="flex h-screen">
       {/* Sidebar */}
@@ -28,21 +44,58 @@ export default function Layout({
         </div>
 
         <nav className="flex-1 py-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-800 ${
-                  isActive ? 'bg-gray-800 text-white' : ''
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
+          {navItems.map((item) => {
+            if ('to' in item) {
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-800 ${
+                      isActive ? 'bg-gray-800 text-white' : ''
+                    }`
+                  }
+                >
+                  <span>{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              );
+            }
+
+            return (
+              <div key={item.label}>
+                <button
+                  onClick={() => setExpanded((prev) => !prev)}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm w-full hover:bg-gray-800 ${
+                    childActive ? 'text-white' : ''
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  {item.label}
+                  <span className="ml-auto text-xs">{expanded ? '▾' : '▸'}</span>
+                </button>
+                {expanded && (
+                  <div>
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.to}
+                        to={child.to}
+                        className={({ isActive }) =>
+                          `flex items-center gap-2 pl-8 pr-4 py-1.5 text-sm hover:bg-gray-800 ${
+                            isActive ? 'bg-gray-800 text-white' : ''
+                          }`
+                        }
+                      >
+                        <span>{child.icon}</span>
+                        {child.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="border-t border-gray-700 px-4 py-3">

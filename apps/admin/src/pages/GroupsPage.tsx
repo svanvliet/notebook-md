@@ -1,19 +1,21 @@
 import { useEffect, useState, useMemo } from 'react';
 import type { UserGroup, GroupMember } from '../hooks/useAdmin';
-import { PageHeader, Button, DataTable, SlidePanel, ConfirmDialog, FormField, Badge, useToast, type Column } from '../components/ui';
+import type { UserOption } from '../components/ui/UserPicker';
+import { PageHeader, Button, DataTable, SlidePanel, ConfirmDialog, FormField, Badge, useToast, UserPicker, type Column } from '../components/ui';
 
 interface GroupsPageProps {
-  getGroups: () => Promise<{ groups: UserGroup[] }>;
+  getGroups: (params?: { page?: number; perPage?: number }) => Promise<{ groups: UserGroup[] }>;
   createGroup: (data: { name: string; description?: string; allowSelfEnroll?: boolean; emailDomain?: string }) => Promise<{ id: string }>;
   getGroup: (id: string) => Promise<{ group: UserGroup; members: GroupMember[] }>;
   updateGroup: (id: string, data: { name?: string; description?: string; allowSelfEnroll?: boolean; emailDomain?: string | null }) => Promise<{ message: string }>;
   deleteGroup: (id: string) => Promise<{ message: string }>;
   addGroupMembers: (id: string, userIds: string[]) => Promise<{ message: string }>;
   removeGroupMember: (groupId: string, userId: string) => Promise<{ message: string }>;
+  searchUsers: (q: string) => Promise<UserOption[]>;
 }
 
 export default function GroupsPage({
-  getGroups, createGroup, getGroup, updateGroup, deleteGroup, addGroupMembers, removeGroupMember,
+  getGroups, createGroup, getGroup, updateGroup, deleteGroup, addGroupMembers, removeGroupMember, searchUsers,
 }: GroupsPageProps) {
   const { addToast } = useToast();
   const [groups, setGroups] = useState<UserGroup[]>([]);
@@ -28,7 +30,6 @@ export default function GroupsPage({
   // Detail view
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ group: UserGroup; members: GroupMember[] } | null>(null);
-  const [addUserId, setAddUserId] = useState('');
   const [addingMember, setAddingMember] = useState(false);
 
   // Confirm dialogs
@@ -86,13 +87,11 @@ export default function GroupsPage({
     }
   };
 
-  const handleAddMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addUserId.trim() || !selectedId) return;
+  const handleAddMember = async (userId: string) => {
+    if (!userId.trim() || !selectedId) return;
     setAddingMember(true);
     try {
-      await addGroupMembers(selectedId, [addUserId.trim()]);
-      setAddUserId('');
+      await addGroupMembers(selectedId, [userId.trim()]);
       addToast('Member added', 'success');
       loadDetail(selectedId);
       load();
@@ -216,10 +215,21 @@ export default function GroupsPage({
               {detail.members.length === 0 && <p className="text-gray-400 text-xs">No members yet</p>}
             </div>
 
-            <form onSubmit={handleAddMember} className="flex gap-2">
-              <input value={addUserId} onChange={e => setAddUserId(e.target.value)} placeholder="Email address" className="border border-gray-300 rounded px-2 py-1 text-xs flex-1" />
-              <Button type="submit" size="sm" loading={addingMember}>Add</Button>
+            <form onSubmit={e => e.preventDefault()} className="flex gap-2">
+              <div className="flex-1">
+                <UserPicker
+                  searchUsers={searchUsers}
+                  onSelect={(user: UserOption) => handleAddMember(user.id)}
+                  placeholder="Search for user…"
+                  excludeIds={detail.members.map(m => m.userId)}
+                />
+              </div>
+              {addingMember && <span className="text-xs text-gray-400 self-center">Adding…</span>}
             </form>
+
+            {/* Flights placeholder */}
+            <h4 className="text-sm font-medium mt-4 mb-2">Flights</h4>
+            <p className="text-xs text-gray-400">Flight assignments will appear here.</p>
           </>
         )}
       </SlidePanel>

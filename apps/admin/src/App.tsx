@@ -77,6 +77,8 @@ export default function App() {
                 getFlagOverrides={admin.getFlagOverrides}
                 createFlagOverride={admin.createFlagOverride}
                 deleteFlagOverride={admin.deleteFlagOverride}
+                archiveFlag={admin.archiveFlag}
+                searchUsers={admin.searchUsers}
               />
             }
           />
@@ -91,6 +93,7 @@ export default function App() {
                 deleteGroup={admin.deleteGroup}
                 addGroupMembers={admin.addGroupMembers}
                 removeGroupMember={admin.removeGroupMember}
+                searchUsers={admin.searchUsers}
               />
             }
           />
@@ -109,6 +112,7 @@ export default function App() {
                 removeFlightAssignment={admin.removeFlightAssignment}
                 getFeatureFlags={admin.getFeatureFlags}
                 getGroups={admin.getGroups}
+                searchUsers={admin.searchUsers}
               />
             }
           />
