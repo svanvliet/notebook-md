@@ -5087,3 +5087,80 @@ These bugs all stem from **environmental differences** between local dev and pro
 | Web | web:v0.2.6 | 6 hotfixes applied |
 | Admin | admin:v0.2.0 | Unchanged |
 | Collab | collab:v0.2.5 | 2 hotfixes applied |
+
+---
+
+### Admin Console Upgrade (2026-02-26)
+
+**Branch:** `feature/admin` (off `main`)
+**Requirements:** `docs/requirements/admin-requirements.md` (v1.1)
+**Plan:** `docs/plans/admin-plan.md` (4 phases)
+
+#### Phase 1 — Component Library & Infrastructure ✅
+**Commit:** `d60f937`
+
+- Installed Headless UI v2.2.9, react-day-picker, date-fns
+- Built 11 shared UI components: Badge, Button, ConfirmDialog, Toast, DataTable, SlidePanel, PageHeader, EmptyState, LoadingSpinner, FormField, DatePicker
+- Set up Vitest + React Testing Library for admin app (vitest.config.ts, test-setup.ts)
+- Refactored all 7 existing pages (Dashboard, Users, FeatureFlags, Groups, Flights, Announcements, AuditLog) to use shared components
+- 33 component unit tests passing
+- Admin build: ~325KB bundle, <1.5s build time
+
+#### Phase 2 — User Management Upgrade ✅
+**Commit:** `667d2c2`
+
+- **DB migration 011:** Added `users.last_active_at`, `feature_flags.archived`, `announcement_groups` join table
+- **API changes:**
+  - GET /admin/users: sort/order/status query params
+  - GET /admin/users/search: lightweight autocomplete (prefix ILIKE, max 10)
+  - GET /admin/users/:id: enriched with groups, flights, resolvedFlags, lastActiveAt
+  - POST /admin/users/:id/logout: force-logout (revoke all sessions)
+  - Auth middleware: update users.last_active_at on each authenticated request
+- **Frontend:**
+  - UserPicker autocomplete component (Headless UI Combobox, 300ms debounce)
+  - Debounced search, status filter pills (All/Active/Suspended), sortable columns
+  - Tabbed user detail slide panel (Overview, Groups & Flights, Flags, Sessions)
+  - Force-logout button in Sessions tab
+- 13 new API integration tests (346 total)
+
+#### Phase 3 — Feature Management Unification ✅
+**Commit:** `6955acf`
+
+- **Nav restructure:** Collapsible "Feature Management" section containing Flags, Flights, Groups
+- **Flag archival:** POST /admin/feature-flags/:key/archive, filter tabs (Active/Archived/All)
+- **Flight info on flags:** Badges showing which flights each flag belongs to
+- **Visual rollout bar:** Progress bar visualization on flight detail
+- **UserPicker everywhere:** Replaces raw ID/email inputs on Flags (overrides), Flights (assignments), Groups (members)
+- **Cross-reference links:** Flags ↔ Flights navigation
+- **Pagination:** Feature flags and groups list endpoints now support page/per_page
+- 2 new API tests for flag archival (348 total)
+
+#### Phase 4 — Announcements, Audit Log & Dashboard ✅
+**Commit:** `c2dc182`
+
+- **Dashboard upgrade:** Summary section with recent admin actions table, stale flags warning, active flights overview
+- **API:** GET /admin/dashboard/summary endpoint
+- **Audit log upgrade:** Date range filter (from/to), user filter, CSV export (format=csv header)
+- **Announcements upgrade:** Side-by-side markdown preview for create/edit
+- 348 API tests passing, 33 admin component tests passing
+- Admin build: 430KB, <1.5s
+
+#### Summary Stats
+| Metric | Before | After |
+|--------|--------|-------|
+| Admin app files | ~11 | ~35 |
+| Shared UI components | 0 | 12 (Badge, Button, ConfirmDialog, DataTable, DatePicker, EmptyState, FormField, LoadingSpinner, PageHeader, SlidePanel, Toast, UserPicker) |
+| Admin frontend tests | 0 | 33 |
+| API admin tests | 17 (admin.test.ts) | 30 + 34 (flighting-admin.test.ts) |
+| Admin bundle size | ~200KB | 430KB |
+| API endpoints | ~20 admin routes | ~28 admin routes |
+| DB migrations | 10 | 11 |
+
+#### Key Decisions Made
+- Headless UI v2.2.9 for accessible components (works with React 19)
+- DataTable column headers support ReactNode (not just string) for sortable headers
+- UserPicker uses Headless UI Combobox with 300ms debounced async search
+- Flag archival uses soft-delete (archived boolean) not hard delete
+- Audit CSV export happens client-side via blob download (no server-side file generation)
+- Nav uses collapsible sections (local state + auto-expand based on current route)
+- tsconfig excludes `__tests__/` from build to avoid test type issues

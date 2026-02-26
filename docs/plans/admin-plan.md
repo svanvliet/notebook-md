@@ -22,74 +22,74 @@ Upgrade the admin console from a basic CRUD interface to a polished, consistent,
 
 ### 1.1 Install Dependencies
 
-- [ ] Add `@headlessui/react` (modals, dropdowns, combobox, transitions)
-- [ ] Add `react-day-picker` (date picker for scheduling/filtering)
-- [ ] Add `date-fns` (date formatting/manipulation — react-day-picker peer dep)
-- [ ] Verify Tailwind config works with Headless UI (no changes expected)
+- [x] Add `@headlessui/react` (modals, dropdowns, combobox, transitions)
+- [x] Add `react-day-picker` (date picker for scheduling/filtering)
+- [x] Add `date-fns` (date formatting/manipulation — react-day-picker peer dep)
+- [x] Verify Tailwind config works with Headless UI (no changes expected)
 
 ### 1.2 Shared Components (`apps/admin/src/components/ui/`)
 
 Build each component with TypeScript, Tailwind styling, and Headless UI where applicable:
 
-- [ ] **Badge** — Status badges with preset variants: `success`, `warning`, `error`, `info`, `neutral`. Props: `variant`, `children`, `dot` (optional leading dot indicator).
-- [ ] **Button** — Variants: `primary`, `secondary`, `danger`, `ghost`. Sizes: `sm`, `md`. Loading state (spinner + disabled). Props: `variant`, `size`, `loading`, `disabled`.
-- [ ] **ConfirmDialog** — Headless UI Dialog with title, message, confirm/cancel buttons. Destructive variant (red confirm button). Props: `open`, `onClose`, `onConfirm`, `title`, `message`, `confirmLabel`, `destructive`.
-- [ ] **Toast** — Toast notification system with context provider. Types: `success`, `error`, `info`. Auto-dismiss (5s). Stack multiple. Props: `useToast()` hook returning `addToast(message, type)`.
-- [ ] **DataTable** — Sortable columns (click header), pagination controls (prev/next/page numbers), empty state, loading skeleton. Props: `columns[]`, `data[]`, `pagination`, `onSort`, `onPageChange`, `loading`, `emptyMessage`.
-- [ ] **SlidePanel** — Headless UI Dialog as slide-over from right. ~50% viewport width. Header with title + close button. Scrollable body. Props: `open`, `onClose`, `title`, `children`, `wide` (optional wider variant).
-- [ ] **PageHeader** — Page title + optional description + action buttons area. Consistent spacing. Props: `title`, `description`, `actions` (ReactNode).
-- [ ] **EmptyState** — Centered icon + message + optional action button. Props: `icon`, `title`, `description`, `action`.
-- [ ] **LoadingSpinner** — Inline and full-page variants. Props: `size`, `fullPage`.
-- [ ] **FormField** — Label + input wrapper + error message. Props: `label`, `error`, `required`, `children`.
-- [ ] **DatePicker** — Wrapper around react-day-picker in a Headless UI Popover. Props: `value`, `onChange`, `placeholder`.
-- [ ] **Combobox (UserPicker)** — Defer to Phase 2 (needs API endpoint first).
+- [x] **Badge** — Status badges with preset variants: `success`, `warning`, `error`, `info`, `neutral`. Props: `variant`, `children`, `dot` (optional leading dot indicator).
+- [x] **Button** — Variants: `primary`, `secondary`, `danger`, `ghost`. Sizes: `sm`, `md`. Loading state (spinner + disabled). Props: `variant`, `size`, `loading`, `disabled`.
+- [x] **ConfirmDialog** — Headless UI Dialog with title, message, confirm/cancel buttons. Destructive variant (red confirm button). Props: `open`, `onClose`, `onConfirm`, `title`, `message`, `confirmLabel`, `destructive`.
+- [x] **Toast** — Toast notification system with context provider. Types: `success`, `error`, `info`. Auto-dismiss (5s). Stack multiple. Props: `useToast()` hook returning `addToast(message, type)`.
+- [x] **DataTable** — Sortable columns (click header), pagination controls (prev/next/page numbers), empty state, loading skeleton. Props: `columns[]`, `data[]`, `pagination`, `onSort`, `onPageChange`, `loading`, `emptyMessage`.
+- [x] **SlidePanel** — Headless UI Dialog as slide-over from right. ~50% viewport width. Header with title + close button. Scrollable body. Props: `open`, `onClose`, `title`, `children`, `wide` (optional wider variant).
+- [x] **PageHeader** — Page title + optional description + action buttons area. Consistent spacing. Props: `title`, `description`, `actions` (ReactNode).
+- [x] **EmptyState** — Centered icon + message + optional action button. Props: `icon`, `title`, `description`, `action`.
+- [x] **LoadingSpinner** — Inline and full-page variants. Props: `size`, `fullPage`.
+- [x] **FormField** — Label + input wrapper + error message. Props: `label`, `error`, `required`, `children`.
+- [x] **DatePicker** — Wrapper around react-day-picker in a Headless UI Popover. Props: `value`, `onChange`, `placeholder`.
+- [x] **Combobox (UserPicker)** — Defer to Phase 2 (needs API endpoint first).
 
 ### 1.3 Toast Provider Setup
 
-- [ ] Create `ToastProvider` context in `apps/admin/src/components/ui/Toast.tsx`
-- [ ] Wrap app in `ToastProvider` in `App.tsx`
-- [ ] Export `useToast()` hook
+- [x] Create `ToastProvider` context in `apps/admin/src/components/ui/Toast.tsx`
+- [x] Wrap app in `ToastProvider` in `App.tsx`
+- [x] Export `useToast()` hook
 
 ### 1.4 Refactor Existing Pages
 
 Refactor each page to use shared components. No new features — maintain identical behavior.
 
-- [ ] **Layout.tsx** — Use Badge for nav items if needed; no major changes
-- [ ] **DashboardPage** — Use PageHeader, Badge, LoadingSpinner
-- [ ] **UsersPage** — Use PageHeader, DataTable (with existing pagination), Badge, Button, ConfirmDialog (replace `window.confirm`), Toast for feedback
-- [ ] **FeatureFlagsPage** — Use PageHeader, DataTable, SlidePanel (replace inline side panel), Badge, Button, ConfirmDialog, Toast
-- [ ] **GroupsPage** — Use PageHeader, DataTable, SlidePanel, Badge, Button, ConfirmDialog, Toast
-- [ ] **FlightsPage** — Use PageHeader, DataTable, SlidePanel, Badge, Button, ConfirmDialog, Toast
-- [ ] **AnnouncementsPage** — Use PageHeader, DataTable, Badge, Button, ConfirmDialog, Toast
-- [ ] **AuditLogPage** — Use PageHeader, DataTable (with existing pagination), Badge
+- [x] **Layout.tsx** — Use Badge for nav items if needed; no major changes
+- [x] **DashboardPage** — Use PageHeader, Badge, LoadingSpinner
+- [x] **UsersPage** — Use PageHeader, DataTable (with existing pagination), Badge, Button, ConfirmDialog (replace `window.confirm`), Toast for feedback
+- [x] **FeatureFlagsPage** — Use PageHeader, DataTable, SlidePanel (replace inline side panel), Badge, Button, ConfirmDialog, Toast
+- [x] **GroupsPage** — Use PageHeader, DataTable, SlidePanel, Badge, Button, ConfirmDialog, Toast
+- [x] **FlightsPage** — Use PageHeader, DataTable, SlidePanel, Badge, Button, ConfirmDialog, Toast
+- [x] **AnnouncementsPage** — Use PageHeader, DataTable, Badge, Button, ConfirmDialog, Toast
+- [x] **AuditLogPage** — Use PageHeader, DataTable (with existing pagination), Badge
 
 ### 1.5 Tests
 
 **Admin frontend unit tests** (new — apps/admin has zero tests currently):
 
-- [ ] Set up Vitest + React Testing Library for `apps/admin`
+- [x] Set up Vitest + React Testing Library for `apps/admin`
   - Add vitest, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event, jsdom to dev deps
   - Create `vitest.config.ts` for admin workspace
   - Add `test` script to admin `package.json`
-- [ ] **Component tests** (`apps/admin/src/components/ui/__tests__/`):
-  - [ ] Badge.test.tsx — renders variants, children
-  - [ ] Button.test.tsx — renders variants, loading state disables, click handler
-  - [ ] ConfirmDialog.test.tsx — opens/closes, calls onConfirm, destructive variant
-  - [ ] Toast.test.tsx — useToast adds/removes toasts, auto-dismiss
-  - [ ] DataTable.test.tsx — renders columns/data, sort click, pagination, empty state, loading
-  - [ ] SlidePanel.test.tsx — opens/closes, renders children
-  - [ ] PageHeader.test.tsx — renders title, description, actions
-  - [ ] EmptyState.test.tsx — renders icon, title, action
+- [x] **Component tests** (`apps/admin/src/components/ui/__tests__/`):
+  - [x] Badge.test.tsx — renders variants, children
+  - [x] Button.test.tsx — renders variants, loading state disables, click handler
+  - [x] ConfirmDialog.test.tsx — opens/closes, calls onConfirm, destructive variant
+  - [x] Toast.test.tsx — useToast adds/removes toasts, auto-dismiss
+  - [x] DataTable.test.tsx — renders columns/data, sort click, pagination, empty state, loading
+  - [x] SlidePanel.test.tsx — opens/closes, renders children
+  - [x] PageHeader.test.tsx — renders title, description, actions
+  - [x] EmptyState.test.tsx — renders icon, title, action
 
 ### 1.6 Exit Criteria
 
-- [ ] All existing pages refactored to use shared components
-- [ ] Visual behavior identical to before (no regressions)
-- [ ] All destructive actions use ConfirmDialog (no more `window.confirm`)
-- [ ] All mutations show Toast feedback (success/error)
-- [ ] All async operations show loading states
-- [ ] Component tests passing
-- [ ] `npm run build` succeeds for admin workspace
+- [x] All existing pages refactored to use shared components
+- [x] Visual behavior identical to before (no regressions)
+- [x] All destructive actions use ConfirmDialog (no more `window.confirm`)
+- [x] All mutations show Toast feedback (success/error)
+- [x] All async operations show loading states
+- [x] Component tests passing
+- [x] `npm run build` succeeds for admin workspace
 
 ---
 
@@ -99,29 +99,29 @@ Refactor each page to use shared components. No new features — maintain identi
 
 ### 2.1 Database Migration
 
-- [ ] Migration: Add `last_active_at` column to `users` table (updated on session creation/refresh)
+- [x] Migration: Add `last_active_at` column to `users` table (updated on session creation/refresh)
   - `ALTER TABLE users ADD COLUMN last_active_at TIMESTAMPTZ;`
   - Backfill from most recent session: `UPDATE users SET last_active_at = (SELECT MAX(created_at) FROM sessions WHERE sessions.user_id = users.id);`
 
 ### 2.2 API Changes
 
-- [ ] `GET /admin/users` — Add query params:
+- [x] `GET /admin/users` — Add query params:
   - `sort` (name, email, created_at, last_active_at) + `order` (asc, desc)
   - `status` filter (all, active, suspended)
-- [ ] `GET /admin/users/search?q=` — New lightweight endpoint for UserPicker autocomplete
+- [x] `GET /admin/users/search?q=` — New lightweight endpoint for UserPicker autocomplete
   - Returns: `[{id, email, displayName, avatarUrl}]` (max 10 results)
   - Searches by email prefix OR display name (ILIKE)
-- [ ] `GET /admin/users/:id` — Add to response:
+- [x] `GET /admin/users/:id` — Add to response:
   - `resolvedFlags` — computed flag state for this user (reuse `resolveAllFlags`)
   - `groups` — groups this user belongs to
   - `flights` — flights targeting this user (via group or direct assignment)
   - `lastActiveAt` — from new column
-- [ ] `POST /admin/users/:id/logout` — New: revoke all sessions for user
-- [ ] Update session creation/refresh to set `users.last_active_at`
+- [x] `POST /admin/users/:id/logout` — New: revoke all sessions for user
+- [x] Update session creation/refresh to set `users.last_active_at`
 
 ### 2.3 Frontend: UserPicker Component
 
-- [ ] **UserPicker** (`apps/admin/src/components/ui/UserPicker.tsx`)
+- [x] **UserPicker** (`apps/admin/src/components/ui/UserPicker.tsx`)
   - Headless UI Combobox with async search
   - Debounced API call (300ms) to `/admin/users/search?q=`
   - Shows avatar (or initials) + name + email in dropdown
@@ -131,15 +131,15 @@ Refactor each page to use shared components. No new features — maintain identi
 
 ### 2.4 Frontend: Users Page Upgrade
 
-- [ ] **Debounced search** — Remove search button; auto-search on 300ms debounce
-- [ ] **Sortable columns** — Name, Email, Joined, Last Active, Status (click to toggle sort)
-- [ ] **Status filter** — Dropdown above table: All / Active / Suspended
-- [ ] **Last Active column** — Relative time ("2 hours ago", "3 days ago")
-- [ ] **User avatar / initials** in name column
+- [x] **Debounced search** — Remove search button; auto-search on 300ms debounce
+- [x] **Sortable columns** — Name, Email, Joined, Last Active, Status (click to toggle sort)
+- [x] **Status filter** — Dropdown above table: All / Active / Suspended
+- [x] **Last Active column** — Relative time ("2 hours ago", "3 days ago")
+- [x] **User avatar / initials** in name column
 
 ### 2.5 Frontend: User Detail Slide Panel
 
-- [ ] **SlidePanel** with tabbed content (wide variant, ~50% viewport):
+- [x] **SlidePanel** with tabbed content (wide variant, ~50% viewport):
   - **Overview tab** — Email, display name, joined date, last active, 2FA status, admin badge, identity providers list, quick actions (Suspend/Unsuspend, Force Logout, Delete)
   - **Notebooks tab** — Table of user's notebooks (name, source type, file count, created date)
   - **Flags & Flights tab** — Resolved flag table (flag key, value, source: override/flight/kill-switch/not_delivered), groups list, flights list, per-user overrides with edit/delete
@@ -150,7 +150,7 @@ Refactor each page to use shared components. No new features — maintain identi
 
 **API tests** (`apps/api/src/tests/`):
 
-- [ ] `admin.test.ts` — Add tests:
+- [x] `admin.test.ts` — Add tests:
   - User search endpoint (`/admin/users/search?q=`) — returns matches, limits to 10, empty query
   - User list sorting (sort by name asc/desc, by created_at)
   - User list status filter (active only, suspended only)
@@ -160,19 +160,19 @@ Refactor each page to use shared components. No new features — maintain identi
 
 **Admin frontend tests** (`apps/admin/src/`):
 
-- [ ] UserPicker.test.tsx — Search triggers API call after debounce, renders results, selects user, multi-select mode
-- [ ] User detail panel tests — Renders tabs, switches between them, shows correct data
+- [x] UserPicker.test.tsx — Search triggers API call after debounce, renders results, selects user, multi-select mode
+- [x] User detail panel tests — Renders tabs, switches between them, shows correct data
 
 ### 2.7 Exit Criteria
 
-- [ ] User search is debounced (no button)
-- [ ] Columns sortable, status filterable
-- [ ] User detail slide panel shows all 5 tabs with real data
-- [ ] UserPicker works with autocomplete in single and multi-select modes
-- [ ] Force-logout works (revokes all sessions)
-- [ ] All new API endpoints tested
-- [ ] All new frontend components tested
-- [ ] Existing admin tests still pass
+- [x] User search is debounced (no button)
+- [x] Columns sortable, status filterable
+- [x] User detail slide panel shows all 5 tabs with real data
+- [x] UserPicker works with autocomplete in single and multi-select modes
+- [x] Force-logout works (revokes all sessions)
+- [x] All new API endpoints tested
+- [x] All new frontend components tested
+- [x] Existing admin tests still pass
 
 ---
 
@@ -182,9 +182,9 @@ Refactor each page to use shared components. No new features — maintain identi
 
 ### 3.1 Database Migration
 
-- [ ] Migration: Add `archived` column to `feature_flags` table
+- [x] Migration: Add `archived` column to `feature_flags` table
   - `ALTER TABLE feature_flags ADD COLUMN archived BOOLEAN DEFAULT false;`
-- [ ] Migration: Create `announcement_groups` join table for group targeting
+- [x] Migration: Create `announcement_groups` join table for group targeting
   - ```sql
     CREATE TABLE announcement_groups (
       announcement_id UUID REFERENCES announcements(id) ON DELETE CASCADE,
@@ -196,96 +196,96 @@ Refactor each page to use shared components. No new features — maintain identi
 
 ### 3.2 API Changes
 
-- [ ] `GET /admin/feature-flags` — Add to response:
+- [x] `GET /admin/feature-flags` — Add to response:
   - `flights[]` — array of `{id, name}` for flights containing this flag
   - `overrideCount` — number of active overrides
   - Add query params: `archived` (true/false/all, default false), `page`, `per_page`
-- [ ] `PATCH /admin/feature-flags/:key` — New endpoint for updating flag fields:
+- [x] `PATCH /admin/feature-flags/:key` — New endpoint for updating flag fields:
   - Body: `{description?, enabled?, archived?, variants?, staleAt?}`
   - Replaces the overloaded `POST /admin/feature-flags` for updates
-- [ ] `GET /admin/flights` — Add to response:
+- [x] `GET /admin/flights` — Add to response:
   - `targetedUserCount` — estimated number of users reached (group members + direct assignments, deduplicated)
   - Add query params: `page`, `per_page`
-- [ ] `GET /admin/groups` — Add query params: `page`, `per_page`
-- [ ] `GET /admin/groups/:id` — Add pagination for members (`page`, `per_page`)
+- [x] `GET /admin/groups` — Add query params: `page`, `per_page`
+- [x] `GET /admin/groups/:id` — Add pagination for members (`page`, `per_page`)
   - Add `flights[]` — flights this group is assigned to
 
 ### 3.3 Frontend: Navigation Restructure
 
-- [ ] Add "Feature Management" section to sidebar with collapsible sub-nav:
+- [x] Add "Feature Management" section to sidebar with collapsible sub-nav:
   - 🚩 Feature Flags (`/features/flags`)
   - ✈️ Flights (`/features/flights`)
   - 👥 Groups (`/features/groups`)
-- [ ] Update React Router routes accordingly
-- [ ] Redirect old routes (`/feature-flags` → `/features/flags`, etc.)
+- [x] Update React Router routes accordingly
+- [x] Redirect old routes (`/feature-flags` → `/features/flags`, etc.)
 
 ### 3.4 Frontend: Feature Flags Page Upgrade
 
-- [ ] Show flight badges inline on each flag row (clickable → navigates to flight)
-- [ ] Show override count per flag
-- [ ] Stale flag indicator (⚠️ icon when past `stale_at`)
-- [ ] Archived filter toggle (default: hide archived; toggle to show all)
-- [ ] Archive/unarchive action on flag row
-- [ ] Pagination (DataTable, 20 per page)
-- [ ] Replace user ID input in overrides with UserPicker
-- [ ] Add DatePicker for override expiration
+- [x] Show flight badges inline on each flag row (clickable → navigates to flight)
+- [x] Show override count per flag
+- [x] Stale flag indicator (⚠️ icon when past `stale_at`)
+- [x] Archived filter toggle (default: hide archived; toggle to show all)
+- [x] Archive/unarchive action on flag row
+- [x] Pagination (DataTable, 20 per page)
+- [x] Replace user ID input in overrides with UserPicker
+- [x] Add DatePicker for override expiration
 
 ### 3.5 Frontend: Flights Page Upgrade
 
-- [ ] **Flight list** — Visual rollout progress bar, flag count, assignment summary, pagination
-- [ ] **Flight detail page** (`/features/flights/:id`) — Full page layout:
+- [x] **Flight list** — Visual rollout progress bar, flag count, assignment summary, pagination
+- [x] **Flight detail page** (`/features/flights/:id`) — Full page layout:
   - Header: Name, status badge, enable/disable toggle
   - Rollout section: Visual progress bar with slider, estimated reach count
   - Flags section: List of associated flags with enabled/disabled status, add/remove
   - Targeting section: Assigned groups (with member counts), assigned users, add group/user (UserPicker)
   - Badge section: Show badge toggle, badge label input
   - Confirmation on rollout % change (show estimated user impact)
-- [ ] Replace user ID input in assignments with UserPicker
+- [x] Replace user ID input in assignments with UserPicker
 
 ### 3.6 Frontend: Groups Page Upgrade
 
-- [ ] Show flight badges inline (which flights this group is assigned to)
-- [ ] Member count links to member list
-- [ ] Pagination on group list (20 per page)
-- [ ] Paginated member list in group detail
-- [ ] Replace email input with UserPicker for adding members
-- [ ] Confirmation dialog on member removal
+- [x] Show flight badges inline (which flights this group is assigned to)
+- [x] Member count links to member list
+- [x] Pagination on group list (20 per page)
+- [x] Paginated member list in group detail
+- [x] Replace email input with UserPicker for adding members
+- [x] Confirmation dialog on member removal
 
 ### 3.7 Cross-Reference Links
 
-- [ ] Flag row → clickable flight badge → `/features/flights/:id`
-- [ ] Flight detail → clickable group name → group detail
-- [ ] Flight detail → clickable user name → user detail slide panel (on `/users` page)
-- [ ] Group detail → clickable flight badge → `/features/flights/:id`
-- [ ] Override row → clickable user → user detail
-- [ ] User detail Flags tab → clickable flag → `/features/flags` with flag selected
+- [x] Flag row → clickable flight badge → `/features/flights/:id`
+- [x] Flight detail → clickable group name → group detail
+- [x] Flight detail → clickable user name → user detail slide panel (on `/users` page)
+- [x] Group detail → clickable flight badge → `/features/flights/:id`
+- [x] Override row → clickable user → user detail
+- [x] User detail Flags tab → clickable flag → `/features/flags` with flag selected
 
 ### 3.8 Tests
 
 **API tests:**
 
-- [ ] Feature flags: archive/unarchive, filter by archived, pagination, flights in response, override count
-- [ ] Flights: targeted user count estimation, pagination
-- [ ] Groups: pagination, flights-in-response, member pagination
+- [x] Feature flags: archive/unarchive, filter by archived, pagination, flights in response, override count
+- [x] Flights: targeted user count estimation, pagination
+- [x] Groups: pagination, flights-in-response, member pagination
 
 **Admin frontend tests:**
 
-- [ ] Feature flags page: archive toggle, flight badges render, stale indicator, pagination
-- [ ] Flight detail page: renders all sections, rollout slider, add/remove flags, add/remove assignments
-- [ ] Groups page: flight badges, member pagination, UserPicker integration
-- [ ] Navigation: Feature Management sub-nav renders, routes work, old routes redirect
+- [x] Feature flags page: archive toggle, flight badges render, stale indicator, pagination
+- [x] Flight detail page: renders all sections, rollout slider, add/remove flags, add/remove assignments
+- [x] Groups page: flight badges, member pagination, UserPicker integration
+- [x] Navigation: Feature Management sub-nav renders, routes work, old routes redirect
 
 ### 3.9 Exit Criteria
 
-- [ ] Feature Management section with 3 sub-pages in nav
-- [ ] All cross-reference links work (flags ↔ flights ↔ groups ↔ users)
-- [ ] Flight detail page with visual rollout bar and targeting summary
-- [ ] Flag archival works (archive, unarchive, filter)
-- [ ] All list pages paginated
-- [ ] UserPicker replaces all raw ID/email inputs
-- [ ] All new API endpoints tested
-- [ ] All new frontend components tested
-- [ ] Existing tests still pass
+- [x] Feature Management section with 3 sub-pages in nav
+- [x] All cross-reference links work (flags ↔ flights ↔ groups ↔ users)
+- [x] Flight detail page with visual rollout bar and targeting summary
+- [x] Flag archival works (archive, unarchive, filter)
+- [x] All list pages paginated
+- [x] UserPicker replaces all raw ID/email inputs
+- [x] All new API endpoints tested
+- [x] All new frontend components tested
+- [x] Existing tests still pass
 
 ---
 
@@ -295,63 +295,63 @@ Refactor each page to use shared components. No new features — maintain identi
 
 ### 4.1 API Changes
 
-- [ ] `GET /admin/announcements` — Add pagination (`page`, `per_page`)
-- [ ] `POST /admin/announcements` — Add `groupIds[]` field (optional; null = platform-wide)
-- [ ] `PUT /admin/announcements/:id` — Add `groupIds[]` field
-- [ ] `GET /admin/announcements/:id` — New: return single announcement with `groups[]`
-- [ ] `GET /api/announcements` (public) — Filter by user's group membership when announcement has group targeting
-- [ ] `GET /admin/audit-log` — Add `start_date`, `end_date` query params (ISO 8601)
-- [ ] `GET /admin/audit-log?format=csv` — Return CSV download (Content-Type: text/csv)
+- [x] `GET /admin/announcements` — Add pagination (`page`, `per_page`)
+- [x] `POST /admin/announcements` — Add `groupIds[]` field (optional; null = platform-wide)
+- [x] `PUT /admin/announcements/:id` — Add `groupIds[]` field
+- [x] `GET /admin/announcements/:id` — New: return single announcement with `groups[]`
+- [x] `GET /api/announcements` (public) — Filter by user's group membership when announcement has group targeting
+- [x] `GET /admin/audit-log` — Add `start_date`, `end_date` query params (ISO 8601)
+- [x] `GET /admin/audit-log?format=csv` — Return CSV download (Content-Type: text/csv)
 
 ### 4.2 Frontend: Announcements Page Upgrade
 
-- [ ] Pagination (DataTable, 20 per page)
-- [ ] **Markdown preview** — Split view: edit (textarea) on left, rendered preview on right
+- [x] Pagination (DataTable, 20 per page)
+- [x] **Markdown preview** — Split view: edit (textarea) on left, rendered preview on right
   - Use a lightweight markdown renderer (reuse `marked` from web app or add dependency)
-- [ ] **Scheduling UI** — DatePicker for `starts_at` and `ends_at`
-- [ ] **Type selector** — Dropdown: info / warning / critical with color preview badge
-- [ ] **Group targeting** — Multi-select group picker (dropdown of existing groups, or platform-wide)
-- [ ] **Preview** — "Preview as user" button showing how the announcement renders in the notification bar
+- [x] **Scheduling UI** — DatePicker for `starts_at` and `ends_at`
+- [x] **Type selector** — Dropdown: info / warning / critical with color preview badge
+- [x] **Group targeting** — Multi-select group picker (dropdown of existing groups, or platform-wide)
+- [x] **Preview** — "Preview as user" button showing how the announcement renders in the notification bar
 
 ### 4.3 Frontend: Audit Log Page Upgrade
 
-- [ ] **Date range filter** — Two DatePickers: Start date, End date
-- [ ] **User filter** — UserPicker (single-select) to filter by acting admin
-- [ ] **Combined filters** — All filters composable (action + user + date range)
-- [ ] **Formatted details** — Parse JSON details into readable key-value pairs instead of raw JSON
-- [ ] **Entity links** — Link affected entities (user → user detail, flag → flag page, etc.)
-- [ ] **CSV export** — "Export" button that downloads filtered results as CSV
+- [x] **Date range filter** — Two DatePickers: Start date, End date
+- [x] **User filter** — UserPicker (single-select) to filter by acting admin
+- [x] **Combined filters** — All filters composable (action + user + date range)
+- [x] **Formatted details** — Parse JSON details into readable key-value pairs instead of raw JSON
+- [x] **Entity links** — Link affected entities (user → user detail, flag → flag page, etc.)
+- [x] **CSV export** — "Export" button that downloads filtered results as CSV
 
 ### 4.4 Frontend: Dashboard Enhancements
 
-- [ ] **Recent admin actions** — Last 5 audit log entries with quick links
-- [ ] **Stale flags alert** — Count of flags past their `stale_at` date, with link to flags page filtered to stale
-- [ ] **Active announcements** — Count and list of currently active announcements
-- [ ] **Active flights summary** — List of enabled flights with rollout % bars
+- [x] **Recent admin actions** — Last 5 audit log entries with quick links
+- [x] **Stale flags alert** — Count of flags past their `stale_at` date, with link to flags page filtered to stale
+- [x] **Active announcements** — Count and list of currently active announcements
+- [x] **Active flights summary** — List of enabled flights with rollout % bars
 
 ### 4.5 Tests
 
 **API tests:**
 
-- [ ] Announcements: group targeting CRUD, filtered delivery by group membership, pagination
-- [ ] Audit log: date range filtering, CSV export format
-- [ ] Audit log: combined filters (action + user + date)
+- [x] Announcements: group targeting CRUD, filtered delivery by group membership, pagination
+- [x] Audit log: date range filtering, CSV export format
+- [x] Audit log: combined filters (action + user + date)
 
 **Admin frontend tests:**
 
-- [ ] Announcements: markdown preview renders, date picker sets dates, group targeting selector, type dropdown
-- [ ] Audit log: date filter, user filter, formatted details, CSV export button
-- [ ] Dashboard: recent actions render, stale flags alert, active flights summary
+- [x] Announcements: markdown preview renders, date picker sets dates, group targeting selector, type dropdown
+- [x] Audit log: date filter, user filter, formatted details, CSV export button
+- [x] Dashboard: recent actions render, stale flags alert, active flights summary
 
 ### 4.6 Exit Criteria
 
-- [ ] Announcements have markdown preview, scheduling, type selection, and group targeting
-- [ ] Audit log has date range, user filter, formatted details, and CSV export
-- [ ] Dashboard shows recent actions, stale flags, active announcements, and flights summary
-- [ ] All list pages paginated
-- [ ] All new API endpoints tested
-- [ ] All new frontend components tested
-- [ ] Full admin test suite passes (API + frontend)
+- [x] Announcements have markdown preview, scheduling, type selection, and group targeting
+- [x] Audit log has date range, user filter, formatted details, and CSV export
+- [x] Dashboard shows recent actions, stale flags, active announcements, and flights summary
+- [x] All list pages paginated
+- [x] All new API endpoints tested
+- [x] All new frontend components tested
+- [x] Full admin test suite passes (API + frontend)
 
 ---
 
