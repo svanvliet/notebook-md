@@ -41,96 +41,81 @@ export function useCollaboration(
   const providerRef = useRef<HocuspocusProvider | null>(null);
   const ydocRef = useRef<Y.Doc | null>(null);
 
+  // Stable token fetcher — called on each connection/reconnection attempt
+  const fetchToken = useCallback(async (): Promise<string> => {
+    const res = await fetch(`${API_BASE}/auth/collab-token`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to get collaboration token');
+    const data = await res.json();
+    return data.token;
+  }, []);
+
   useEffect(() => {
     if (!notebookId || !documentPath || !collabEnabled) {
       return;
     }
 
-    let cancelled = false;
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
 
-    async function connect() {
-      // Fetch a short-lived collab token from the API
-      let token: string;
-      try {
-        const res = await fetch(`${API_BASE}/auth/collab-token`, { credentials: 'include' });
-        if (!res.ok) {
-          setError('Failed to get collaboration token');
-          return;
-        }
-        const data = await res.json();
-        token = data.token;
-      } catch {
-        setError('Failed to connect to collaboration server');
-        return;
-      }
+    const documentName = `notebook:${notebookId}:file:${encodeURIComponent(documentPath!)}`;
 
-      if (cancelled) return;
+    // Determine WebSocket URL
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = API_BASE
+      ? `${wsProtocol}//${new URL(API_BASE).host}/collab`
+      : `${wsProtocol}//${window.location.host}/collab`;
 
-      const ydoc = new Y.Doc();
-      ydocRef.current = ydoc;
-
-      const documentName = `notebook:${notebookId}:file:${encodeURIComponent(documentPath!)}`;
-
-      // Determine WebSocket URL
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = API_BASE
-        ? `${wsProtocol}//${new URL(API_BASE).host}/collab`
-        : `${wsProtocol}//${window.location.host}/collab`;
-
-      const provider = new HocuspocusProvider({
-        url: wsUrl,
-        name: documentName,
-        document: ydoc,
-        token,
-        onConnect() {
-          setIsConnected(true);
-          setError(null);
-        },
-        onDisconnect() {
-          setIsConnected(false);
-        },
-        onSynced() {
-          setIsSynced(true);
-        },
-        onAuthenticationFailed({ reason }) {
-          setError(reason || 'Authentication failed');
-          setIsConnected(false);
-        },
-        onAwarenessUpdate({ states }) {
-          const users: CollabUser[] = [];
-          states.forEach((state: Record<string, unknown>) => {
-            if (state.user) {
-              const u = state.user as CollabUser;
-              users.push(u);
-            }
-          });
-          // Only update state if the user list actually changed (avoid re-render loops)
-          setConnectedUsers(prev => {
-            if (prev.length === users.length && prev.every((u, i) => u.id === users[i]?.id)) {
-              return prev;
-            }
-            return users;
-          });
-        },
-      });
-
-      // Set awareness (current user)
-      if (currentUser) {
-        provider.setAwarenessField('user', {
-          name: currentUser.name,
-          color: currentUser.color || '#3B82F6',
+    const provider = new HocuspocusProvider({
+      url: wsUrl,
+      name: documentName,
+      document: ydoc,
+      // Async token function — fetches a fresh token on each connect/reconnect
+      token: fetchToken,
+      onConnect() {
+        setIsConnected(true);
+        setError(null);
+      },
+      onDisconnect() {
+        setIsConnected(false);
+      },
+      onSynced() {
+        setIsSynced(true);
+      },
+      onAuthenticationFailed({ reason }) {
+        setError(reason || 'Authentication failed');
+        setIsConnected(false);
+      },
+      onAwarenessUpdate({ states }) {
+        const users: CollabUser[] = [];
+        states.forEach((state: Record<string, unknown>) => {
+          if (state.user) {
+            const u = state.user as CollabUser;
+            users.push(u);
+          }
         });
-      }
+        // Only update state if the user list actually changed (avoid re-render loops)
+        setConnectedUsers(prev => {
+          if (prev.length === users.length && prev.every((u, i) => u.id === users[i]?.id)) {
+            return prev;
+          }
+          return users;
+        });
+      },
+    });
 
-      providerRef.current = provider;
+    // Set awareness (current user)
+    if (currentUser) {
+      provider.setAwarenessField('user', {
+        name: currentUser.name,
+        color: currentUser.color || '#3B82F6',
+      });
     }
 
-    connect();
+    providerRef.current = provider;
 
     return () => {
-      cancelled = true;
-      providerRef.current?.destroy();
-      ydocRef.current?.destroy();
+      provider.destroy();
+      ydoc.destroy();
       providerRef.current = null;
       ydocRef.current = null;
       setIsConnected(false);
@@ -138,7 +123,7 @@ export function useCollaboration(
       setConnectedUsers([]);
       setError(null);
     };
-  }, [notebookId, documentPath, collabEnabled]);
+  }, [notebookId, documentPath, collabEnabled, fetchToken]);
 
   // Collab is being attempted when we have a doc to connect to AND the flag is on
   const isAttempting = !!(notebookId && documentPath && collabEnabled);
