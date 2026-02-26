@@ -416,4 +416,34 @@ describe('Admin Console API', () => {
       expect(logoutEntries.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  // ── Flag Archival ───────────────────────────────────────────────────────
+
+  describe('Flag archival', () => {
+    it('should archive a flag', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      await request.post('/admin/feature-flags').set('Cookie', cookies)
+        .send({ key: 'archive_test', enabled: true, description: 'Test' }).expect(200);
+      await request.post('/admin/feature-flags/archive_test/archive').set('Cookie', cookies)
+        .send({ archived: true }).expect(200);
+      // Should not appear in default list
+      const res = await request.get('/admin/feature-flags').set('Cookie', cookies).expect(200);
+      expect(res.body.flags.find((f: any) => f.key === 'archive_test')).toBeUndefined();
+      // Should appear in archived list
+      const archived = await request.get('/admin/feature-flags?archived=true').set('Cookie', cookies).expect(200);
+      expect(archived.body.flags.find((f: any) => f.key === 'archive_test')).toBeDefined();
+    });
+
+    it('should unarchive a flag', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      await request.post('/admin/feature-flags').set('Cookie', cookies)
+        .send({ key: 'unarchive_test', enabled: false, description: 'Test' }).expect(200);
+      await request.post('/admin/feature-flags/unarchive_test/archive').set('Cookie', cookies)
+        .send({ archived: true }).expect(200);
+      await request.post('/admin/feature-flags/unarchive_test/archive').set('Cookie', cookies)
+        .send({ archived: false }).expect(200);
+      const res = await request.get('/admin/feature-flags').set('Cookie', cookies).expect(200);
+      expect(res.body.flags.find((f: any) => f.key === 'unarchive_test')).toBeDefined();
+    });
+  });
 });

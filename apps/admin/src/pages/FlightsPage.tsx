@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Flight, FlightAssignment, FeatureFlag, UserGroup } from '../hooks/useAdmin';
-import { PageHeader, Button, DataTable, SlidePanel, ConfirmDialog, FormField, Badge, useToast, type Column } from '../components/ui';
+import type { UserOption } from '../components/ui/UserPicker';
+import { PageHeader, Button, DataTable, SlidePanel, ConfirmDialog, FormField, Badge, useToast, UserPicker, type Column } from '../components/ui';
 
 interface FlightsPageProps {
   getFlights: () => Promise<{ flights: Flight[] }>;
@@ -14,14 +16,16 @@ interface FlightsPageProps {
   removeFlightAssignment: (flightId: string, assignmentId: string) => Promise<{ message: string }>;
   getFeatureFlags: () => Promise<{ flags: FeatureFlag[] }>;
   getGroups: () => Promise<{ groups: UserGroup[] }>;
+  searchUsers: (q: string) => Promise<UserOption[]>;
 }
 
 export default function FlightsPage({
   getFlights, createFlight, getFlight, updateFlight, deleteFlight,
   addFlightFlags, removeFlightFlag, assignToFlight, removeFlightAssignment,
-  getFeatureFlags, getGroups,
+  getFeatureFlags, getGroups, searchUsers,
 }: FlightsPageProps) {
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [flights, setFlights] = useState<Flight[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -39,7 +43,6 @@ export default function FlightsPage({
   const [allFlags, setAllFlags] = useState<FeatureFlag[]>([]);
   const [allGroups, setAllGroups] = useState<UserGroup[]>([]);
   const [addFlagKey, setAddFlagKey] = useState('');
-  const [assignUserId, setAssignUserId] = useState('');
   const [assignGroupId, setAssignGroupId] = useState('');
 
   // Confirm dialogs
@@ -129,12 +132,10 @@ export default function FlightsPage({
     }
   };
 
-  const handleAssignUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assignUserId.trim() || !selectedId) return;
+  const handleAssignUser = async (userId: string) => {
+    if (!userId.trim() || !selectedId) return;
     try {
-      await assignToFlight(selectedId, { userId: assignUserId.trim() });
-      setAssignUserId('');
+      await assignToFlight(selectedId, { userId: userId.trim() });
       addToast('User assigned', 'success');
       loadDetail(selectedId);
       load();
@@ -182,7 +183,14 @@ export default function FlightsPage({
       header: 'Status',
       render: (f) => <Badge variant={f.enabled ? 'success' : 'neutral'}>{f.enabled ? 'Active' : 'Disabled'}</Badge>,
     },
-    { key: 'rollout', header: 'Rollout', render: (f) => <span className="text-xs font-mono">{f.rolloutPercentage}%</span> },
+    { key: 'rollout', header: 'Rollout', render: (f) => (
+      <div className="flex items-center gap-2">
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${f.rolloutPercentage}%` }}></div>
+        </div>
+        <span className="text-xs font-mono shrink-0">{f.rolloutPercentage}%</span>
+      </div>
+    )},
     { key: 'flagCount', header: 'Flags', render: (f) => f.flagCount },
     { key: 'assignmentCount', header: 'Assignments', render: (f) => f.assignmentCount },
     {
@@ -282,7 +290,12 @@ export default function FlightsPage({
               <div className="space-y-1 mb-2">
                 {detail.flags.map(fk => (
                   <div key={fk} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded">
-                    <span className="font-mono">{fk}</span>
+                    <span
+                      className="font-mono text-blue-600 hover:underline cursor-pointer"
+                      onClick={() => navigate('/feature-flags')}
+                    >
+                      {fk}
+                    </span>
                     <Button variant="ghost" size="sm" onClick={() => handleRemoveFlag(fk)}>✕</Button>
                   </div>
                 ))}
@@ -309,10 +322,14 @@ export default function FlightsPage({
               </div>
 
               {/* Assign user */}
-              <form onSubmit={handleAssignUser} className="flex gap-2 mb-2">
-                <input value={assignUserId} onChange={e => setAssignUserId(e.target.value)} placeholder="User ID" className="border border-gray-300 rounded px-2 py-1 text-xs flex-1" />
-                <Button type="submit" size="sm">+ User</Button>
-              </form>
+              <FormField label="Add user">
+                <UserPicker
+                  searchUsers={searchUsers}
+                  onSelect={(user: UserOption) => handleAssignUser(user.id)}
+                  placeholder="Search for user…"
+                  excludeIds={detail.assignments.filter(a => a.userId).map(a => a.userId!)}
+                />
+              </FormField>
 
               {/* Assign group */}
               <form onSubmit={handleAssignGroup} className="flex gap-2">

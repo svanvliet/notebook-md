@@ -423,15 +423,46 @@ router.get('/audit-log', async (req: Request, res: Response) => {
 
 // ── Feature Flags ────────────────────────────────────────────────────────────
 
-router.get('/feature-flags', async (_req: Request, res: Response) => {
-  const result = await query<{
-    key: string;
-    enabled: boolean;
-    description: string | null;
-    variants: string[] | null;
-    stale_at: Date | null;
-    updated_at: Date;
-  }>('SELECT key, enabled, description, variants, stale_at, updated_at FROM feature_flags ORDER BY key');
+router.get('/feature-flags', async (req: Request, res: Response) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const perPage = Math.min(100, Math.max(1, Number(req.query.per_page) || 20));
+  const offset = (page - 1) * perPage;
+  const archivedParam = (req.query.archived as string) || 'false';
+
+  let archivedCondition = 'WHERE f.archived = false';
+  if (archivedParam === 'true') archivedCondition = 'WHERE f.archived = true';
+  else if (archivedParam === 'all') archivedCondition = '';
+
+  const [result, total, flightLinks] = await Promise.all([
+    query<{
+      key: string;
+      enabled: boolean;
+      description: string | null;
+      variants: string[] | null;
+      stale_at: Date | null;
+      archived: boolean;
+      updated_at: Date;
+    }>(
+      `SELECT f.key, f.enabled, f.description, f.variants, f.stale_at, f.archived, f.updated_at
+       FROM feature_flags f ${archivedCondition}
+       ORDER BY f.key
+       LIMIT $1 OFFSET $2`,
+      [perPage, offset],
+    ),
+    query<{ count: string }>(`SELECT count(*) FROM feature_flags f ${archivedCondition}`),
+    query<{ flag_key: string; flight_id: string; flight_name: string }>(
+      `SELECT ff.flag_key, fl.id as flight_id, fl.name as flight_name
+       FROM flight_flags ff
+       JOIN flights fl ON fl.id = ff.flight_id`,
+    ),
+  ]);
+
+  const flightsByFlag = new Map<string, { id: string; name: string }[]>();
+  for (const row of flightLinks.rows) {
+    const arr = flightsByFlag.get(row.flag_key) ?? [];
+    arr.push({ id: row.flight_id, name: row.flight_name });
+    flightsByFlag.set(row.flag_key, arr);
+  }
 
   res.json({
     flags: result.rows.map(f => ({
@@ -440,8 +471,16 @@ router.get('/feature-flags', async (_req: Request, res: Response) => {
       description: f.description,
       variants: f.variants,
       staleAt: f.stale_at,
+      archived: f.archived,
       updatedAt: f.updated_at,
+      flights: flightsByFlag.get(f.key) ?? [],
     })),
+    pagination: {
+      page,
+      perPage,
+      total: Number(total.rows[0].count),
+      totalPages: Math.ceil(Number(total.rows[0].count) / perPage),
+    },
   });
 });
 
@@ -471,6 +510,40 @@ router.post('/feature-flags', async (req: Request, res: Response) => {
   });
 
   res.json({ message: 'Feature flag saved' });
+});
+
+// ── Feature Flag Archival ─────────────────────────────────────────────────────
+
+router.post('/feature-flags/:key/archive', async (req: Request, res: Response) => {
+  const { archived } = req.body;
+  const flagKey = req.params.key;
+
+  if (typeof archived !== 'boolean') {
+    res.status(400).json({ error: 'archived (boolean) is required' });
+    return;
+  }
+
+  const result = await query(
+    'UPDATE feature_flags SET archived = $1, updated_at = now() WHERE key = $2',
+    [archived, flagKey],
+  );
+
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Flag not found' });
+    return;
+  }
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: archived ? 'feature_flag_archived' : 'feature_flag_unarchived', key: flagKey },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: archived ? 'Flag archived' : 'Flag unarchived' });
 });
 
 // ── Feature Flag Overrides ────────────────────────────────────────────────────
@@ -587,21 +660,30 @@ router.get('/users/:id/flags', async (req: Request, res: Response) => {
 
 // ── Groups ───────────────────────────────────────────────────────────────────
 
-router.get('/groups', async (_req: Request, res: Response) => {
-  const result = await query<{
-    id: string;
-    name: string;
-    description: string | null;
-    allow_self_enroll: boolean;
-    email_domain: string | null;
-    created_at: Date;
-    member_count: string;
-  }>(
-    `SELECT g.id, g.name, g.description, g.allow_self_enroll, g.email_domain, g.created_at,
-            (SELECT count(*) FROM user_group_members ugm WHERE ugm.group_id = g.id) as member_count
-     FROM user_groups g
-     ORDER BY g.name`,
-  );
+router.get('/groups', async (req: Request, res: Response) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const perPage = Math.min(100, Math.max(1, Number(req.query.per_page) || 20));
+  const offset = (page - 1) * perPage;
+
+  const [result, total] = await Promise.all([
+    query<{
+      id: string;
+      name: string;
+      description: string | null;
+      allow_self_enroll: boolean;
+      email_domain: string | null;
+      created_at: Date;
+      member_count: string;
+    }>(
+      `SELECT g.id, g.name, g.description, g.allow_self_enroll, g.email_domain, g.created_at,
+              (SELECT count(*) FROM user_group_members ugm WHERE ugm.group_id = g.id) as member_count
+       FROM user_groups g
+       ORDER BY g.name
+       LIMIT $1 OFFSET $2`,
+      [perPage, offset],
+    ),
+    query<{ count: string }>('SELECT count(*) FROM user_groups'),
+  ]);
 
   res.json({
     groups: result.rows.map(g => ({
@@ -613,6 +695,12 @@ router.get('/groups', async (_req: Request, res: Response) => {
       createdAt: g.created_at,
       memberCount: Number(g.member_count),
     })),
+    pagination: {
+      page,
+      perPage,
+      total: Number(total.rows[0].count),
+      totalPages: Math.ceil(Number(total.rows[0].count) / perPage),
+    },
   });
 });
 
