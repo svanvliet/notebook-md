@@ -34,9 +34,9 @@ Build in 6 phases, each independently testable and committable:
 
 **Goal:** Set up all infra prerequisites so the feature is flag-gated and configurable before any logic lands.
 
-### 1.1 Database Migration (`011_ai-feature-flags.sql`)
+### 1.1 Database Migration (`012_ai-feature-flags.sql`)
 
-**File:** `apps/api/migrations/011_ai-feature-flags.sql`
+**File:** `apps/api/migrations/012_ai-feature-flags.sql`
 
 ```sql
 -- Seed AI feature flags
@@ -80,7 +80,7 @@ npm -w apps/api install @azure-rest/ai-inference
 ```
 feat(ai): add feature flags and env config for AI generation
 
-- Migration 011: seed ai_content_generation and ai_unlimited_generations flags
+- Migration 012: seed ai_content_generation and ai_unlimited_generations flags
 - Add Azure AI env vars to .env.example
 - Install @azure-rest/ai-inference SDK
 ```
@@ -747,7 +747,7 @@ The API container runs pending migrations on startup. Verify:
 ```bash
 # Check Container App logs
 az containerapp logs show --name api --resource-group <rg> --follow
-# Look for: "Migration 011_ai-feature-flags.sql applied"
+# Look for: "Migration 012_ai-feature-flags.sql applied"
 ```
 
 #### 6. Staged rollout
