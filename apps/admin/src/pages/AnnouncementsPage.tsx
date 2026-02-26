@@ -2,6 +2,15 @@ import { useEffect, useState, useMemo } from 'react';
 import type { Announcement } from '../hooks/useAdmin';
 import { PageHeader, Button, DataTable, ConfirmDialog, FormField, Badge, useToast, type Column } from '../components/ui';
 
+function simpleMarkdown(text: string): string {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-600 underline">$1</a>')
+    .replace(/\n/g, '<br>');
+}
+
 export default function AnnouncementsPage({
   getAnnouncements,
   createAnnouncement,
@@ -115,13 +124,20 @@ export default function AnnouncementsPage({
       render: (a) => {
         if (editing?.id === a.id) {
           return (
-            <textarea
-              value={editing.body}
-              onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-              rows={2}
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full"
-              onClick={(e) => e.stopPropagation()}
-            />
+            <div className="flex gap-2">
+              <textarea
+                value={editing.body}
+                onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+                rows={2}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full flex-1"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div
+                className="flex-1 border border-gray-200 rounded-md px-3 py-1.5 text-sm bg-gray-50 overflow-auto"
+                style={{ minHeight: '3rem' }}
+                dangerouslySetInnerHTML={{ __html: simpleMarkdown(editing.body) }}
+              />
+            </div>
           );
         }
         return <span className="text-sm text-gray-600">{a.body}</span>;
@@ -184,13 +200,22 @@ export default function AnnouncementsPage({
             />
           </FormField>
           <FormField label="Body" className="mb-2">
-            <textarea
-              value={newBody}
-              onChange={(e) => setNewBody(e.target.value)}
-              placeholder="Body (Markdown supported)"
-              rows={3}
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full"
-            />
+            <div className="flex gap-4">
+              <textarea
+                value={newBody}
+                onChange={(e) => setNewBody(e.target.value)}
+                placeholder="Body (Markdown supported)"
+                rows={3}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full flex-1"
+              />
+              <div className="flex-1 border border-gray-200 rounded-md px-3 py-1.5 text-sm bg-gray-50 overflow-auto" style={{ minHeight: '4.5rem' }}>
+                {newBody ? (
+                  <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(newBody) }} />
+                ) : (
+                  <span className="text-gray-400">Preview</span>
+                )}
+              </div>
+            </div>
           </FormField>
           <Button type="submit" loading={creating}>Create</Button>
         </form>
