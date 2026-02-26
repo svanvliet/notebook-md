@@ -233,4 +233,187 @@ describe('Admin Console API', () => {
       expect(res.body.entries.every((e: { action: string }) => e.action === 'sign_up')).toBe(true);
     });
   });
+
+  // ── Phase 2: Enhanced User Management ──────────────────────────────────
+
+  describe('User sort/filter', () => {
+    it('should sort users by email ascending', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      await createTestUser('alice@test.com');
+      await createTestUser('bob@test.com');
+      const res = await request
+        .get('/admin/users?sort=email&order=asc')
+        .set('Cookie', cookies)
+        .expect(200);
+      const emails = res.body.users.map((u: { email: string }) => u.email);
+      expect(emails).toEqual([...emails].sort());
+    });
+
+    it('should sort users by name descending', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      await createTestUser('user1@test.com');
+      const res = await request
+        .get('/admin/users?sort=name&order=desc')
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.users.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should filter by suspended status', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId } = await createTestUser('suspended@test.com');
+      await query('UPDATE users SET is_suspended = true WHERE id = $1', [userId]);
+      const res = await request
+        .get('/admin/users?status=suspended')
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.users.every((u: { isSuspended: boolean }) => u.isSuspended)).toBe(true);
+      expect(res.body.users.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should filter active users only', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId } = await createTestUser('tosuspend@test.com');
+      await query('UPDATE users SET is_suspended = true WHERE id = $1', [userId]);
+      await createTestUser('active@test.com');
+      const res = await request
+        .get('/admin/users?status=active')
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.users.every((u: { isSuspended: boolean }) => !u.isSuspended)).toBe(true);
+    });
+
+    it('should fallback to default sort for invalid column', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const res = await request
+        .get('/admin/users?sort=invalid_column')
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.users.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('User search autocomplete', () => {
+    it('should search users by email prefix', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      await createTestUser('searchable@test.com');
+      const res = await request
+        .get('/admin/users/search?q=search')
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+      expect(res.body[0]).toHaveProperty('id');
+      expect(res.body[0]).toHaveProperty('email');
+      expect(res.body[0]).toHaveProperty('displayName');
+    });
+
+    it('should return max 10 results', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      for (let i = 0; i < 12; i++) {
+        await createTestUser(`batch${i}@test.com`);
+      }
+      const res = await request
+        .get('/admin/users/search?q=batch')
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.length).toBeLessThanOrEqual(10);
+    });
+
+    it('should require min 2 character query', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      await request
+        .get('/admin/users/search?q=a')
+        .set('Cookie', cookies)
+        .expect(400);
+    });
+  });
+
+  describe('Enriched user detail', () => {
+    it('should include lastActiveAt in user detail', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId } = await createTestUser('detail@test.com');
+      await query('UPDATE users SET last_active_at = now() WHERE id = $1', [userId]);
+      const res = await request
+        .get(`/admin/users/${userId}`)
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.user.lastActiveAt).toBeDefined();
+    });
+
+    it('should include groups in user detail', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId } = await createTestUser('grouped@test.com');
+      // Create a group and add the user
+      const gRes = await request
+        .post('/admin/groups')
+        .set('Cookie', cookies)
+        .send({ name: 'Test Group', description: 'For testing' })
+        .expect(201);
+      const groupId = gRes.body.id;
+      await request
+        .post(`/admin/groups/${groupId}/members`)
+        .set('Cookie', cookies)
+        .send({ userIds: [userId] })
+        .expect(200);
+      const res = await request
+        .get(`/admin/users/${userId}`)
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.groups).toBeDefined();
+      expect(res.body.groups.length).toBe(1);
+      expect(res.body.groups[0].name).toBe('Test Group');
+    });
+
+    it('should include resolvedFlags in user detail', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId } = await createTestUser('flagged@test.com');
+      // Create a feature flag
+      await request
+        .post('/admin/feature-flags')
+        .set('Cookie', cookies)
+        .send({ key: 'test_detail_flag', enabled: true, description: 'Test flag' })
+        .expect(200);
+      const res = await request
+        .get(`/admin/users/${userId}`)
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.resolvedFlags).toBeDefined();
+      expect(typeof res.body.resolvedFlags).toBe('object');
+    });
+  });
+
+  describe('Force logout', () => {
+    it('should revoke all sessions for a user', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId, cookies: userCookies } = await createTestUser('logout@test.com');
+      const res = await request
+        .post(`/admin/users/${userId}/logout`)
+        .set('Cookie', cookies)
+        .expect(200);
+      expect(res.body.message).toContain('revoked');
+      expect(res.body.count).toBeGreaterThanOrEqual(1);
+      // Verify user's session is invalid
+      await request
+        .get('/auth/me')
+        .set('Cookie', userCookies)
+        .expect(401);
+    });
+
+    it('should audit log force-logout action', async () => {
+      const cookies = await createTestAdmin().then(r => r.cookies);
+      const { userId } = await createTestUser('auditlogout@test.com');
+      await request
+        .post(`/admin/users/${userId}/logout`)
+        .set('Cookie', cookies)
+        .expect(200);
+      const logRes = await request
+        .get('/admin/audit-log?action=admin_action')
+        .set('Cookie', cookies)
+        .expect(200);
+      const logoutEntries = logRes.body.entries.filter(
+        (e: { details: { type?: string } }) => e.details?.type === 'user_force_logout'
+      );
+      expect(logoutEntries.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

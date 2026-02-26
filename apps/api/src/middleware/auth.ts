@@ -57,6 +57,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   // Update last_active_at (fire-and-forget, don't block the request)
   query('UPDATE sessions SET last_active_at = now() WHERE id = $1', [session.id]).catch(() => {});
+  query('UPDATE users SET last_active_at = now() WHERE id = $1', [session.userId]).catch(() => {});
 
   next();
 }

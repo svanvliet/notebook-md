@@ -9,3 +9,4 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { PageHeader } from './PageHeader';
 export { SlidePanel } from './SlidePanel';
 export { ToastProvider, useToast } from './Toast';
+export { UserPicker } from './UserPicker';

@@ -4,7 +4,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: string | (() => ReactNode);
   sortable?: boolean;
   render: (row: T) => ReactNode;
   className?: string;
@@ -57,7 +57,7 @@ export function DataTable<T>({
                   onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
                 >
                   <span className="inline-flex items-center gap-1">
-                    {col.header}
+                    {typeof col.header === 'function' ? col.header() : col.header}
                     {col.sortable && sortKey === col.key && (
                       <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                     )}

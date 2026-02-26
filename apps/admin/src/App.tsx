@@ -62,6 +62,8 @@ export default function App() {
                 getUser={admin.getUser}
                 updateUser={admin.updateUser}
                 deleteUser={admin.deleteUser}
+                searchUsers={admin.searchUsers}
+                forceLogout={admin.forceLogout}
               />
             }
           />
