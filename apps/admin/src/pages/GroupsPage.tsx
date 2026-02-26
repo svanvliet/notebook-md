@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { UserGroup, GroupMember } from '../hooks/useAdmin';
+import { PageHeader, Button, DataTable, SlidePanel, ConfirmDialog, FormField, Badge, useToast, type Column } from '../components/ui';
 
 interface GroupsPageProps {
   getGroups: () => Promise<{ groups: UserGroup[] }>;
@@ -14,8 +15,11 @@ interface GroupsPageProps {
 export default function GroupsPage({
   getGroups, createGroup, getGroup, updateGroup, deleteGroup, addGroupMembers, removeGroupMember,
 }: GroupsPageProps) {
+  const { addToast } = useToast();
   const [groups, setGroups] = useState<UserGroup[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDomain, setNewDomain] = useState('');
@@ -25,8 +29,18 @@ export default function GroupsPage({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ group: UserGroup; members: GroupMember[] } | null>(null);
   const [addUserId, setAddUserId] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
 
-  const load = () => getGroups().then(d => setGroups(d.groups));
+  // Confirm dialogs
+  const [deleteTarget, setDeleteTarget] = useState<UserGroup | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<GroupMember | null>(null);
+  const [removingMember, setRemovingMember] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    getGroups().then(d => setGroups(d.groups)).finally(() => setLoading(false));
+  };
   useEffect(() => { load(); }, [getGroups]);
 
   const loadDetail = (id: string) => {
@@ -37,113 +51,157 @@ export default function GroupsPage({
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    await createGroup({
-      name: newName.trim(),
-      description: newDesc.trim() || undefined,
-      emailDomain: newDomain.trim() || undefined,
-      allowSelfEnroll: newSelfEnroll,
-    });
-    setNewName(''); setNewDesc(''); setNewDomain(''); setNewSelfEnroll(false);
-    setShowCreate(false);
-    load();
+    setCreating(true);
+    try {
+      await createGroup({
+        name: newName.trim(),
+        description: newDesc.trim() || undefined,
+        emailDomain: newDomain.trim() || undefined,
+        allowSelfEnroll: newSelfEnroll,
+      });
+      setNewName(''); setNewDesc(''); setNewDomain(''); setNewSelfEnroll(false);
+      setShowCreate(false);
+      addToast('Group created', 'success');
+      load();
+    } catch {
+      addToast('Failed to create group', 'error');
+    } finally {
+      setCreating(false);
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this group? This will remove all members and flight assignments.')) return;
-    await deleteGroup(id);
-    if (selectedId === id) { setSelectedId(null); setDetail(null); }
-    load();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteGroup(deleteTarget.id);
+      if (selectedId === deleteTarget.id) { setSelectedId(null); setDetail(null); }
+      addToast('Group deleted', 'success');
+      load();
+    } catch {
+      addToast('Failed to delete group', 'error');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addUserId.trim() || !selectedId) return;
-    await addGroupMembers(selectedId, [addUserId.trim()]);
-    setAddUserId('');
-    loadDetail(selectedId);
-    load();
+    setAddingMember(true);
+    try {
+      await addGroupMembers(selectedId, [addUserId.trim()]);
+      setAddUserId('');
+      addToast('Member added', 'success');
+      loadDetail(selectedId);
+      load();
+    } catch {
+      addToast('Failed to add member', 'error');
+    } finally {
+      setAddingMember(false);
+    }
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    if (!selectedId) return;
-    await removeGroupMember(selectedId, userId);
-    loadDetail(selectedId);
-    load();
+  const handleRemoveMember = async () => {
+    if (!selectedId || !removeMemberTarget) return;
+    setRemovingMember(true);
+    try {
+      await removeGroupMember(selectedId, removeMemberTarget.userId);
+      addToast('Member removed', 'success');
+      loadDetail(selectedId);
+      load();
+    } catch {
+      addToast('Failed to remove member', 'error');
+    } finally {
+      setRemovingMember(false);
+      setRemoveMemberTarget(null);
+    }
   };
 
   const handleToggleSelfEnroll = async (group: UserGroup) => {
-    await updateGroup(group.id, { allowSelfEnroll: !group.allowSelfEnroll });
-    load();
-    if (selectedId === group.id) loadDetail(group.id);
+    try {
+      await updateGroup(group.id, { allowSelfEnroll: !group.allowSelfEnroll });
+      addToast(`Self-enrollment ${group.allowSelfEnroll ? 'disabled' : 'enabled'}`, 'success');
+      load();
+      if (selectedId === group.id) loadDetail(group.id);
+    } catch {
+      addToast('Failed to update group', 'error');
+    }
   };
+
+  const columns = useMemo<Column<UserGroup>[]>(() => [
+    { key: 'name', header: 'Name', render: (g) => <span className="font-medium">{g.name}</span> },
+    { key: 'emailDomain', header: 'Domain', render: (g) => <span className="text-gray-500 text-xs font-mono">{g.emailDomain || '—'}</span> },
+    { key: 'memberCount', header: 'Members', render: (g) => g.memberCount },
+    {
+      key: 'allowSelfEnroll',
+      header: 'Self-Enroll',
+      render: (g) => (
+        <Badge
+          variant={g.allowSelfEnroll ? 'success' : 'neutral'}
+          onClick={() => handleToggleSelfEnroll(g)}
+        >
+          {g.allowSelfEnroll ? 'Yes' : 'No'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (g) => (
+        <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteTarget(g); }}>
+          Delete
+        </Button>
+      ),
+    },
+  ], [selectedId]);
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Groups</h2>
-        <button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-blue-700">
-          + New Group
-        </button>
-      </div>
+      <PageHeader
+        title="Groups"
+        actions={<Button onClick={() => setShowCreate(!showCreate)}>+ New Group</Button>}
+      />
 
       {showCreate && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Group name" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm" required />
-            <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optional)" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm" />
-            <input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="Email domain (e.g. example.com)" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm" />
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={newSelfEnroll} onChange={e => setNewSelfEnroll(e.target.checked)} />
-              Allow self-enrollment
-            </label>
+            <FormField label="Group name" required>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Group name" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full" required />
+            </FormField>
+            <FormField label="Description">
+              <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optional)" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full" />
+            </FormField>
+            <FormField label="Email domain">
+              <input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="e.g. example.com" className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full" />
+            </FormField>
+            <FormField label="Self-enrollment">
+              <label className="flex items-center gap-2 text-sm mt-1">
+                <input type="checkbox" checked={newSelfEnroll} onChange={e => setNewSelfEnroll(e.target.checked)} />
+                Allow self-enrollment
+              </label>
+            </FormField>
           </div>
-          <button type="submit" className="bg-green-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-green-700">Create</button>
+          <Button type="submit" loading={creating}>Create</Button>
         </form>
       )}
 
-      <div className="flex gap-6">
-        {/* Groups list */}
-        <div className="flex-1">
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            {groups.length === 0 ? (
-              <p className="text-gray-500 text-sm p-4">No groups created yet.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-medium">Name</th>
-                    <th className="text-left px-4 py-2 font-medium">Domain</th>
-                    <th className="text-left px-4 py-2 font-medium">Members</th>
-                    <th className="text-left px-4 py-2 font-medium">Self-Enroll</th>
-                    <th className="text-left px-4 py-2 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map(g => (
-                    <tr key={g.id} className={`border-b last:border-b-0 hover:bg-gray-50 cursor-pointer ${selectedId === g.id ? 'bg-blue-50' : ''}`} onClick={() => loadDetail(g.id)}>
-                      <td className="px-4 py-2 font-medium">{g.name}</td>
-                      <td className="px-4 py-2 text-gray-500 text-xs font-mono">{g.emailDomain || '—'}</td>
-                      <td className="px-4 py-2">{g.memberCount}</td>
-                      <td className="px-4 py-2">
-                        <button onClick={e => { e.stopPropagation(); handleToggleSelfEnroll(g); }} className={`text-xs px-2 py-0.5 rounded-full ${g.allowSelfEnroll ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {g.allowSelfEnroll ? 'Yes' : 'No'}
-                        </button>
-                      </td>
-                      <td className="px-4 py-2">
-                        <button onClick={e => { e.stopPropagation(); handleDelete(g.id); }} className="text-red-600 text-xs hover:underline">Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+      <DataTable
+        columns={columns}
+        data={groups}
+        keyField="id"
+        loading={loading}
+        emptyIcon="👥"
+        emptyMessage="No groups created yet."
+        onRowClick={(g) => loadDetail(g.id)}
+        selectedKey={selectedId}
+      />
 
-        {/* Detail panel */}
+      {/* Detail panel */}
+      <SlidePanel open={!!detail} onClose={() => { setSelectedId(null); setDetail(null); }} title={detail?.group.name ?? 'Group Details'}>
         {detail && (
-          <div className="w-80 bg-white border border-gray-200 rounded-lg p-4">
-            <h3 className="font-semibold mb-1">{detail.group.name}</h3>
+          <>
             {detail.group.description && <p className="text-sm text-gray-500 mb-3">{detail.group.description}</p>}
             {detail.group.emailDomain && <p className="text-xs text-gray-400 mb-3">Domain: <span className="font-mono">{detail.group.emailDomain}</span></p>}
 
@@ -152,7 +210,7 @@ export default function GroupsPage({
               {detail.members.map(m => (
                 <div key={m.userId} className="flex items-center justify-between py-1 text-xs">
                   <span className="truncate">{m.email}</span>
-                  <button onClick={() => handleRemoveMember(m.userId)} className="text-red-500 hover:underline ml-2 shrink-0">✕</button>
+                  <Button variant="ghost" size="sm" onClick={() => setRemoveMemberTarget(m)}>✕</Button>
                 </div>
               ))}
               {detail.members.length === 0 && <p className="text-gray-400 text-xs">No members yet</p>}
@@ -160,11 +218,33 @@ export default function GroupsPage({
 
             <form onSubmit={handleAddMember} className="flex gap-2">
               <input value={addUserId} onChange={e => setAddUserId(e.target.value)} placeholder="Email address" className="border border-gray-300 rounded px-2 py-1 text-xs flex-1" />
-              <button type="submit" className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">Add</button>
+              <Button type="submit" size="sm" loading={addingMember}>Add</Button>
             </form>
-          </div>
+          </>
         )}
-      </div>
+      </SlidePanel>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Delete Group"
+        message="Delete this group? This will remove all members and flight assignments."
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={!!removeMemberTarget}
+        onClose={() => setRemoveMemberTarget(null)}
+        onConfirm={handleRemoveMember}
+        title="Remove Member"
+        message={`Remove ${removeMemberTarget?.email ?? 'this member'} from the group?`}
+        confirmLabel="Remove"
+        destructive
+        loading={removingMember}
+      />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useAdmin } from './hooks/useAdmin';
+import { ToastProvider } from './components/ui';
+import { LoadingSpinner } from './components/ui';
 import Layout from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
@@ -15,7 +17,7 @@ export default function App() {
   if (admin.loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-gray-500">Loading...</p>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -47,9 +49,10 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout user={admin.currentUser} onSignOut={admin.signOut} />}>
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout user={admin.currentUser} onSignOut={admin.signOut} />}>
           <Route index element={<DashboardPage getHealth={admin.getHealth} getMetrics={admin.getMetrics} />} />
           <Route
             path="users"
@@ -121,5 +124,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }
