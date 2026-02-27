@@ -180,6 +180,24 @@ resource "azurerm_container_app" "api" {
         secret_name = "github-webhook-secret"
       }
 
+      # AI Content Generation
+      env {
+        name        = "AZURE_AI_ENDPOINT"
+        secret_name = "azure-ai-endpoint"
+      }
+      env {
+        name        = "AZURE_AI_API_KEY"
+        secret_name = "azure-ai-api-key"
+      }
+      env {
+        name  = "AZURE_AI_MODEL"
+        value = var.azure_ai_model
+      }
+      env {
+        name  = "AI_DAILY_GENERATION_LIMIT"
+        value = tostring(var.ai_daily_generation_limit)
+      }
+
       liveness_probe {
         transport = "HTTP"
         path      = "/api/health"
@@ -261,6 +279,14 @@ resource "azurerm_container_app" "api" {
   secret {
     name  = "github-webhook-secret"
     value = var.github_webhook_secret
+  }
+  secret {
+    name  = "azure-ai-endpoint"
+    value = var.azure_ai_endpoint
+  }
+  secret {
+    name  = "azure-ai-api-key"
+    value = var.azure_ai_api_key
   }
 
   tags = local.tags

@@ -109,3 +109,31 @@ variable "alert_email" {
   type        = string
   default     = "alerts@notebookmd.io"
 }
+
+# ── AI Content Generation ─────────────────────────────────────────────────
+
+variable "azure_ai_endpoint" {
+  description = "Azure OpenAI resource endpoint (e.g., https://notebookmd-ai.openai.azure.com)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "azure_ai_api_key" {
+  description = "Azure OpenAI API key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "azure_ai_model" {
+  description = "Azure OpenAI deployment/model name"
+  type        = string
+  default     = "gpt-4.1-nano"
+}
+
+variable "ai_daily_generation_limit" {
+  description = "Daily AI generation limit per free-tier user"
+  type        = number
+  default     = 10
+}
