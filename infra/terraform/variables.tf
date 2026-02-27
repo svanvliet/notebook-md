@@ -137,3 +137,10 @@ variable "ai_daily_generation_limit" {
   type        = number
   default     = 10
 }
+
+variable "bing_search_api_key" {
+  description = "Bing Search API key for web grounding in AI content generation"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

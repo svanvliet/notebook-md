@@ -197,6 +197,10 @@ resource "azurerm_container_app" "api" {
         name  = "AI_DAILY_GENERATION_LIMIT"
         value = tostring(var.ai_daily_generation_limit)
       }
+      env {
+        name        = "BING_SEARCH_API_KEY"
+        secret_name = "bing-search-api-key"
+      }
 
       liveness_probe {
         transport = "HTTP"
@@ -287,6 +291,10 @@ resource "azurerm_container_app" "api" {
   secret {
     name  = "azure-ai-api-key"
     value = var.azure_ai_api_key
+  }
+  secret {
+    name  = "bing-search-api-key"
+    value = var.bing_search_api_key
   }
 
   tags = local.tags

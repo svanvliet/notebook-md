@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useFlag } from '../../hooks/useFlagProvider';
 
 export type AiLength = 'short' | 'medium' | 'long';
 
 interface AiPromptModalProps {
-  onSubmit: (prompt: string, length: AiLength) => void;
+  onSubmit: (prompt: string, length: AiLength, webSearch: boolean) => void;
   onCancel: () => void;
   remainingQuota: number | null;
   quotaLimit: number | null;
@@ -20,7 +21,9 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit }
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
   const [length, setLength] = useState<AiLength>('medium');
+  const [webSearch, setWebSearch] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const webSearchEnabled = useFlag('ai_web_search');
 
   useEffect(() => {
     setTimeout(() => textareaRef.current?.focus(), 0);
@@ -30,7 +33,7 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit }
   const canSubmit = prompt.trim().length > 0 && !isQuotaExhausted;
 
   const handleSubmit = () => {
-    if (canSubmit) onSubmit(prompt.trim(), length);
+    if (canSubmit) onSubmit(prompt.trim(), length, webSearch);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -98,6 +101,21 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit }
               </button>
             ))}
           </div>
+
+          {/* Web Search toggle */}
+          {webSearchEnabled && (
+            <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={webSearch}
+                onChange={(e) => setWebSearch(e.target.checked)}
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+              />
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                🌐 {t('editor.ai.modal.webSearch', 'Use web search for up-to-date information')}
+              </span>
+            </label>
+          )}
 
           {/* Quota display */}
           {remainingQuota !== null && quotaLimit !== null && (

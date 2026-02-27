@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { redis } from '../lib/redis.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requireFeature } from '../services/featureFlags.js';
+import { requireFeature, isFeatureEnabled } from '../services/featureFlags.js';
 import { streamGeneration, checkQuota, incrementQuota } from '../services/ai.js';
 import { auditLog } from '../lib/audit.js';
 import type { AiLength } from '../services/ai.js';
@@ -34,7 +34,7 @@ router.post(
     const userId = req.userId as string;
 
     // Validate input
-    const { prompt, length = 'medium', documentContext, cursorContext, notebookId } = req.body || {};
+    const { prompt, length = 'medium', documentContext, cursorContext, notebookId, webSearch = false } = req.body || {};
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -62,6 +62,12 @@ router.post(
     // Increment quota before starting (optimistic — prevents race conditions)
     await incrementQuota(userId);
 
+    // Check if web search is requested and allowed
+    let useWebSearch = false;
+    if (webSearch) {
+      useWebSearch = await isFeatureEnabled('ai_web_search', userId);
+    }
+
     // Set up SSE
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -79,6 +85,7 @@ router.post(
         length as AiLength,
         documentContext,
         cursorContext,
+        useWebSearch,
       );
 
       for await (const event of stream) {
@@ -104,6 +111,7 @@ router.post(
         details: {
           prompt: prompt.trim().slice(0, 500),
           length,
+          webSearch: useWebSearch,
           outcome,
           notebookId: notebookId || null,
         },
