@@ -23,7 +23,7 @@
 - **Initial approach (Bing):** Failed — `data_sources` type `"bing"` not supported in Azure OpenAI chat completions API; `web_search_preview` tool not available on Azure endpoints; Bing Search v7 retired; Bing.Grounding only works with Agent Service
 - **Final approach (Brave Search):** Manual search-augmented generation — calls Brave Search API v7 directly, injects top 5 results as system context, LLM generates content grounded in web data with citations
 - Free tier: 2,000 queries/month
-- Terraform: `brave_search_api_key` variable + container secret/env (with `bing_search_api_key` fallback)
+- Terraform: `brave_search_api_key` variable + container secret/env
 
 ### Long Response Token Increase
 - Increased `long` max_tokens from 4,096 to 16,384 for substantially longer content

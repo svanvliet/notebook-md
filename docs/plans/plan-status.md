@@ -5306,7 +5306,7 @@ Added AI content generation feature powered by GPT-4.1-nano via Azure OpenAI. Us
 - Top 5 results (title, URL, description) injected as system message context before user prompt
 - LLM generates content grounded in web data with `[Source Title](URL)` citations
 - Graceful fallback: continues without search if Brave call fails
-- Terraform: Added `brave_search_api_key` variable + container secret (with `bing_search_api_key` fallback)
+- Terraform: Added `brave_search_api_key` variable + container secret
 
 #### Long Response Token Increase
 - Increased `long` max_tokens from 4,096 → 16,384 for substantially longer generated content
