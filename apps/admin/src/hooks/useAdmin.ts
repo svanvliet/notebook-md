@@ -10,6 +10,7 @@ interface AdminUser {
   twoFactorEnabled: boolean;
   twoFactorMethod: string | null;
   createdAt: string;
+  lastActiveAt: string | null;
 }
 
 interface Pagination {
@@ -50,6 +51,8 @@ interface FeatureFlag {
   variants: string[] | null;
   staleAt: string | null;
   updatedAt: string;
+  archived: boolean;
+  flights: { id: string; name: string }[];
 }
 
 interface FlagOverride {
@@ -162,11 +165,14 @@ export function useAdmin() {
   // ── Users ────────────────────────────────────────────────────────────
 
   const getUsers = useCallback(
-    (params: { page?: number; limit?: number; search?: string } = {}) => {
+    (params: { page?: number; limit?: number; search?: string; sort?: string; order?: 'asc' | 'desc'; status?: string } = {}) => {
       const sp = new URLSearchParams();
       if (params.page) sp.set('page', String(params.page));
-      if (params.limit) sp.set('limit', String(params.limit));
+      if (params.limit) sp.set('per_page', String(params.limit));
       if (params.search) sp.set('search', params.search);
+      if (params.sort) sp.set('sort', params.sort);
+      if (params.order) sp.set('order', params.order);
+      if (params.status) sp.set('status', params.status);
       return api<{ users: AdminUser[]; pagination: Pagination }>(`/admin/users?${sp}`);
     },
     [],
@@ -174,9 +180,15 @@ export function useAdmin() {
 
   const getUser = useCallback(
     (id: string) =>
-      api<{ user: AdminUser; notebookCount: number; activeSessions: number; linkedProviders: { provider: string; email: string }[] }>(
-        `/admin/users/${id}`,
-      ),
+      api<{
+        user: AdminUser;
+        notebookCount: number;
+        activeSessions: number;
+        linkedProviders: { provider: string; email: string }[];
+        groups: { id: string; name: string }[];
+        flights: { id: string; name: string }[];
+        resolvedFlags: Record<string, { enabled: boolean; variant: string | null; badge: string | null; source: string }>;
+      }>(`/admin/users/${id}`),
     [],
   );
 
@@ -194,9 +206,28 @@ export function useAdmin() {
     [],
   );
 
+  const searchUsers = useCallback(
+    (q: string) => api<{ id: string; email: string; displayName: string; avatarUrl: string | null }[]>(`/admin/users/search?q=${encodeURIComponent(q)}`),
+    [],
+  );
+
+  const forceLogout = useCallback(
+    (userId: string) => api<{ message: string; count: number }>(`/admin/users/${userId}/logout`, { method: 'POST' }),
+    [],
+  );
+
   // ── Feature Flags ──────────────────────────────────────────────────
 
-  const getFeatureFlags = useCallback(() => api<{ flags: FeatureFlag[] }>('/admin/feature-flags'), []);
+  const getFeatureFlags = useCallback(
+    (params: { archived?: string; page?: number; perPage?: number } = {}) => {
+      const sp = new URLSearchParams();
+      if (params.archived) sp.set('archived', params.archived);
+      if (params.page) sp.set('page', String(params.page));
+      if (params.perPage) sp.set('per_page', String(params.perPage));
+      return api<{ flags: FeatureFlag[]; pagination: Pagination }>(`/admin/feature-flags?${sp}`);
+    },
+    [],
+  );
 
   const saveFeatureFlag = useCallback(
     (data: { key: string; enabled: boolean; description?: string; variants?: string[] | null; staleAt?: string | null }) =>
@@ -221,9 +252,23 @@ export function useAdmin() {
     [],
   );
 
+  const archiveFlag = useCallback(
+    (key: string, archived: boolean) =>
+      api<{ message: string }>(`/admin/feature-flags/${key}/archive`, { method: 'POST', body: JSON.stringify({ archived }) }),
+    [],
+  );
+
   // ── Groups ────────────────────────────────────────────────────────
 
-  const getGroups = useCallback(() => api<{ groups: UserGroup[] }>('/admin/groups'), []);
+  const getGroups = useCallback(
+    (params: { page?: number; perPage?: number } = {}) => {
+      const sp = new URLSearchParams();
+      if (params.page) sp.set('page', String(params.page));
+      if (params.perPage) sp.set('per_page', String(params.perPage));
+      return api<{ groups: UserGroup[]; pagination: Pagination }>(`/admin/groups?${sp}`);
+    },
+    [],
+  );
 
   const createGroup = useCallback(
     (data: { name: string; description?: string; allowSelfEnroll?: boolean; emailDomain?: string }) =>
@@ -340,14 +385,44 @@ export function useAdmin() {
   // ── Audit Log ──────────────────────────────────────────────────────
 
   const getAuditLog = useCallback(
-    (params: { page?: number; limit?: number; action?: string; userId?: string } = {}) => {
+    (params: { page?: number; limit?: number; action?: string; userId?: string; from?: string; to?: string } = {}) => {
       const sp = new URLSearchParams();
       if (params.page) sp.set('page', String(params.page));
-      if (params.limit) sp.set('limit', String(params.limit));
+      if (params.limit) sp.set('per_page', String(params.limit));
       if (params.action) sp.set('action', params.action);
-      if (params.userId) sp.set('userId', params.userId);
+      if (params.userId) sp.set('user_id', params.userId);
+      if (params.from) sp.set('from', params.from);
+      if (params.to) sp.set('to', params.to);
       return api<{ entries: AuditEntry[]; pagination: Pagination }>(`/admin/audit-log?${sp}`);
     },
+    [],
+  );
+
+  const exportAuditLogCsv = useCallback(
+    async (params: { action?: string; from?: string; to?: string } = {}) => {
+      const sp = new URLSearchParams({ format: 'csv' });
+      if (params.action) sp.set('action', params.action);
+      if (params.from) sp.set('from', params.from);
+      if (params.to) sp.set('to', params.to);
+      const res = await fetch(`${API_BASE}/admin/audit-log?${sp}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [],
+  );
+
+  const getDashboardSummary = useCallback(
+    () => api<{
+      recentActions: AuditEntry[];
+      staleFlags: { key: string; description: string | null; staleAt: string; updatedAt: string }[];
+      activeFlights: { id: string; name: string; rolloutPercentage: number; flagCount: number; assignmentCount: number }[];
+    }>('/admin/dashboard/summary'),
     [],
   );
 
@@ -369,11 +444,14 @@ export function useAdmin() {
     getUser,
     updateUser,
     deleteUser,
+    searchUsers,
+    forceLogout,
     getFeatureFlags,
     saveFeatureFlag,
     getFlagOverrides,
     createFlagOverride,
     deleteFlagOverride,
+    archiveFlag,
     getGroups,
     createGroup,
     getGroup,
@@ -396,6 +474,8 @@ export function useAdmin() {
     updateAnnouncement,
     deleteAnnouncement,
     getAuditLog,
+    exportAuditLogCsv,
+    getDashboardSummary,
     signOut,
   };
 }
