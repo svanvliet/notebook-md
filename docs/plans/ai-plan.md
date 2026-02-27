@@ -3,7 +3,36 @@
 **Requirements:** `docs/requirements/ai-requirements.md`
 **Branch:** `feature/ai`
 **Date:** 2026-02-26
-**Status:** Complete (all 6 phases implemented and tested)
+**Status:** Complete (all 6 phases implemented, tested, and deployed to production)
+
+---
+
+## Post-Launch Updates (2026-02-27)
+
+### Production Deployment
+- Added Terraform variables (`azure_ai_endpoint`, `azure_ai_api_key`, `azure_ai_model`, `ai_daily_generation_limit`) to `variables.tf` and `container_apps.tf`
+- Applied `terraform apply` — all 4 AI env vars deployed to API container app
+- Built and pushed `api:v0.2.7` and `web:v0.2.7` Docker images to ACR
+- Deployed both container apps; migrations 012 applied; health checks passing
+- `ai_content_generation` flag enabled in production
+- Increased Azure OpenAI quota from 1 req/min (default) to 30 req/min / 30K TPM
+
+### Web Search Grounding (Phase 7)
+- Added optional "Use web search" checkbox to AI prompt modal (unchecked by default)
+- Gated behind `ai_web_search` feature flag (migration `013_ai-web-search-flag.sql`)
+- **Initial approach (Bing):** Failed — `data_sources` type `"bing"` not supported in Azure OpenAI chat completions API; `web_search_preview` tool not available on Azure endpoints; Bing Search v7 retired; Bing.Grounding only works with Agent Service
+- **Final approach (Brave Search):** Manual search-augmented generation — calls Brave Search API v7 directly, injects top 5 results as system context, LLM generates content grounded in web data with citations
+- Free tier: 2,000 queries/month
+- Terraform: `brave_search_api_key` variable + container secret/env (with `bing_search_api_key` fallback)
+
+### Long Response Token Increase
+- Increased `long` max_tokens from 4,096 to 16,384 for substantially longer content
+
+### Dev Debug Logging
+- Added comprehensive dev-only (`NODE_ENV !== 'production'`) debug logging for AI requests:
+  - Brave Search: request URL, query, response status, result count, result titles/URLs
+  - Azure OpenAI: request URL, message count/roles, max_tokens, streaming status, error bodies, token count on completion
+  - Web search injection: character count of injected context, missing key warnings
 
 ---
 
@@ -673,15 +702,20 @@ npm run typecheck
 
 ### Pre-Deployment Checklist
 
-- [ ] Azure AI Foundry resource created with GPT-4.1-nano deployment
-- [ ] `AZURE_AI_ENDPOINT` set in Container App secrets (or env vars)
-- [ ] `AZURE_AI_API_KEY` stored in Azure Key Vault and referenced as Container App secret
-- [ ] `AZURE_AI_MODEL` set to the deployment name (e.g., `gpt-4.1-nano`)
-- [ ] `AI_DAILY_GENERATION_LIMIT` set (default 10 if omitted)
-- [ ] Feature flags seeded (migration 011 applied) — both flags start disabled
-- [ ] CI pipeline passes (all tests green)
-- [ ] Privacy policy and terms updated
-- [ ] README and marketing copy updated
+- [x] Azure AI Foundry resource created with GPT-4.1-nano deployment
+- [x] `AZURE_AI_ENDPOINT` set in Container App secrets
+- [x] `AZURE_AI_API_KEY` stored as Container App secret
+- [x] `AZURE_AI_MODEL` set to `gpt-4.1-nano`
+- [x] `AI_DAILY_GENERATION_LIMIT` set to `10`
+- [x] `BRAVE_SEARCH_API_KEY` stored as Container App secret (for web grounding)
+- [x] Feature flags seeded (migrations 012 + 013 applied)
+- [x] `ai_content_generation` enabled in production
+- [x] `ai_web_search` seeded as disabled (enable when ready)
+- [x] Azure OpenAI quota increased to 30 req/min / 30K TPM
+- [x] CI pipeline passes (all tests green)
+- [x] Privacy policy and terms updated
+- [x] README and marketing copy updated
+- [x] API + Web images built, pushed to ACR, and deployed (v0.2.7)
 
 ### Deployment Steps
 
@@ -779,11 +813,12 @@ If issues arise:
 
 ## File Inventory
 
-### New Files (13)
+### New Files (14)
 
 | File | Phase |
 |------|-------|
-| `apps/api/migrations/011_ai-feature-flags.sql` | 1 |
+| `apps/api/migrations/012_ai-feature-flags.sql` | 1 |
+| `apps/api/migrations/013_ai-web-search-flag.sql` | 7 |
 | `apps/api/src/services/ai.ts` | 2 |
 | `apps/api/src/routes/ai.ts` | 2 |
 | `apps/api/src/tests/ai-flags.test.ts` | 1 |
@@ -795,25 +830,19 @@ If issues arise:
 | `apps/web/src/components/editor/MobileCommandFab.tsx` | 5 |
 | `apps/web/src/tests/AiPromptModal.test.tsx` | 3 |
 | `apps/web/src/tests/ai-client.test.ts` | 3 |
-| `apps/web/src/tests/AiGenerationWidget.test.tsx` | 4 |
-| `apps/web/src/tests/AiGenerationExtension.test.ts` | 4 |
-| `apps/web/src/tests/SlashCommands.test.ts` | 5 |
-| `apps/web/src/tests/EditorToolbar.test.tsx` | 5 |
-| `apps/web/src/tests/MobileCommandFab.test.tsx` | 5 |
-| `apps/web/src/tests/ai-integration.test.tsx` | 5 |
 | `apps/web/src/tests/legal.test.tsx` | 6 |
 | `e2e/ai.spec.ts` | 5 |
 
-### Modified Files (12)
+### Modified Files (18)
 
 | File | Phase | Change |
 |------|-------|--------|
-| `.env.example` | 1 | Azure AI env vars |
+| `.env.example` | 1 | Azure AI + Brave Search env vars |
 | `apps/api/src/app.ts` | 2 | Register AI routes |
 | `apps/web/src/components/editor/SlashCommands.ts` | 5 | Add "Create with AI" command |
 | `apps/web/src/components/editor/SlashCommandMenu.tsx` | 5 | Feature flag filtering |
 | `apps/web/src/components/editor/EditorToolbar.tsx` | 5 | Add sparkle button |
-| `apps/web/src/components/editor/MarkdownEditor.tsx` | 5 | AI orchestration |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | 5, 7 | AI orchestration + webSearch param |
 | `apps/web/src/components/editor/extensions.ts` | 4 | Register AI extension |
 | `apps/web/src/components/editor/editor.css` | 4 | AI animations |
 | `apps/web/src/locales/en/translation.json` | 3 | i18n strings |
@@ -822,3 +851,5 @@ If issues arise:
 | `apps/web/src/components/marketing/FeaturesPage.tsx` | 6 | Update claims |
 | `apps/web/src/components/marketing/AboutPage.tsx` | 6 | Update claims |
 | `README.md` | 6 | Update data handling |
+| `infra/terraform/variables.tf` | 7 | AI + Brave Search variables |
+| `infra/terraform/container_apps.tf` | 7 | AI env vars + secrets on API container |
