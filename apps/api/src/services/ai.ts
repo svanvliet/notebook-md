@@ -1,5 +1,6 @@
 import { isFeatureEnabled } from './featureFlags.js';
 import { redis } from '../lib/redis.js';
+import { logger } from '../lib/logger.js';
 
 // Lazy getters for env vars (ES module imports are hoisted before dotenv runs)
 const getEndpoint = () => process.env.AZURE_AI_ENDPOINT || '';
@@ -7,6 +8,7 @@ const getApiKey = () => process.env.AZURE_AI_API_KEY || '';
 const getModel = () => process.env.AZURE_AI_MODEL || 'gpt-4.1-nano';
 const getDailyLimit = () => parseInt(process.env.AI_DAILY_GENERATION_LIMIT || '10', 10);
 const getBingKey = () => process.env.BING_SEARCH_API_KEY || '';
+const isDev = () => process.env.NODE_ENV !== 'production';
 
 export type AiLength = 'short' | 'medium' | 'long';
 
@@ -38,15 +40,35 @@ const MAX_CONTEXT_LENGTH = 100_000;
 // Fetch top Bing Search results and format as context for the LLM
 async function fetchBingResults(query: string, apiKey: string): Promise<string | null> {
   const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=5&textFormat=Raw`;
+
+  if (isDev()) {
+    logger.debug('Bing search request', { url, query });
+  }
+
   const res = await fetch(url, {
     headers: { 'Ocp-Apim-Subscription-Key': apiKey },
   });
-  if (!res.ok) return null;
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    if (isDev()) {
+      logger.debug('Bing search failed', { status: res.status, body: errBody.slice(0, 500) });
+    }
+    return null;
+  }
 
   const data = await res.json() as {
     webPages?: { value: Array<{ name: string; url: string; snippet: string }> };
   };
   const pages = data.webPages?.value;
+
+  if (isDev()) {
+    logger.debug('Bing search results', {
+      resultCount: pages?.length ?? 0,
+      results: pages?.map(p => ({ name: p.name, url: p.url })) ?? [],
+    });
+  }
+
   if (!pages || pages.length === 0) return null;
 
   return pages
@@ -112,6 +134,10 @@ export async function* streamGeneration(
     return;
   }
 
+  if (isDev()) {
+    logger.debug('AI generation started', { prompt: prompt.slice(0, 200), length, model, webSearch: !!webSearch });
+  }
+
   const messages = buildMessages(prompt, length, documentContext, cursorContext);
   const maxTokens = MAX_TOKENS[length];
 
@@ -126,10 +152,19 @@ export async function* streamGeneration(
           role: 'system',
           content: `The following web search results may help you provide accurate, up-to-date information. Use them if relevant, and cite sources where appropriate using [Source Title](URL) format.\n\n${searchResults}`,
         });
+        if (isDev()) {
+          logger.debug('Web search results injected into messages', { charCount: searchResults.length });
+        }
+      } else if (isDev()) {
+        logger.debug('Web search returned no results');
       }
-    } catch {
-      // Continue without search results if Bing call fails
+    } catch (err: any) {
+      if (isDev()) {
+        logger.debug('Web search failed (continuing without)', { error: err?.message });
+      }
     }
+  } else if (webSearch && !bingKey && isDev()) {
+    logger.debug('Web search requested but BING_SEARCH_API_KEY not set');
   }
 
   const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=2024-10-21`;
@@ -140,6 +175,15 @@ export async function* streamGeneration(
     temperature: 0.7,
     stream: true,
   };
+
+  if (isDev()) {
+    logger.debug('Azure OpenAI request', {
+      url,
+      messageCount: messages.length,
+      messageRoles: messages.map(m => m.role),
+      max_tokens: maxTokens,
+    });
+  }
 
   try {
     const response = await fetch(url, {
@@ -153,8 +197,15 @@ export async function* streamGeneration(
 
     if (!response.ok) {
       const errBody = await response.text().catch(() => '');
+      if (isDev()) {
+        logger.debug('Azure OpenAI error response', { status: response.status, body: errBody.slice(0, 500) });
+      }
       yield { type: 'error', message: `AI service returned status ${response.status}: ${errBody.slice(0, 200)}` };
       return;
+    }
+
+    if (isDev()) {
+      logger.debug('Azure OpenAI streaming started', { status: response.status });
     }
 
     const reader = response.body?.getReader();
@@ -165,6 +216,7 @@ export async function* streamGeneration(
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let tokenCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -178,6 +230,9 @@ export async function* streamGeneration(
         if (!line.startsWith('data: ')) continue;
         const data = line.slice(6).trim();
         if (data === '[DONE]') {
+          if (isDev()) {
+            logger.debug('Azure OpenAI stream complete', { tokenCount });
+          }
           yield { type: 'done' };
           return;
         }
@@ -187,6 +242,7 @@ export async function* streamGeneration(
           const parsed = JSON.parse(data);
           const delta = parsed.choices?.[0]?.delta?.content;
           if (delta) {
+            tokenCount++;
             yield { type: 'token', content: delta };
           }
         } catch {
@@ -195,6 +251,9 @@ export async function* streamGeneration(
       }
     }
 
+    if (isDev()) {
+      logger.debug('Azure OpenAI stream ended (no DONE event)', { tokenCount });
+    }
     yield { type: 'done' };
   } catch (err: any) {
     const message = err?.message || 'AI service error';
