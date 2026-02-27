@@ -428,12 +428,12 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
   }, []);
 
   const handleAiSubmit = useCallback(
-    (prompt: string, length: AiLength) => {
+    (prompt: string, length: AiLength, webSearch: boolean) => {
       if (!editor) return;
       setShowAiPrompt(false);
       // Insert AI widget at current cursor position
       const userId = ''; // Will be populated from collaborative context if available
-      editor.commands.insertAiWidget({ prompt, length, ownerId: userId });
+      editor.commands.insertAiWidget({ prompt, length, ownerId: userId, webSearch });
     },
     [editor],
   );

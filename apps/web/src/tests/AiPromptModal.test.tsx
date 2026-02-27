@@ -17,6 +17,11 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+// Mock useFlag — web search disabled by default
+vi.mock('../../hooks/useFlagProvider', () => ({
+  useFlag: () => false,
+}));
+
 describe('AiPromptModal', () => {
   const defaultProps = {
     onSubmit: vi.fn(),
@@ -57,7 +62,7 @@ describe('AiPromptModal', () => {
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'Write about cats' } });
     fireEvent.click(screen.getByText('Create'));
-    expect(defaultProps.onSubmit).toHaveBeenCalledWith('Write about cats', 'medium');
+    expect(defaultProps.onSubmit).toHaveBeenCalledWith('Write about cats', 'medium', false);
   });
 
   it('submits on Cmd+Enter', () => {
@@ -65,7 +70,7 @@ describe('AiPromptModal', () => {
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'prompt text' } });
     fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
-    expect(defaultProps.onSubmit).toHaveBeenCalledWith('prompt text', 'medium');
+    expect(defaultProps.onSubmit).toHaveBeenCalledWith('prompt text', 'medium', false);
   });
 
   it('cancels on Escape', () => {
@@ -88,7 +93,7 @@ describe('AiPromptModal', () => {
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'test' } });
     fireEvent.click(screen.getByText('Create'));
-    expect(defaultProps.onSubmit).toHaveBeenCalledWith('test', 'long');
+    expect(defaultProps.onSubmit).toHaveBeenCalledWith('test', 'long', false);
   });
 
   it('displays disclaimer text', () => {

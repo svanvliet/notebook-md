@@ -6,6 +6,7 @@ export interface AiGenerateParams {
   documentContext?: string;
   cursorContext?: string;
   notebookId?: string;
+  webSearch?: boolean;
 }
 
 export interface AiQuotaInfo {

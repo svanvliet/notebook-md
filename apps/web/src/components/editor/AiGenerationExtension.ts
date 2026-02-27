@@ -13,6 +13,7 @@ declare module '@tiptap/core' {
         prompt: string;
         length: string;
         ownerId: string;
+        webSearch?: boolean;
       }) => ReturnType;
       removeAiWidget: () => ReturnType;
     };
@@ -38,6 +39,7 @@ export const AiGenerationExtension = Node.create<AiGenerationOptions>({
       errorMessage: { default: null },
       ownerId: { default: '' },
       length: { default: 'medium' },
+      webSearch: { default: false },
     };
   },
 
@@ -65,6 +67,7 @@ export const AiGenerationExtension = Node.create<AiGenerationOptions>({
                 prompt: attrs.prompt,
                 length: attrs.length,
                 ownerId: attrs.ownerId,
+                webSearch: attrs.webSearch ?? false,
                 status: 'loading',
                 content: '',
                 errorMessage: null,

@@ -6,13 +6,14 @@ const getEndpoint = () => process.env.AZURE_AI_ENDPOINT || '';
 const getApiKey = () => process.env.AZURE_AI_API_KEY || '';
 const getModel = () => process.env.AZURE_AI_MODEL || 'gpt-4.1-nano';
 const getDailyLimit = () => parseInt(process.env.AI_DAILY_GENERATION_LIMIT || '10', 10);
+const getBingKey = () => process.env.BING_SEARCH_API_KEY || '';
 
 export type AiLength = 'short' | 'medium' | 'long';
 
 const MAX_TOKENS: Record<AiLength, number> = {
   short: 1024,
   medium: 2048,
-  long: 4096,
+  long: 16384,
 };
 
 const LENGTH_GUIDANCE: Record<AiLength, string> = {
@@ -81,6 +82,7 @@ export async function* streamGeneration(
   length: AiLength,
   documentContext?: string,
   cursorContext?: string,
+  webSearch?: boolean,
 ): AsyncGenerator<{ type: 'token'; content: string } | { type: 'done' } | { type: 'error'; message: string }> {
   const endpoint = getEndpoint();
   const apiKey = getApiKey();
@@ -94,8 +96,29 @@ export async function* streamGeneration(
   const messages = buildMessages(prompt, length, documentContext, cursorContext);
   const maxTokens = MAX_TOKENS[length];
 
-  // Azure OpenAI REST API: POST /openai/deployments/{model}/chat/completions?api-version=2024-10-21
-  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=2024-10-21`;
+  // Use preview API version when web search is enabled (data_sources requires it)
+  const apiVersion = webSearch ? '2025-01-01-preview' : '2024-10-21';
+  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=${apiVersion}`;
+
+  // Build request body with optional Bing grounding
+  const body: Record<string, unknown> = {
+    messages,
+    max_tokens: maxTokens,
+    temperature: 0.7,
+    stream: true,
+  };
+
+  const bingKey = getBingKey();
+  if (webSearch && bingKey) {
+    body.data_sources = [
+      {
+        type: 'bing',
+        parameters: {
+          subscription_key: bingKey,
+        },
+      },
+    ];
+  }
 
   try {
     const response = await fetch(url, {
@@ -104,12 +127,7 @@ export async function* streamGeneration(
         'Content-Type': 'application/json',
         'api-key': apiKey,
       },
-      body: JSON.stringify({
-        messages,
-        max_tokens: maxTokens,
-        temperature: 0.7,
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
