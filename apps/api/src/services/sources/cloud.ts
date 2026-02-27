@@ -203,9 +203,9 @@ class CloudAdapter implements SourceAdapter {
     // Rename all children (replace old prefix with new prefix)
     await query(
       `UPDATE cloud_documents
-       SET path = $1 || substring(path FROM $2), updated_at = now()
+       SET path = $1 || substring(path, $2::int), updated_at = now()
        WHERE notebook_id = $3 AND path LIKE $4 AND path != $5`,
-      [newFolderPath, String(oldFolderPath.length + 1), notebookId, `${oldFolderPath}%`, oldFolderPath],
+      [newFolderPath, oldFolderPath.length + 1, notebookId, `${oldFolderPath}%`, oldFolderPath],
     );
 
     return { path: newPath, sha: '' };
