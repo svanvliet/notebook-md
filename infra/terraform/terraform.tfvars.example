@@ -28,3 +28,8 @@ domain          = "notebookmd.io"
 
 # Transactional email
 # sendgrid_api_key = ""
+
+# azure_ai_endpoint = ""
+# azure_ai_api_key  = ""
+# azure_ai_model = ""
+# ai_daily_generation_limit = ""
