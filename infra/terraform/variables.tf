@@ -139,7 +139,14 @@ variable "ai_daily_generation_limit" {
 }
 
 variable "bing_search_api_key" {
-  description = "Bing Search API key for web grounding in AI content generation"
+  description = "Bing Search API key (legacy, falls back if Brave key not set)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "brave_search_api_key" {
+  description = "Brave Search API key for web grounding in AI content generation"
   type        = string
   default     = ""
   sensitive   = true
