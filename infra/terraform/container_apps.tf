@@ -201,6 +201,10 @@ resource "azurerm_container_app" "api" {
         name        = "BING_SEARCH_API_KEY"
         secret_name = "bing-search-api-key"
       }
+      env {
+        name        = "BRAVE_SEARCH_API_KEY"
+        secret_name = "brave-search-api-key"
+      }
 
       liveness_probe {
         transport = "HTTP"
@@ -295,6 +299,10 @@ resource "azurerm_container_app" "api" {
   secret {
     name  = "bing-search-api-key"
     value = var.bing_search_api_key
+  }
+  secret {
+    name  = "brave-search-api-key"
+    value = var.brave_search_api_key
   }
 
   tags = local.tags

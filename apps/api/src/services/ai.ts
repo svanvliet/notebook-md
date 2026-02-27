@@ -8,6 +8,7 @@ const getApiKey = () => process.env.AZURE_AI_API_KEY || '';
 const getModel = () => process.env.AZURE_AI_MODEL || 'gpt-4.1-nano';
 const getDailyLimit = () => parseInt(process.env.AI_DAILY_GENERATION_LIMIT || '10', 10);
 const getBingKey = () => process.env.BING_SEARCH_API_KEY || '';
+const getWebSearchKey = () => process.env.BRAVE_SEARCH_API_KEY || process.env.BING_SEARCH_API_KEY || '';
 const isDev = () => process.env.NODE_ENV !== 'production';
 
 export type AiLength = 'short' | 'medium' | 'long';
@@ -37,42 +38,47 @@ Rules:
 
 const MAX_CONTEXT_LENGTH = 100_000;
 
-// Fetch top Bing Search results and format as context for the LLM
-async function fetchBingResults(query: string, apiKey: string): Promise<string | null> {
-  const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=5&textFormat=Raw`;
+// Fetch top web search results and format as context for the LLM
+// Uses Brave Search API (free tier: 2,000 queries/month)
+async function fetchWebSearchResults(query: string, apiKey: string): Promise<string | null> {
+  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`;
 
   if (isDev()) {
-    logger.debug('Bing search request', { url, query });
+    logger.debug('Web search request (Brave)', { url, query });
   }
 
   const res = await fetch(url, {
-    headers: { 'Ocp-Apim-Subscription-Key': apiKey },
+    headers: {
+      'Accept': 'application/json',
+      'Accept-Encoding': 'gzip',
+      'X-Subscription-Token': apiKey,
+    },
   });
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');
     if (isDev()) {
-      logger.debug('Bing search failed', { status: res.status, body: errBody.slice(0, 500) });
+      logger.debug('Web search failed', { status: res.status, body: errBody.slice(0, 500) });
     }
     return null;
   }
 
   const data = await res.json() as {
-    webPages?: { value: Array<{ name: string; url: string; snippet: string }> };
+    web?: { results: Array<{ title: string; url: string; description: string }> };
   };
-  const pages = data.webPages?.value;
+  const results = data.web?.results;
 
   if (isDev()) {
-    logger.debug('Bing search results', {
-      resultCount: pages?.length ?? 0,
-      results: pages?.map(p => ({ name: p.name, url: p.url })) ?? [],
+    logger.debug('Web search results', {
+      resultCount: results?.length ?? 0,
+      results: results?.map(r => ({ title: r.title, url: r.url })) ?? [],
     });
   }
 
-  if (!pages || pages.length === 0) return null;
+  if (!results || results.length === 0) return null;
 
-  return pages
-    .map((p, i) => `[${i + 1}] ${p.name}\n${p.url}\n${p.snippet}`)
+  return results
+    .map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.description}`)
     .join('\n\n');
 }
 
@@ -141,11 +147,11 @@ export async function* streamGeneration(
   const messages = buildMessages(prompt, length, documentContext, cursorContext);
   const maxTokens = MAX_TOKENS[length];
 
-  // If web search is enabled, fetch Bing results and inject into messages
-  const bingKey = getBingKey();
-  if (webSearch && bingKey) {
+  // If web search is enabled, fetch search results and inject into messages
+  const webSearchKey = getWebSearchKey();
+  if (webSearch && webSearchKey) {
     try {
-      const searchResults = await fetchBingResults(prompt, bingKey);
+      const searchResults = await fetchWebSearchResults(prompt, webSearchKey);
       if (searchResults) {
         // Inject web results as a system message before the user prompt
         messages.splice(1, 0, {
@@ -163,8 +169,8 @@ export async function* streamGeneration(
         logger.debug('Web search failed (continuing without)', { error: err?.message });
       }
     }
-  } else if (webSearch && !bingKey && isDev()) {
-    logger.debug('Web search requested but BING_SEARCH_API_KEY not set');
+  } else if (webSearch && !webSearchKey && isDev()) {
+    logger.debug('Web search requested but BRAVE_SEARCH_API_KEY not set');
   }
 
   const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=2024-10-21`;
