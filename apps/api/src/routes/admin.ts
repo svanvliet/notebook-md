@@ -92,13 +92,31 @@ router.get('/users', async (req: Request, res: Response) => {
   const search = (req.query.search as string) || '';
   const offset = (page - 1) * perPage;
 
-  let whereClause = '';
+  const sortMap: Record<string, string> = {
+    name: 'display_name',
+    email: 'email',
+    created_at: 'created_at',
+    last_active_at: 'last_active_at',
+  };
+  const sort = sortMap[req.query.sort as string] ?? 'created_at';
+  const order = req.query.order === 'asc' ? 'ASC' : 'DESC';
+  const status = (req.query.status as string) || 'all';
+
+  const conditions: string[] = [];
   const params: unknown[] = [];
 
   if (search) {
     params.push(`%${search}%`);
-    whereClause = `WHERE email ILIKE $1 OR display_name ILIKE $1`;
+    conditions.push(`(email ILIKE $${params.length} OR display_name ILIKE $${params.length})`);
   }
+
+  if (status === 'active') {
+    conditions.push('is_suspended = false');
+  } else if (status === 'suspended') {
+    conditions.push('is_suspended = true');
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const [users, total] = await Promise.all([
     query<{
@@ -110,10 +128,11 @@ router.get('/users', async (req: Request, res: Response) => {
       is_suspended: boolean;
       totp_enabled: boolean;
       created_at: Date;
+      last_active_at: Date | null;
     }>(
-      `SELECT id, display_name, email, email_verified, is_admin, is_suspended, totp_enabled, created_at
+      `SELECT id, display_name, email, email_verified, is_admin, is_suspended, totp_enabled, created_at, last_active_at
        FROM users ${whereClause}
-       ORDER BY created_at DESC
+       ORDER BY ${sort} ${order}
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, perPage, offset],
     ),
@@ -130,6 +149,7 @@ router.get('/users', async (req: Request, res: Response) => {
       isSuspended: u.is_suspended,
       twoFactorEnabled: u.totp_enabled,
       createdAt: u.created_at,
+      lastActiveAt: u.last_active_at,
     })),
     pagination: {
       page,
@@ -138,6 +158,35 @@ router.get('/users', async (req: Request, res: Response) => {
       totalPages: Math.ceil(Number(total.rows[0].count) / perPage),
     },
   });
+});
+
+router.get('/users/search', async (req: Request, res: Response) => {
+  const q = (req.query.q as string) || '';
+  if (q.length < 2) {
+    res.status(400).json({ error: 'Query must be at least 2 characters' });
+    return;
+  }
+
+  const result = await query<{
+    id: string;
+    email: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  }>(
+    `SELECT id, email, display_name, avatar_url FROM users
+     WHERE email ILIKE $1 OR display_name ILIKE $1
+     LIMIT 10`,
+    [`${q}%`],
+  );
+
+  res.json(
+    result.rows.map((u) => ({
+      id: u.id,
+      email: u.email,
+      displayName: u.display_name,
+      avatarUrl: u.avatar_url,
+    })),
+  );
 });
 
 router.get('/users/:id', async (req: Request, res: Response) => {
@@ -151,9 +200,10 @@ router.get('/users/:id', async (req: Request, res: Response) => {
     totp_enabled: boolean;
     avatar_url: string | null;
     created_at: Date;
+    last_active_at: Date | null;
     password_hash: string | null;
   }>(
-    'SELECT id, display_name, email, email_verified, is_admin, is_suspended, totp_enabled, avatar_url, created_at, password_hash FROM users WHERE id = $1',
+    'SELECT id, display_name, email, email_verified, is_admin, is_suspended, totp_enabled, avatar_url, created_at, last_active_at, password_hash FROM users WHERE id = $1',
     [req.params.id],
   );
 
@@ -164,23 +214,37 @@ router.get('/users/:id', async (req: Request, res: Response) => {
 
   const u = result.rows[0];
 
-  // Get linked providers
-  const links = await query<{ provider: string; provider_email: string }>(
-    'SELECT provider, provider_email FROM identity_links WHERE user_id = $1',
-    [u.id],
-  );
-
-  // Get notebook count
-  const notebooks = await query<{ count: string }>(
-    'SELECT count(*) FROM notebooks WHERE user_id = $1',
-    [u.id],
-  );
-
-  // Get session count
-  const sessions = await query<{ count: string }>(
-    'SELECT count(*) FROM sessions WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()',
-    [u.id],
-  );
+  // Get linked providers, notebook count, session count, groups, flights, and resolved flags
+  const [links, notebooks, sessions, groups, flights, resolvedFlags] = await Promise.all([
+    query<{ provider: string; provider_email: string }>(
+      'SELECT provider, provider_email FROM identity_links WHERE user_id = $1',
+      [u.id],
+    ),
+    query<{ count: string }>(
+      'SELECT count(*) FROM notebooks WHERE user_id = $1',
+      [u.id],
+    ),
+    query<{ count: string }>(
+      'SELECT count(*) FROM sessions WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()',
+      [u.id],
+    ),
+    query<{ id: string; name: string }>(
+      `SELECT g.id, g.name FROM user_groups g
+       JOIN user_group_members ugm ON ugm.group_id = g.id
+       WHERE ugm.user_id = $1
+       ORDER BY g.name`,
+      [u.id],
+    ),
+    query<{ id: string; name: string }>(
+      `SELECT DISTINCT f.id, f.name FROM flights f
+       JOIN flight_assignments fa ON fa.flight_id = f.id
+       WHERE fa.user_id = $1
+          OR fa.group_id IN (SELECT group_id FROM user_group_members WHERE user_id = $1)
+       ORDER BY f.name`,
+      [u.id],
+    ),
+    resolveAllFlags(u.id, u.email),
+  ]);
 
   res.json({
     user: {
@@ -194,10 +258,14 @@ router.get('/users/:id', async (req: Request, res: Response) => {
       avatarUrl: u.avatar_url,
       hasPassword: !!u.password_hash,
       createdAt: u.created_at,
+      lastActiveAt: u.last_active_at,
     },
     linkedProviders: links.rows.map((l) => ({ provider: l.provider, email: l.provider_email })),
     notebookCount: Number(notebooks.rows[0].count),
     activeSessions: Number(sessions.rows[0].count),
+    groups: groups.rows.map((g) => ({ id: g.id, name: g.name })),
+    flights: flights.rows.map((f) => ({ id: f.id, name: f.name })),
+    resolvedFlags,
   });
 });
 
@@ -265,6 +333,31 @@ router.delete('/users/:id', async (req: Request, res: Response) => {
   res.json({ message: 'User deleted' });
 });
 
+router.post('/users/:id/logout', async (req: Request, res: Response) => {
+  const targetId = req.params.id;
+
+  const user = await query<{ id: string }>('SELECT id FROM users WHERE id = $1', [targetId]);
+  if (user.rows.length === 0) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const result = await query(
+    'UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL',
+    [targetId],
+  );
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: 'user_force_logout', targetUserId: targetId },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: 'All sessions revoked', count: result.rowCount ?? 0 });
+});
+
 // ── Audit Log ────────────────────────────────────────────────────────────────
 
 router.get('/audit-log', async (req: Request, res: Response) => {
@@ -273,6 +366,9 @@ router.get('/audit-log', async (req: Request, res: Response) => {
   const offset = (page - 1) * perPage;
   const action = req.query.action as string | undefined;
   const userId = req.query.user_id as string | undefined;
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const format = req.query.format as string | undefined;
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -285,8 +381,53 @@ router.get('/audit-log', async (req: Request, res: Response) => {
     params.push(userId);
     conditions.push(`a.user_id = $${params.length}`);
   }
+  if (from) {
+    params.push(from);
+    conditions.push(`a.created_at >= $${params.length}`);
+  }
+  if (to) {
+    params.push(to);
+    conditions.push(`a.created_at <= $${params.length}`);
+  }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  if (format === 'csv') {
+    const entries = await query<{
+      created_at: Date;
+      display_name: string | null;
+      email: string | null;
+      action: string;
+      details: Record<string, unknown>;
+      ip_address: string | null;
+      user_agent: string | null;
+    }>(
+      `SELECT a.created_at, u.display_name, u.email, a.action, a.details, a.ip_address, a.user_agent
+       FROM audit_log a LEFT JOIN users u ON a.user_id = u.id
+       ${whereClause}
+       ORDER BY a.created_at DESC`,
+      params,
+    );
+
+    const csvQuote = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const lines = ['Time,User,Email,Action,Details,IP,UserAgent'];
+    for (const e of entries.rows) {
+      lines.push([
+        csvQuote(new Date(e.created_at).toISOString()),
+        csvQuote(e.display_name || ''),
+        csvQuote(e.email || ''),
+        csvQuote(e.action),
+        csvQuote(JSON.stringify(e.details)),
+        csvQuote(e.ip_address || ''),
+        csvQuote(e.user_agent || ''),
+      ].join(','));
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="audit-log.csv"');
+    res.send(lines.join('\n'));
+    return;
+  }
 
   const [entries, total] = await Promise.all([
     query<{
@@ -330,15 +471,46 @@ router.get('/audit-log', async (req: Request, res: Response) => {
 
 // ── Feature Flags ────────────────────────────────────────────────────────────
 
-router.get('/feature-flags', async (_req: Request, res: Response) => {
-  const result = await query<{
-    key: string;
-    enabled: boolean;
-    description: string | null;
-    variants: string[] | null;
-    stale_at: Date | null;
-    updated_at: Date;
-  }>('SELECT key, enabled, description, variants, stale_at, updated_at FROM feature_flags ORDER BY key');
+router.get('/feature-flags', async (req: Request, res: Response) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const perPage = Math.min(100, Math.max(1, Number(req.query.per_page) || 20));
+  const offset = (page - 1) * perPage;
+  const archivedParam = (req.query.archived as string) || 'false';
+
+  let archivedCondition = 'WHERE f.archived = false';
+  if (archivedParam === 'true') archivedCondition = 'WHERE f.archived = true';
+  else if (archivedParam === 'all') archivedCondition = '';
+
+  const [result, total, flightLinks] = await Promise.all([
+    query<{
+      key: string;
+      enabled: boolean;
+      description: string | null;
+      variants: string[] | null;
+      stale_at: Date | null;
+      archived: boolean;
+      updated_at: Date;
+    }>(
+      `SELECT f.key, f.enabled, f.description, f.variants, f.stale_at, f.archived, f.updated_at
+       FROM feature_flags f ${archivedCondition}
+       ORDER BY f.key
+       LIMIT $1 OFFSET $2`,
+      [perPage, offset],
+    ),
+    query<{ count: string }>(`SELECT count(*) FROM feature_flags f ${archivedCondition}`),
+    query<{ flag_key: string; flight_id: string; flight_name: string }>(
+      `SELECT ff.flag_key, fl.id as flight_id, fl.name as flight_name
+       FROM flight_flags ff
+       JOIN flights fl ON fl.id = ff.flight_id`,
+    ),
+  ]);
+
+  const flightsByFlag = new Map<string, { id: string; name: string }[]>();
+  for (const row of flightLinks.rows) {
+    const arr = flightsByFlag.get(row.flag_key) ?? [];
+    arr.push({ id: row.flight_id, name: row.flight_name });
+    flightsByFlag.set(row.flag_key, arr);
+  }
 
   res.json({
     flags: result.rows.map(f => ({
@@ -347,8 +519,16 @@ router.get('/feature-flags', async (_req: Request, res: Response) => {
       description: f.description,
       variants: f.variants,
       staleAt: f.stale_at,
+      archived: f.archived,
       updatedAt: f.updated_at,
+      flights: flightsByFlag.get(f.key) ?? [],
     })),
+    pagination: {
+      page,
+      perPage,
+      total: Number(total.rows[0].count),
+      totalPages: Math.ceil(Number(total.rows[0].count) / perPage),
+    },
   });
 });
 
@@ -378,6 +558,40 @@ router.post('/feature-flags', async (req: Request, res: Response) => {
   });
 
   res.json({ message: 'Feature flag saved' });
+});
+
+// ── Feature Flag Archival ─────────────────────────────────────────────────────
+
+router.post('/feature-flags/:key/archive', async (req: Request, res: Response) => {
+  const { archived } = req.body;
+  const flagKey = req.params.key;
+
+  if (typeof archived !== 'boolean') {
+    res.status(400).json({ error: 'archived (boolean) is required' });
+    return;
+  }
+
+  const result = await query(
+    'UPDATE feature_flags SET archived = $1, updated_at = now() WHERE key = $2',
+    [archived, flagKey],
+  );
+
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Flag not found' });
+    return;
+  }
+
+  clearFlagCache();
+
+  await auditLog({
+    userId: req.userId!,
+    action: 'admin_action',
+    details: { type: archived ? 'feature_flag_archived' : 'feature_flag_unarchived', key: flagKey },
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({ message: archived ? 'Flag archived' : 'Flag unarchived' });
 });
 
 // ── Feature Flag Overrides ────────────────────────────────────────────────────
@@ -494,21 +708,30 @@ router.get('/users/:id/flags', async (req: Request, res: Response) => {
 
 // ── Groups ───────────────────────────────────────────────────────────────────
 
-router.get('/groups', async (_req: Request, res: Response) => {
-  const result = await query<{
-    id: string;
-    name: string;
-    description: string | null;
-    allow_self_enroll: boolean;
-    email_domain: string | null;
-    created_at: Date;
-    member_count: string;
-  }>(
-    `SELECT g.id, g.name, g.description, g.allow_self_enroll, g.email_domain, g.created_at,
-            (SELECT count(*) FROM user_group_members ugm WHERE ugm.group_id = g.id) as member_count
-     FROM user_groups g
-     ORDER BY g.name`,
-  );
+router.get('/groups', async (req: Request, res: Response) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const perPage = Math.min(100, Math.max(1, Number(req.query.per_page) || 20));
+  const offset = (page - 1) * perPage;
+
+  const [result, total] = await Promise.all([
+    query<{
+      id: string;
+      name: string;
+      description: string | null;
+      allow_self_enroll: boolean;
+      email_domain: string | null;
+      created_at: Date;
+      member_count: string;
+    }>(
+      `SELECT g.id, g.name, g.description, g.allow_self_enroll, g.email_domain, g.created_at,
+              (SELECT count(*) FROM user_group_members ugm WHERE ugm.group_id = g.id) as member_count
+       FROM user_groups g
+       ORDER BY g.name
+       LIMIT $1 OFFSET $2`,
+      [perPage, offset],
+    ),
+    query<{ count: string }>('SELECT count(*) FROM user_groups'),
+  ]);
 
   res.json({
     groups: result.rows.map(g => ({
@@ -520,6 +743,12 @@ router.get('/groups', async (_req: Request, res: Response) => {
       createdAt: g.created_at,
       memberCount: Number(g.member_count),
     })),
+    pagination: {
+      page,
+      perPage,
+      total: Number(total.rows[0].count),
+      totalPages: Math.ceil(Number(total.rows[0].count) / perPage),
+    },
   });
 });
 
@@ -1149,6 +1378,75 @@ router.delete('/announcements/:id', async (req: Request, res: Response) => {
   });
 
   res.json({ message: 'Announcement deleted' });
+});
+
+// ── Dashboard Summary ────────────────────────────────────────────────────────
+
+router.get('/dashboard/summary', async (_req: Request, res: Response) => {
+  const [recentActions, staleFlags, activeFlights] = await Promise.all([
+    query<{
+      id: string;
+      user_id: string | null;
+      action: string;
+      details: Record<string, unknown>;
+      ip_address: string | null;
+      user_agent: string | null;
+      created_at: Date;
+      user_email: string | null;
+      user_name: string | null;
+    }>(
+      `SELECT al.*, u.email as user_email, u.display_name as user_name
+       FROM audit_log al LEFT JOIN users u ON al.user_id = u.id
+       ORDER BY al.created_at DESC LIMIT 10`,
+    ),
+    query<{
+      key: string;
+      description: string | null;
+      stale_at: string;
+      updated_at: string;
+    }>(
+      `SELECT key, description, stale_at, updated_at FROM feature_flags
+       WHERE stale_at IS NOT NULL AND stale_at < now() AND archived = false`,
+    ),
+    query<{
+      id: string;
+      name: string;
+      rollout_percentage: number;
+      flag_count: string;
+      assignment_count: string;
+    }>(
+      `SELECT id, name, rollout_percentage,
+         (SELECT count(*) FROM flight_flags WHERE flight_id = flights.id) as flag_count,
+         (SELECT count(*) FROM flight_assignments WHERE flight_id = flights.id) as assignment_count
+       FROM flights WHERE enabled = true`,
+    ),
+  ]);
+
+  res.json({
+    recentActions: recentActions.rows.map((e) => ({
+      id: e.id,
+      userId: e.user_id,
+      userEmail: e.user_email,
+      userName: e.user_name,
+      action: e.action,
+      details: e.details,
+      ipAddress: e.ip_address,
+      createdAt: e.created_at,
+    })),
+    staleFlags: staleFlags.rows.map((f) => ({
+      key: f.key,
+      description: f.description,
+      staleAt: f.stale_at,
+      updatedAt: f.updated_at,
+    })),
+    activeFlights: activeFlights.rows.map((f) => ({
+      id: f.id,
+      name: f.name,
+      rolloutPercentage: f.rollout_percentage,
+      flagCount: Number(f.flag_count),
+      assignmentCount: Number(f.assignment_count),
+    })),
+  });
 });
 
 export default router;

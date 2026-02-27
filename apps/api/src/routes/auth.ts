@@ -21,10 +21,14 @@ const router = Router();
 
 const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
 
-const redisStore = isTest ? undefined : new RedisStore({
-  // @ts-expect-error - redis client types are compatible
-  sendCommand: (...args: string[]) => redis.call(...args),
-});
+function createRedisStore(prefix: string) {
+  if (isTest) return undefined;
+  return new RedisStore({
+    // @ts-expect-error - redis client types are compatible
+    sendCommand: (...args: string[]) => redis.call(...args),
+    prefix: `rl:${prefix}:`,
+  });
+}
 
 // Strict limit for mutation endpoints (sign-up, sign-in, password reset)
 const authMutationLimiter = rateLimit({
@@ -32,7 +36,7 @@ const authMutationLimiter = rateLimit({
   max: isTest ? 10000 : 30,
   standardHeaders: true,
   legacyHeaders: false,
-  store: redisStore,
+  store: createRedisStore('auth-mutation'),
   message: { error: 'Too many requests, please try again later' },
 });
 
@@ -42,7 +46,7 @@ const authReadLimiter = rateLimit({
   max: isTest ? 10000 : 200,
   standardHeaders: true,
   legacyHeaders: false,
-  store: redisStore,
+  store: createRedisStore('auth-read'),
   message: { error: 'Too many requests, please try again later' },
 });
 
