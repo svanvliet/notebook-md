@@ -29,7 +29,11 @@ domain          = "notebookmd.io"
 # Transactional email
 # sendgrid_api_key = ""
 
-# azure_ai_endpoint = ""
-# azure_ai_api_key  = ""
-# azure_ai_model = ""
-# ai_daily_generation_limit = ""
+# AI Content Generation
+# azure_ai_endpoint         = ""
+# azure_ai_api_key          = ""
+# azure_ai_model            = "gpt-4.1-nano"
+# ai_daily_generation_limit = 10
+
+# Web Search (AI grounding via Brave Search)
+# brave_search_api_key = ""

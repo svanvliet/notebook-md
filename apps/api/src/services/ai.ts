@@ -7,8 +7,7 @@ const getEndpoint = () => process.env.AZURE_AI_ENDPOINT || '';
 const getApiKey = () => process.env.AZURE_AI_API_KEY || '';
 const getModel = () => process.env.AZURE_AI_MODEL || 'gpt-4.1-nano';
 const getDailyLimit = () => parseInt(process.env.AI_DAILY_GENERATION_LIMIT || '10', 10);
-const getBingKey = () => process.env.BING_SEARCH_API_KEY || '';
-const getWebSearchKey = () => process.env.BRAVE_SEARCH_API_KEY || process.env.BING_SEARCH_API_KEY || '';
+const getWebSearchKey = () => process.env.BRAVE_SEARCH_API_KEY || '';
 const isDev = () => process.env.NODE_ENV !== 'production';
 
 export type AiLength = 'short' | 'medium' | 'long';
