@@ -5331,3 +5331,40 @@ Added AI content generation feature powered by GPT-4.1-nano via Azure OpenAI. Us
 | `apps/web/src/tests/AiPromptModal.test.tsx` | Updated assertions for `webSearch` param, mock `useFlag` |
 | `infra/terraform/variables.tf` | AI vars + `brave_search_api_key` |
 | `infra/terraform/container_apps.tf` | AI secrets/env + Brave secret/env on API container |
+
+---
+
+### Demo Mode AI Access (Phase 8) — 2026-02-27
+
+#### Summary
+Enabled AI content generation for unauthenticated demo mode users with a configurable generation limit (default: 3) using anonymous token-based quota tracking.
+
+#### Key Decisions
+- **Token-based quota** (not IP-based): Avoids unfair quota sharing for NAT/CGNAT users; each browser session gets independent quota via `notebookmd_demo_token` cookie
+- **Feature flag gated**: `ai_demo_mode` flag (disabled by default) controls availability; uses `isKillSwitched()` for anonymous requests since `isFeatureEnabled()` requires user context
+- **No web search for demo**: Cost control — demo users cannot use Brave Search grounding
+- **Sign-up CTA**: When demo quota exhausted, 429 response includes `signUpRequired: true`; modal shows sign-up prompt with link
+- **Audit logging**: Demo requests logged with `action: 'ai.generate.demo'`, `userId: null`, `demoToken` prefix in details
+
+#### Files Changed
+
+| File | Change |
+|------|--------|
+| `apps/api/migrations/014_ai-demo-mode-flag.sql` | **New** — Seeds `ai_demo_mode` feature flag |
+| `apps/api/src/services/ai.ts` | Added `getDemoLimit()`, `checkDemoQuota()`, `incrementDemoQuota()` with 30-day TTL |
+| `apps/api/src/routes/ai.ts` | Added `POST /generate/demo` route — no auth, token cookie, demo quota, no web search |
+| `apps/web/src/api/ai.ts` | Added `demo` option to `generateAiContent()`, `signUpRequired` in error meta |
+| `apps/web/src/components/editor/AiPromptModal.tsx` | Added `isDemoMode` prop, sign-up CTA, hide web search in demo |
+| `apps/web/src/components/editor/AiGenerationExtension.ts` | Added `demoMode` attribute to node and command interface |
+| `apps/web/src/components/editor/AiGenerationWidget.tsx` | Pass `demoMode` to API client |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | Pass `isDemoMode` through to widget and modal |
+| `.env.example` | Added `AI_DEMO_GENERATION_LIMIT=3` |
+| `docs/plans/ai-plan.md` | Added Phase 8 plan |
+
+#### Tests Added
+- **API (9 tests)**: Auth bypass, flag gating, token cookie, quota headers, input validation, quota exhaustion with `signUpRequired`, web search blocked, audit log
+- **Web (6 tests)**: Demo/auth 429 messages, sign-up CTA rendering, web search hidden in demo, demo endpoint routing, signUpRequired meta
+
+#### Test Results
+- API: 371 passed (25 files)
+- Web: 213 passed (21 files)

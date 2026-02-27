@@ -10,6 +10,7 @@ import { EditorContextMenu } from './EditorContextMenu';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import { useToast } from '../../hooks/useToast';
+import { useAuth } from '../../hooks/useAuth';
 import { AiPromptModal } from './AiPromptModal';
 import { MobileCommandFab } from './MobileCommandFab';
 import type { AiLength } from './AiPromptModal';
@@ -117,6 +118,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
 
 export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly, collaborative }: MarkdownEditorProps) {
   const { addToast } = useToast();
+  const { isDemoMode } = useAuth();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
   type ViewMode = 'wysiwyg' | 'source' | 'split';
   const [viewMode, setViewMode] = useState<ViewMode>('wysiwyg');
@@ -433,9 +435,9 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
       setShowAiPrompt(false);
       // Insert AI widget at current cursor position
       const userId = ''; // Will be populated from collaborative context if available
-      editor.commands.insertAiWidget({ prompt, length, ownerId: userId, webSearch });
+      editor.commands.insertAiWidget({ prompt, length, ownerId: userId, webSearch: isDemoMode ? false : webSearch, demoMode: isDemoMode });
     },
-    [editor],
+    [editor, isDemoMode],
   );
 
   // Handle image files dropped into the editor
@@ -768,6 +770,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
           onCancel={() => setShowAiPrompt(false)}
           remainingQuota={aiQuotaRemaining}
           quotaLimit={aiQuotaLimit}
+          isDemoMode={isDemoMode}
         />
       )}
 

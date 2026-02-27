@@ -34,6 +34,48 @@
   - Azure OpenAI: request URL, message count/roles, max_tokens, streaming status, error bodies, token count on completion
   - Web search injection: character count of injected context, missing key warnings
 
+### Demo Mode AI Access (Phase 8)
+
+**Goal:** Allow unauthenticated demo users to try AI generation with a limited number of free generations, then prompt sign-up.
+
+**Approach: Anonymous token-based quota**
+- Generate a random `notebookmd_demo_token` cookie on first demo AI request (httpOnly, sameSite strict, 30-day expiry)
+- Redis key `ai:demo:{token}` tracks generation count per anonymous session
+- Configurable limit via `AI_DEMO_GENERATION_LIMIT` env var (default: 3)
+- Gated behind `ai_demo_mode` feature flag (new migration)
+- Web search disabled for demo users (cost control)
+
+**Why token-based instead of IP-based:**
+- NAT/CGNAT users behind shared IPs would unfairly share a tiny quota
+- Token-based gives each browser session independent quota
+- Abuse risk is negligible at 3 generations of gpt-4.1-nano
+
+**API changes (`apps/api/src/routes/ai.ts`):**
+- Add `POST /api/ai/generate/demo` route (no `requireAuth`)
+- Accept `demoToken` from cookie, generate one if missing
+- Check `ai_demo_mode` feature flag (not user-scoped — global check)
+- Check/increment demo quota in Redis (`ai:demo:{token}`, 30-day TTL)
+- Disable web search, force `webSearch: false`
+- Same streaming response as authenticated route
+
+**Service changes (`apps/api/src/services/ai.ts`):**
+- Add `checkDemoQuota(token)` and `incrementDemoQuota(token)` functions
+- Demo quota limit from `AI_DEMO_GENERATION_LIMIT` env var
+
+**Frontend changes:**
+- `apps/web/src/api/ai.ts`: Add `generateAiContentDemo()` that calls `/demo` endpoint, includes `credentials: 'include'` for cookie
+- `apps/web/src/components/editor/AiPromptModal.tsx`: Show sign-up CTA when demo quota exhausted
+- `apps/web/src/components/editor/MarkdownEditor.tsx`: Route to demo endpoint when `isDemoMode`
+- `apps/web/src/components/editor/AiGenerationWidget.tsx`: Use demo endpoint when no auth
+
+**New files:**
+- `apps/api/migrations/014_ai-demo-mode-flag.sql`: Seeds `ai_demo_mode` feature flag
+- `.env.example`: Add `AI_DEMO_GENERATION_LIMIT=3`
+
+**Tests:**
+- API: Demo route auth bypass, token cookie generation, quota enforcement, quota exhaustion → 429 with sign-up message, web search blocked
+- Web: Demo modal sign-up CTA, demo client API calls
+
 ---
 
 ## Overview

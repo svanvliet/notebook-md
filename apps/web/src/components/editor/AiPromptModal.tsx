@@ -9,6 +9,7 @@ interface AiPromptModalProps {
   onCancel: () => void;
   remainingQuota: number | null;
   quotaLimit: number | null;
+  isDemoMode?: boolean;
 }
 
 const LENGTH_OPTIONS: { value: AiLength; labelKey: string }[] = [
@@ -17,7 +18,7 @@ const LENGTH_OPTIONS: { value: AiLength; labelKey: string }[] = [
   { value: 'long', labelKey: 'editor.ai.modal.length.long' },
 ];
 
-export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit }: AiPromptModalProps) {
+export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit, isDemoMode }: AiPromptModalProps) {
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
   const [length, setLength] = useState<AiLength>('medium');
@@ -102,8 +103,8 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit }
             ))}
           </div>
 
-          {/* Web Search toggle */}
-          {webSearchEnabled && (
+          {/* Web Search toggle — hidden in demo mode */}
+          {webSearchEnabled && !isDemoMode && (
             <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -121,9 +122,23 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit }
           {remainingQuota !== null && quotaLimit !== null && (
             <div className="mt-2">
               {isQuotaExhausted ? (
-                <p className="text-xs text-red-500 dark:text-red-400">
-                  {t('editor.ai.modal.quotaExceeded', 'Daily AI generation limit reached. Try again tomorrow.')}
-                </p>
+                isDemoMode ? (
+                  <div className="text-xs">
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">
+                      {t('editor.ai.modal.demoLimitReached', 'You\'ve used all your free AI generations.')}
+                    </p>
+                    <a
+                      href="/auth/signup"
+                      className="inline-block mt-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    >
+                      {t('editor.ai.modal.signUpCta', 'Sign up for a free account to keep creating with AI →')}
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-red-500 dark:text-red-400">
+                    {t('editor.ai.modal.quotaExceeded', 'Daily AI generation limit reached. Try again tomorrow.')}
+                  </p>
+                )
               ) : (
                 <p className="text-xs text-gray-400 dark:text-gray-500">
                   {t('editor.ai.modal.remaining', '{{count}} of {{limit}} remaining today', {
