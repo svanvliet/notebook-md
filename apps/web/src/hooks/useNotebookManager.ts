@@ -47,7 +47,7 @@ import {
   createGoogleDriveFile,
   deleteGoogleDriveFile,
 } from '../api/googledrive';
-import { listCloudTree, createCloudFile, deleteCloudFile } from '../api/cloud';
+import { listCloudTree, createCloudFile, deleteCloudFile, renameCloudFile } from '../api/cloud';
 
 
 /** Encode a file path for use in a URL, encoding each segment but preserving `/`. */
@@ -870,7 +870,19 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   const handleRenameFile = useCallback(
     async (notebookId: string, path: string, newName: string) => {
-      const entry = await renameF(notebookId, path, newName);
+      const nb = notebooks.find((n) => n.id === notebookId);
+      const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+      let entry: { path: string; name: string };
+
+      if (nb?.sourceType === 'cloud') {
+        await renameCloudFile(notebookId, path, newPath);
+        entry = { path: newPath, name: newName };
+      } else {
+        entry = await renameF(notebookId, path, newName);
+      }
+
       await refreshFiles(notebookId);
 
       // Update tab if open
@@ -885,7 +897,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       );
       setActiveTabId((prev) => (prev === oldTabId ? newTabId : prev));
     },
-    [refreshFiles],
+    [notebooks, refreshFiles],
   );
 
   // --- Open file in editor ---
