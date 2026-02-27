@@ -1,7 +1,7 @@
 # AI Content Generation — Implementation Plan
 
 **Requirements:** `docs/requirements/ai-requirements.md`
-**Branch:** `feature/ai-generation`
+**Branch:** `feature/ai`
 **Date:** 2026-02-26
 **Status:** Complete (all 6 phases implemented and tested)
 
