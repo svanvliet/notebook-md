@@ -23,6 +23,7 @@ import { Color } from '@tiptap/extension-color';
 import { Mathematics } from '@tiptap/extension-mathematics';
 import 'katex/dist/katex.min.css';
 import { Callout } from './CalloutExtension';
+import { AiGenerationExtension } from './AiGenerationExtension';
 import { createLowlight } from 'lowlight';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
@@ -152,6 +153,7 @@ export function getEditorExtensions(placeholder?: string, collab?: CollabOptions
       katexOptions: { throwOnError: false },
     }),
     Callout,
+    AiGenerationExtension,
   ];
 
   // Add collaboration extensions when in collaborative mode

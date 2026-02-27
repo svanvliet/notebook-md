@@ -12,6 +12,14 @@ export interface SlashCommand {
 
 export const slashCommands: SlashCommand[] = [
   {
+    title: 'Create with AI',
+    description: 'Generate content with AI',
+    icon: '✨',
+    action: (editor) => {
+      window.dispatchEvent(new CustomEvent('ai:open-prompt', { detail: { editor } }));
+    },
+  },
+  {
     title: 'Paragraph',
     description: 'Plain text block',
     icon: '¶',

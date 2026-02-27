@@ -293,6 +293,34 @@ router.post('/:provider/files/{*filePath}', validatePath, requireCloudEditor, as
   }
 });
 
+// ── PATCH /api/sources/:provider/files/* — Rename file ────────────────────
+
+router.patch('/:provider/files/{*filePath}', validatePath, requireCloudEditor, async (req: Request, res: Response) => {
+  const resolved = await resolveProvider(req, res);
+  if (!resolved) return;
+
+  const { adapter, accessToken } = resolved;
+  const rootPath = (req.query.root as string) ?? '';
+  const oldPath = (req as any).cleanPath;
+  const { newPath } = req.body;
+  const cb = getCircuitBreaker(req.params.provider as string);
+
+  if (typeof newPath !== 'string' || !newPath) {
+    res.status(400).json({ error: 'newPath is required and must be a string' });
+    return;
+  }
+
+  try {
+    const result = await adapter!.renameFile(accessToken, rootPath, oldPath, newPath);
+    cb.onSuccess();
+    res.json(result);
+  } catch (err) {
+    cb.onFailure();
+    logger.error('Source rename failed', { provider: req.params.provider as string, oldPath, newPath, error: (err as Error).message });
+    res.status(502).json({ error: `Failed to rename file on ${req.params.provider as string}` });
+  }
+});
+
 // ── DELETE /api/sources/:provider/files/* — Delete file ───────────────────
 
 router.delete('/:provider/files/{*filePath}', validatePath, requireCloudEditor, async (req: Request, res: Response) => {

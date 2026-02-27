@@ -12,6 +12,8 @@ A web application for creating, editing, and organizing Markdown notebooks throu
     
 -   **Tabbed editor** — multiple documents open simultaneously
     
+-   **AI content generation** — generate formatted Markdown content with GPT-4.1-nano via slash command or toolbar button
+    
 -   **Notebook tree** — hierarchical file/folder browser with drag-and-drop import
     
 -   **Settings sync** — display mode, font, margins, and preferences persist across sessions
@@ -25,7 +27,7 @@ A web application for creating, editing, and organizing Markdown notebooks throu
 | --- | --- |
 | Frontend | React 19, TypeScript, Tailwind CSS, Tiptap |
 | Backend | Express 5, TypeScript, node-pg-migrate |
-| Database | PostgreSQL 16 (metadata only — no document content) |
+| Database | PostgreSQL 16 (metadata only — no document content stored) |
 | Cache | Redis 7 (sessions, rate limiting) |
 | Email | Nodemailer (Mailpit for local dev) |
 | Infrastructure | Docker Compose (local), containers (production) |

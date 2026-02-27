@@ -47,7 +47,7 @@ import {
   createGoogleDriveFile,
   deleteGoogleDriveFile,
 } from '../api/googledrive';
-import { listCloudTree, createCloudFile, deleteCloudFile } from '../api/cloud';
+import { listCloudTree, createCloudFile, deleteCloudFile, renameCloudFile } from '../api/cloud';
 
 
 /** Encode a file path for use in a URL, encoding each segment but preserving `/`. */
@@ -487,9 +487,19 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   }, [notebooks, tabs, flash, toast]);
 
   const handleRenameNotebook = useCallback(async (id: string, name: string) => {
-    await renameNb(id, name);
+    const nb = notebooks.find((n) => n.id === id);
+    if (nb?.sourceType === 'cloud') {
+      // Persist rename to the server for cloud notebooks
+      const res = await apiFetch(`/api/notebooks/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error('Failed to rename notebook');
+    } else {
+      await renameNb(id, name);
+    }
     setNotebooks((prev) => prev.map((n) => (n.id === id ? { ...n, name } : n)));
-  }, []);
+  }, [notebooks]);
 
   // --- Working branch state (must precede file ops that use ensureWorkingBranch) ---
 
@@ -870,22 +880,49 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   const handleRenameFile = useCallback(
     async (notebookId: string, path: string, newName: string) => {
-      const entry = await renameF(notebookId, path, newName);
+      const nb = notebooks.find((n) => n.id === notebookId);
+      const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+      let entry: { path: string; name: string };
+
+      if (nb?.sourceType === 'cloud') {
+        await renameCloudFile(notebookId, path, newPath);
+        entry = { path: newPath, name: newName };
+      } else {
+        entry = await renameF(notebookId, path, newName);
+      }
+
       await refreshFiles(notebookId);
 
-      // Update tab if open
+      // Update tabs: for a folder rename, update all tabs under the old path
+      const oldPrefix = `${notebookId}:${path}/`;
+      const newPrefix = `${notebookId}:${entry.path}/`;
       const oldTabId = `${notebookId}:${path}`;
       const newTabId = `${notebookId}:${entry.path}`;
       setTabs((prev) =>
-        prev.map((t) =>
-          t.id === oldTabId
-            ? { ...t, id: newTabId, path: entry.path, name: entry.name }
-            : t,
-        ),
+        prev.map((t) => {
+          if (t.id === oldTabId) {
+            return { ...t, id: newTabId, path: entry.path, name: entry.name };
+          }
+          if (t.id.startsWith(oldPrefix)) {
+            const suffix = t.id.slice(oldPrefix.length);
+            const updatedPath = `${entry.path}/${suffix}`;
+            return { ...t, id: `${notebookId}:${updatedPath}`, path: updatedPath };
+          }
+          return t;
+        }),
       );
-      setActiveTabId((prev) => (prev === oldTabId ? newTabId : prev));
+      setActiveTabId((prev) => {
+        if (prev === oldTabId) return newTabId;
+        if (prev?.startsWith(oldPrefix)) {
+          const suffix = prev.slice(oldPrefix.length);
+          return `${notebookId}:${entry.path}/${suffix}`;
+        }
+        return prev;
+      });
     },
-    [refreshFiles],
+    [notebooks, refreshFiles],
   );
 
   // --- Open file in editor ---
