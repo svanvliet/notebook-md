@@ -10,6 +10,9 @@ import { EditorContextMenu } from './EditorContextMenu';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import { useToast } from '../../hooks/useToast';
+import { AiPromptModal } from './AiPromptModal';
+import { MobileCommandFab } from './MobileCommandFab';
+import type { AiLength } from './AiPromptModal';
 import './editor.css';
 
 // Allow table-related attributes and elements that Tiptap generates
@@ -123,6 +126,9 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
   const [wordWrap, setWordWrap] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [mediaModal, setMediaModal] = useState<{ type: 'image' | 'video' } | null>(null);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiQuotaRemaining, setAiQuotaRemaining] = useState<number | null>(null);
+  const [aiQuotaLimit, setAiQuotaLimit] = useState<number | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
@@ -411,6 +417,26 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
     window.addEventListener('notebook-media-insert', handler);
     return () => window.removeEventListener('notebook-media-insert', handler);
   }, []);
+
+  // Listen for AI prompt open events from slash command / toolbar
+  useEffect(() => {
+    const handler = () => {
+      setShowAiPrompt(true);
+    };
+    window.addEventListener('ai:open-prompt', handler);
+    return () => window.removeEventListener('ai:open-prompt', handler);
+  }, []);
+
+  const handleAiSubmit = useCallback(
+    (prompt: string, length: AiLength) => {
+      if (!editor) return;
+      setShowAiPrompt(false);
+      // Insert AI widget at current cursor position
+      const userId = ''; // Will be populated from collaborative context if available
+      editor.commands.insertAiWidget({ prompt, length, ownerId: userId });
+    },
+    [editor],
+  );
 
   // Handle image files dropped into the editor
   const handleEditorDrop = useCallback(
@@ -734,6 +760,19 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
           }}
         />
       )}
+
+      {/* AI Prompt Modal */}
+      {showAiPrompt && (
+        <AiPromptModal
+          onSubmit={handleAiSubmit}
+          onCancel={() => setShowAiPrompt(false)}
+          remainingQuota={aiQuotaRemaining}
+          quotaLimit={aiQuotaLimit}
+        />
+      )}
+
+      {/* Mobile FAB for slash commands */}
+      <MobileCommandFab editor={editor} />
     </div>
   );
 }

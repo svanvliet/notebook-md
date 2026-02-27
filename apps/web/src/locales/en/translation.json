@@ -50,6 +50,44 @@
       "link": "Link",
       "undo": "Undo",
       "redo": "Redo"
+    },
+    "ai": {
+      "slashCommand": {
+        "title": "Create with AI",
+        "description": "Generate content with AI"
+      },
+      "toolbar": {
+        "title": "Create with AI"
+      },
+      "modal": {
+        "title": "Create with AI",
+        "subtitle": "Describe the content you'd like to generate",
+        "placeholder": "e.g., \"Write an introduction to machine learning\"",
+        "length": {
+          "short": "Short",
+          "medium": "Medium",
+          "long": "Long"
+        },
+        "disclaimer": "Your prompt and document content are sent to an AI service (Azure OpenAI) to generate a response.",
+        "remaining": "{{count}} of {{limit}} remaining today",
+        "quotaExceeded": "Daily AI generation limit reached. Try again tomorrow.",
+        "create": "Create",
+        "cancel": "Cancel"
+      },
+      "widget": {
+        "generating": "Generating with AI…",
+        "accept": "Insert",
+        "reject": "Discard",
+        "retry": "Retry",
+        "dismiss": "Dismiss",
+        "error": "Failed to generate content. Please try again."
+      },
+      "fab": {
+        "title": "Insert block"
+      },
+      "collab": {
+        "generating": "Generating with AI…"
+      }
     }
   },
   "settings": {

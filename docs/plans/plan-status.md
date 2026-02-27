@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated: 2026-02-25
+**Last Updated: 2026-02-27
 
 ---
 
@@ -5087,3 +5087,94 @@ These bugs all stem from **environmental differences** between local dev and pro
 | Web | web:v0.2.6 | 6 hotfixes applied |
 | Admin | admin:v0.2.0 | Unchanged |
 | Collab | collab:v0.2.5 | 2 hotfixes applied |
+
+---
+
+### AI Content Generation Feature (2026-02-26 – 2026-02-27)
+
+**Branch:** `feature/ai`
+**Plan:** `docs/plans/ai-plan.md`
+**Requirements:** `docs/requirements/ai-requirements.md`
+
+#### Overview
+Added AI content generation feature powered by GPT-4.1-nano via Azure OpenAI. Users invoke "Create with AI" from a slash command, toolbar sparkle button, or mobile FAB, enter a prompt with length selection, and receive streamed Markdown content in an inline TipTap widget with accept/reject controls.
+
+#### Phase 1 — Infrastructure & Feature Flags
+- **Status:** Complete
+- Migration `012_ai-feature-flags.sql`: seeds `ai_content_generation` and `ai_unlimited_generations` flags
+- Added `AZURE_AI_ENDPOINT`, `AZURE_AI_API_KEY`, `AZURE_AI_MODEL`, `AI_DAILY_GENERATION_LIMIT` to `.env.example`
+- Provisioned Azure OpenAI resource `notebookmd-ai` in `rg-notebookmd-prod` (East US, S0 SKU)
+- Deployed `gpt-4.1-nano` model (GlobalStandard, version 2025-04-14)
+
+#### Phase 2 — Backend AI Service & Route
+- **Status:** Complete
+- `apps/api/src/services/ai.ts`: Prompt construction with system prompt, length guidance, document context with [INSERT HERE] marker, 100K char truncation, Azure OpenAI streaming via direct `fetch()` REST calls, quota management via Redis
+- `apps/api/src/routes/ai.ts`: `POST /api/ai/generate` with requireAuth, requireFeature, rate limiter (20/15min), SSE response, quota headers, audit logging
+- **Key fix:** `@azure-rest/ai-inference` SDK uses wrong endpoint for Azure OpenAI resources. Switched to direct REST API: `/openai/deployments/{model}/chat/completions?api-version=2024-10-21`
+
+#### Phase 3 — Frontend Prompt Modal & SSE Client
+- **Status:** Complete
+- `apps/web/src/components/editor/AiPromptModal.tsx`: Modal with textarea, short/medium/long toggle, quota display, disclaimer, Cmd+Enter submit
+- `apps/web/src/api/ai.ts`: SSE streaming client with ReadableStream, abort support, quota header parsing
+
+#### Phase 4 — TipTap AI Widget Extension
+- **Status:** Complete
+- `apps/web/src/components/editor/AiGenerationExtension.ts`: Custom block node with attrs (prompt, status, content, errorMessage, ownerId, length), insertAiWidget/removeAiWidget commands
+- `apps/web/src/components/editor/AiGenerationWidget.tsx`: React NodeView with 4 states (loading shimmer, streaming, complete with accept/reject, error with retry/dismiss) + collaborative slug for non-owners
+- `apps/web/src/components/editor/editor.css`: AI widget CSS with animated gradient border, shimmer skeleton, dark mode, prefers-reduced-motion
+
+#### Phase 5 — Entry Points & Integration Wiring
+- **Status:** Complete
+- Slash command "Create with AI" added as first item in `SlashCommands.ts`
+- Sparkle toolbar button added to `EditorToolbar.tsx`
+- `MobileCommandFab.tsx`: Mobile floating action button for block insertion
+- `MarkdownEditor.tsx`: AI state management, event listener for `ai:open-prompt`, handleAiSubmit callback
+- i18n strings added for all `editor.ai.*` keys
+
+#### Phase 6 — Legal, Privacy & Marketing
+- **Status:** Complete
+- `PrivacyPage.tsx`: Added Section 4 (AI Content Generation), updated Third-Party Services to include Azure OpenAI, renumbered all subsequent sections
+- `TermsPage.tsx`: Added Section 3 (AI Content Generation) with "as is" disclaimer, renumbered subsequent sections
+- `FeaturesPage.tsx`: Added "Create with AI" feature card, clarified "never store" claim
+- `AboutPage.tsx`: Added AI data handling disclosure to philosophy section
+- `README.md`: Added AI content generation to features list
+
+#### Tests
+- **Status:** Complete (41 total)
+- `apps/api/src/tests/ai.test.ts`: 14 tests — buildMessages unit tests, integration tests for auth/feature flag/validation/quota/SSE/audit
+- `apps/web/src/tests/AiPromptModal.test.tsx`: 12 tests — rendering, submission, keyboard shortcuts, quota display
+- `apps/web/src/tests/ai-client.test.ts`: 7 tests — SSE token parsing, done/error events, abort, rate limit
+- `apps/web/src/tests/legal.test.tsx`: 2 tests — privacy and terms AI disclosures
+- `e2e/ai.spec.ts`: 6 Playwright E2E tests — toolbar, slash command, accept/reject, cancel, Cmd+Enter, error state
+
+#### Bug Fixes (during development)
+- **Azure OpenAI endpoint:** `@azure-rest/ai-inference` SDK targets wrong URL for Azure OpenAI resources. Fixed by using direct `fetch()` with `/openai/deployments/{model}/chat/completions` path.
+- **Feature flag cache:** 30-second in-memory cache caused stale flag values. Added `clearFlagCache()` calls in tests.
+- **Rate limiter counting 404s:** express-rate-limit counted requests even when upstream middleware returned 404, exhausting the limit during debugging.
+
+### Cloud Notebook Rename Fixes (2026-02-27)
+
+**Branch:** `feature/ai` (bundled with AI feature)
+
+#### Fix 1 — Cloud notebook rename not persisting
+- **Bug:** Renaming a cloud notebook via right-click context menu worked client-side but reverted on refresh.
+- **Root cause:** `handleRenameNotebook` called `renameNotebook()` from `localNotebookStore.ts` which only updates IndexedDB. Cloud notebooks need a server API call.
+- **Fix:** Added cloud source type check — calls `PUT /api/notebooks/:id` for cloud notebooks, falls through to IndexedDB for local notebooks.
+- **File:** `apps/web/src/hooks/useNotebookManager.ts`
+
+#### Fix 2 — Cloud folder rename 502 error
+- **Bug:** Renaming a cloud folder returned 502 "Failed to rename file on cloud".
+- **Root cause:** `CloudAdapter.renameFile()` only matched single files by exact path. Folders are stored with trailing `/` and have child documents with paths like `folder/file.md`. The UPDATE found 0 rows.
+- **Fix:** Added folder rename logic: (1) rename the folder entry itself, (2) update all child paths by replacing the old prefix with the new one.
+- **File:** `apps/api/src/services/sources/cloud.ts`
+
+#### Fix 3 — Folder rename with children failing (substring SQL bug)
+- **Bug:** Renaming a folder with children still returned 502.
+- **Root cause:** PostgreSQL's `substring(str FROM $2)` interprets a string parameter as a regex pattern, not a numeric position. The parameterized query passed the position as a string, causing the regex to fail silently.
+- **Fix:** Changed to `substring(path, $2::int)` — comma form with explicit integer cast.
+- **File:** `apps/api/src/services/sources/cloud.ts`
+
+#### Fix 4 — API route for cloud file rename
+- **Bug:** No API endpoint existed for renaming cloud files.
+- **Fix:** Added `PATCH /:provider/files/*` route in `apps/api/src/routes/sources.ts`, `renameCloudFile()` client function in `apps/web/src/api/cloud.ts`, and cloud branch in `handleRenameFile` in `useNotebookManager.ts`.
+- **Files:** `apps/api/src/routes/sources.ts`, `apps/web/src/api/cloud.ts`, `apps/web/src/hooks/useNotebookManager.ts`

@@ -63,6 +63,10 @@ function PrintIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
 }
 
+function SparkleIcon() {
+  return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" /></svg>;
+}
+
 function ImageIcon() {
   return <svg className={ic} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
 }
@@ -555,6 +559,16 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           title={`${t('editor.toolbar.print', 'Print')} (⌘P)`}
         >
           <PrintIcon />
+        </ToolbarButton>
+
+        <Divider />
+
+        {/* AI Generate */}
+        <ToolbarButton
+          onClick={() => window.dispatchEvent(new CustomEvent('ai:open-prompt', { detail: { editor } }))}
+          title={t('editor.ai.toolbar.title', 'Create with AI')}
+        >
+          <SparkleIcon />
         </ToolbarButton>
       </span>
 
