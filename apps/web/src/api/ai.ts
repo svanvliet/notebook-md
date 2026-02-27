@@ -17,19 +17,21 @@ export interface AiQuotaInfo {
 export interface AiGenerateCallbacks {
   onToken: (text: string) => void;
   onDone: () => void;
-  onError: (msg: string) => void;
+  onError: (msg: string, meta?: { signUpRequired?: boolean }) => void;
   onQuota?: (quota: AiQuotaInfo) => void;
 }
 
 export function generateAiContent(
   params: AiGenerateParams,
   callbacks: AiGenerateCallbacks,
+  options?: { demo?: boolean },
 ): AbortController {
   const controller = new AbortController();
+  const endpoint = options?.demo ? '/api/ai/generate/demo' : '/api/ai/generate';
 
   (async () => {
     try {
-      const res = await apiFetch('/api/ai/generate', {
+      const res = await apiFetch(endpoint, {
         method: 'POST',
         body: JSON.stringify(params),
         signal: controller.signal,
@@ -48,7 +50,7 @@ export function generateAiContent(
 
       if (res.status === 429) {
         const body = await res.json();
-        callbacks.onError(body.error || 'Rate limit exceeded');
+        callbacks.onError(body.error || 'Rate limit exceeded', { signUpRequired: !!body.signUpRequired });
         return;
       }
 

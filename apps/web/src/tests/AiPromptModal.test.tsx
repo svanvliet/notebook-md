@@ -120,4 +120,23 @@ describe('AiPromptModal', () => {
       expect(defaultProps.onCancel).toHaveBeenCalled();
     }
   });
+
+  it('displays sign-up CTA when demo quota exhausted', () => {
+    render(<AiPromptModal {...defaultProps} remainingQuota={0} quotaLimit={3} isDemoMode={true} />);
+    expect(screen.getByText(/used all your free AI generations/)).toBeTruthy();
+    expect(screen.getByText(/Sign up for a free account/)).toBeTruthy();
+  });
+
+  it('does not display sign-up CTA for authenticated users with exhausted quota', () => {
+    render(<AiPromptModal {...defaultProps} remainingQuota={0} quotaLimit={10} isDemoMode={false} />);
+    expect(screen.getByText(/Daily AI generation limit reached/)).toBeTruthy();
+    expect(screen.queryByText(/Sign up for a free account/)).toBeNull();
+  });
+
+  it('hides web search checkbox in demo mode', () => {
+    // useFlag mock returns false (web search flag disabled), but even if it were true,
+    // demo mode should hide the checkbox. With flag=false + isDemoMode=true, no checkbox.
+    const { container } = render(<AiPromptModal {...defaultProps} isDemoMode={true} />);
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
 });

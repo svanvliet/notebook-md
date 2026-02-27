@@ -132,7 +132,7 @@ describe('generateAiContent (SSE client)', () => {
     );
 
     await new Promise((r) => setTimeout(r, 100));
-    expect(onError).toHaveBeenCalledWith('Rate limit exceeded');
+    expect(onError).toHaveBeenCalledWith('Rate limit exceeded', { signUpRequired: false });
   });
 
   it('abort cancels the request', async () => {
@@ -171,5 +171,62 @@ describe('generateAiContent (SSE client)', () => {
 
     await new Promise((r) => setTimeout(r, 100));
     expect(onError).toHaveBeenCalledWith('Internal error');
+  });
+
+  it('calls /api/ai/generate/demo when demo option is set', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockSSEResponse([
+        'data: {"type":"token","content":"Demo"}\n\n',
+        'data: {"type":"done"}\n\n',
+      ]),
+    );
+
+    generateAiContent(
+      { prompt: 'test', length: 'short' },
+      { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() },
+      { demo: true },
+    );
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/ai/generate/demo');
+  });
+
+  it('calls /api/ai/generate when demo option is not set', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockSSEResponse([
+        'data: {"type":"done"}\n\n',
+      ]),
+    );
+
+    generateAiContent(
+      { prompt: 'test', length: 'short' },
+      { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() },
+    );
+
+    await new Promise((r) => setTimeout(r, 100));
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/ai/generate');
+    expect(url).not.toContain('/demo');
+  });
+
+  it('passes signUpRequired in onError meta for 429 with signUpRequired flag', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'X-AI-Generations-Remaining': '0', 'X-AI-Generations-Limit': '3' }),
+      json: async () => ({ error: 'Demo limit reached. Sign up!', signUpRequired: true }),
+    });
+
+    const onError = vi.fn();
+    generateAiContent(
+      { prompt: 'test', length: 'short' },
+      { onToken: vi.fn(), onDone: vi.fn(), onError },
+      { demo: true },
+    );
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(onError).toHaveBeenCalledWith('Demo limit reached. Sign up!', { signUpRequired: true });
   });
 });

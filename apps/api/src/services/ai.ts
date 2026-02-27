@@ -7,6 +7,7 @@ const getEndpoint = () => process.env.AZURE_AI_ENDPOINT || '';
 const getApiKey = () => process.env.AZURE_AI_API_KEY || '';
 const getModel = () => process.env.AZURE_AI_MODEL || 'gpt-4.1-nano';
 const getDailyLimit = () => parseInt(process.env.AI_DAILY_GENERATION_LIMIT || '10', 10);
+const getDemoLimit = () => parseInt(process.env.AI_DEMO_GENERATION_LIMIT || '3', 10);
 const getWebSearchKey = () => process.env.BRAVE_SEARCH_API_KEY || '';
 const isDev = () => process.env.NODE_ENV !== 'production';
 
@@ -295,6 +296,31 @@ export async function incrementQuota(userId: string): Promise<void> {
   if (!exists) {
     // Set 24-hour TTL on first use
     await redis.expire(key, 24 * 60 * 60);
+  }
+}
+
+// --- Demo quota management ---
+
+const DEMO_QUOTA_TTL = 30 * 24 * 60 * 60; // 30 days
+
+function demoQuotaKey(token: string): string {
+  return `ai:demo:${token}`;
+}
+
+export async function checkDemoQuota(token: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+  const limit = getDemoLimit();
+  const current = await redis.get(demoQuotaKey(token));
+  const used = current ? parseInt(current, 10) : 0;
+  const remaining = Math.max(0, limit - used);
+  return { allowed: remaining > 0, remaining, limit };
+}
+
+export async function incrementDemoQuota(token: string): Promise<void> {
+  const key = demoQuotaKey(token);
+  const exists = await redis.exists(key);
+  await redis.incr(key);
+  if (!exists) {
+    await redis.expire(key, DEMO_QUOTA_TTL);
   }
 }
 

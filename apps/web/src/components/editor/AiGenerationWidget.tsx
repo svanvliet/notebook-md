@@ -41,7 +41,7 @@ function SparkleIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 export function AiGenerationWidget({ node, updateAttributes, deleteNode, editor }: NodeViewProps) {
   const { t } = useTranslation();
-  const { prompt, status, content, errorMessage, ownerId, length, webSearch } = node.attrs;
+  const { prompt, status, content, errorMessage, ownerId, length, webSearch, demoMode } = node.attrs;
   const abortRef = useRef<AbortController | null>(null);
   const contentRef = useRef('');
   const [renderedHtml, setRenderedHtml] = useState('');
@@ -93,10 +93,11 @@ export function AiGenerationWidget({ node, updateAttributes, deleteNode, editor 
           updateAttributes({ status: 'error', errorMessage: msg, content: contentRef.current });
         },
       },
+      { demo: !!demoMode },
     );
 
     abortRef.current = controller;
-  }, [prompt, length, webSearch, isOwner, editor, updateAttributes]);
+  }, [prompt, length, webSearch, demoMode, isOwner, editor, updateAttributes]);
 
   // Auto-start on mount if loading
   useEffect(() => {
