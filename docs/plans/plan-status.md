@@ -5178,3 +5178,66 @@ Added AI content generation feature powered by GPT-4.1-nano via Azure OpenAI. Us
 - **Bug:** No API endpoint existed for renaming cloud files.
 - **Fix:** Added `PATCH /:provider/files/*` route in `apps/api/src/routes/sources.ts`, `renameCloudFile()` client function in `apps/web/src/api/cloud.ts`, and cloud branch in `handleRenameFile` in `useNotebookManager.ts`.
 - **Files:** `apps/api/src/routes/sources.ts`, `apps/web/src/api/cloud.ts`, `apps/web/src/hooks/useNotebookManager.ts`
+
+---
+
+### AI Production Deployment & Enhancements (2026-02-27)
+
+**Branch:** `main`
+
+#### Production Deployment (v0.2.7)
+- Added Terraform variables for all AI env vars: `azure_ai_endpoint`, `azure_ai_api_key` (sensitive), `azure_ai_model`, `ai_daily_generation_limit`
+- Added corresponding `secret {}` and `env {}` blocks to API container in `container_apps.tf`
+- Ran `terraform apply` — 4 container apps updated with new env vars/secrets
+- Built and pushed `api:v0.2.7` and `web:v0.2.7` Docker images to ACR (`crnotebookmdprod.azurecr.io`)
+- Deployed API and Web container apps; migrations already applied
+- Verified health checks: API (`/api/health` → 200 OK, DB + Redis healthy), Web (200), Admin (200)
+- AI endpoint responding (401 without auth — correct)
+- `ai_content_generation` flag already enabled in production DB
+
+#### Azure OpenAI Quota Fix
+- **Issue:** AI generation returned 429 rate limit errors — deployment had minimum quota (1 req/60s, 1000 tokens/60s)
+- **Fix:** Increased `gpt-4.1-nano` deployment from 1K TPM to 30K TPM (30 req/min) via `az cognitiveservices account deployment create --sku-capacity 30 --sku-name GlobalStandard`
+
+#### Web Search Grounding Feature (Phase 7)
+- **Goal:** Allow AI to use web search for up-to-date, factual content
+- **UI:** Optional "Use web search" checkbox in AI prompt modal (unchecked by default), gated behind `ai_web_search` feature flag
+- **Migration:** `013_ai-web-search-flag.sql` — seeds `ai_web_search` flag as disabled
+
+##### Bing Search Attempts (Failed)
+1. `data_sources: [{type: "bing"}]` → 400 error; `"bing"` is not a valid Azure OpenAI data_sources type (valid: `azure_search`, `cosmos_db`, `elasticsearch`, `pinecone`, `mongo_db`)
+2. `web_search_preview` tool → Not supported on Azure OpenAI endpoints (platform restriction, works only on direct OpenAI endpoints)
+3. Bing Search v7 REST API → **Retired** (no new resources can be created)
+4. Bing.Grounding resource → Created successfully, but keys only work with Azure AI Agent Service (completely different API), not direct REST calls
+
+##### Final Solution — Brave Search API
+- Switched to Brave Search API (free tier: 2,000 queries/month)
+- Implementation: Backend calls `GET https://api.search.brave.com/res/v1/web/search` with `X-Subscription-Token` header
+- Top 5 results (title, URL, description) injected as system message context before user prompt
+- LLM generates content grounded in web data with `[Source Title](URL)` citations
+- Graceful fallback: continues without search if Brave call fails
+- Terraform: Added `brave_search_api_key` variable + container secret (with `bing_search_api_key` fallback)
+
+#### Long Response Token Increase
+- Increased `long` max_tokens from 4,096 → 16,384 for substantially longer generated content
+
+#### Dev-Only Debug Logging
+- Added comprehensive `logger.debug()` calls in `ai.ts` (only emit when `NODE_ENV !== 'production'`):
+  - Brave Search: request URL, query, status, result count, result titles/URLs, failure details
+  - Azure OpenAI: request URL, message count/roles, max_tokens, stream start status, error response body, token count on completion
+  - Web search injection: char count, missing key warnings, no-results notifications
+
+#### Files Modified
+| File | Change |
+|------|--------|
+| `apps/api/src/services/ai.ts` | Brave Search integration, dev logging, long token increase |
+| `apps/api/src/routes/ai.ts` | Accept `webSearch` param, feature flag check, audit log |
+| `apps/api/migrations/013_ai-web-search-flag.sql` | New migration — `ai_web_search` flag |
+| `apps/web/src/api/ai.ts` | Added `webSearch` to `AiGenerateParams` |
+| `apps/web/src/components/editor/AiPromptModal.tsx` | Web search checkbox, `useFlag('ai_web_search')` |
+| `apps/web/src/components/editor/AiGenerationExtension.ts` | `webSearch` attribute on node |
+| `apps/web/src/components/editor/AiGenerationWidget.tsx` | Pass `webSearch` to API client |
+| `apps/web/src/components/editor/MarkdownEditor.tsx` | Wire `webSearch` through `handleAiSubmit` |
+| `apps/web/src/tests/AiPromptModal.test.tsx` | Updated assertions for `webSearch` param, mock `useFlag` |
+| `infra/terraform/variables.tf` | AI vars + `brave_search_api_key` |
+| `infra/terraform/container_apps.tf` | AI secrets/env + Brave secret/env on API container |
