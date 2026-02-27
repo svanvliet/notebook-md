@@ -36,6 +36,18 @@ export async function createCloudFile(notebookId: string, filePath: string, cont
   }
 }
 
+export async function renameCloudFile(notebookId: string, oldPath: string, newPath: string): Promise<{ path: string }> {
+  const res = await apiFetch(`/api/sources/cloud/files/${encodeFilePath(oldPath)}?root=${notebookId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ newPath }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? 'Failed to rename file');
+  }
+  return res.json();
+}
+
 export async function deleteCloudFile(notebookId: string, filePath: string): Promise<void> {
   const res = await apiFetch(`/api/sources/cloud/files/${encodeFilePath(filePath)}?root=${notebookId}`, {
     method: 'DELETE',
