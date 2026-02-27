@@ -35,6 +35,25 @@ Rules:
 
 const MAX_CONTEXT_LENGTH = 100_000;
 
+// Fetch top Bing Search results and format as context for the LLM
+async function fetchBingResults(query: string, apiKey: string): Promise<string | null> {
+  const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=5&textFormat=Raw`;
+  const res = await fetch(url, {
+    headers: { 'Ocp-Apim-Subscription-Key': apiKey },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json() as {
+    webPages?: { value: Array<{ name: string; url: string; snippet: string }> };
+  };
+  const pages = data.webPages?.value;
+  if (!pages || pages.length === 0) return null;
+
+  return pages
+    .map((p, i) => `[${i + 1}] ${p.name}\n${p.url}\n${p.snippet}`)
+    .join('\n\n');
+}
+
 export function buildMessages(
   prompt: string,
   length: AiLength,
@@ -96,29 +115,31 @@ export async function* streamGeneration(
   const messages = buildMessages(prompt, length, documentContext, cursorContext);
   const maxTokens = MAX_TOKENS[length];
 
-  // Use preview API version when web search is enabled (data_sources requires it)
-  const apiVersion = webSearch ? '2025-01-01-preview' : '2024-10-21';
-  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=${apiVersion}`;
+  // If web search is enabled, fetch Bing results and inject into messages
+  const bingKey = getBingKey();
+  if (webSearch && bingKey) {
+    try {
+      const searchResults = await fetchBingResults(prompt, bingKey);
+      if (searchResults) {
+        // Inject web results as a system message before the user prompt
+        messages.splice(1, 0, {
+          role: 'system',
+          content: `The following web search results may help you provide accurate, up-to-date information. Use them if relevant, and cite sources where appropriate using [Source Title](URL) format.\n\n${searchResults}`,
+        });
+      }
+    } catch {
+      // Continue without search results if Bing call fails
+    }
+  }
 
-  // Build request body with optional Bing grounding
-  const body: Record<string, unknown> = {
+  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${model}/chat/completions?api-version=2024-10-21`;
+
+  const body = {
     messages,
     max_tokens: maxTokens,
     temperature: 0.7,
     stream: true,
   };
-
-  const bingKey = getBingKey();
-  if (webSearch && bingKey) {
-    body.data_sources = [
-      {
-        type: 'bing',
-        parameters: {
-          subscription_key: bingKey,
-        },
-      },
-    ];
-  }
 
   try {
     const response = await fetch(url, {
