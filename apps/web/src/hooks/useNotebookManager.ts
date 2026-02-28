@@ -19,6 +19,7 @@ import {
   type NotebookMeta,
   type FileEntry,
 } from '../stores/localNotebookStore';
+import { getStorageAdapter, isTauriEnvironment } from '../stores/storageAdapterFactory';
 import { markdownToHtml, htmlToMarkdown, isMarkdownContent } from '../components/editor/markdownConverter';
 import {
   listGitHubTree,
@@ -1492,12 +1493,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   }, [toast]);
 
   const reloadNotebooks = useCallback(async () => {
-    const nbs = await listNotebooks();
+    const adapter = isTauriEnvironment() ? getStorageAdapter() : null;
+    const nbs = adapter ? await adapter.listNotebooks() : await listNotebooks();
     setNotebooks(nbs);
     const fileMap: Record<string, FileEntry[]> = {};
     for (const nb of nbs) {
       if (nb.sourceType === 'local' || !nb.sourceType) {
-        fileMap[nb.id] = await listFiles(nb.id);
+        fileMap[nb.id] = adapter ? await adapter.listFiles(nb.id) : await listFiles(nb.id);
       }
     }
     setFiles(fileMap);
