@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod menu;
 mod state;
 mod watcher;
 
@@ -11,6 +12,10 @@ use watcher::WatcherRegistry;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // Resolve the Tauri app data directory
             let app_data_dir = app
@@ -25,6 +30,20 @@ fn main() {
             let app_state = AppState::new(app_data_dir, notebooks_root);
             app.manage(app_state);
             app.manage(WatcherRegistry::new());
+
+            // Build and attach native menu bar
+            let handle = app.handle().clone();
+            let native_menu = menu::build_menu(&handle)
+                .map_err(|e| e.to_string())?;
+            app.set_menu(native_menu)
+                .map_err(|e| e.to_string())?;
+
+            // Listen for menu events
+            let handle2 = app.handle().clone();
+            app.on_menu_event(move |_app, event| {
+                menu::handle_menu_event(&handle2, event.id().as_ref());
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -43,6 +62,7 @@ fn main() {
             commands::delete_file,
             commands::move_file,
             commands::ensure_assets_folder,
+            commands::open_folder_as_notebook,
             watcher::watch_directory,
             watcher::unwatch_directory,
         ])

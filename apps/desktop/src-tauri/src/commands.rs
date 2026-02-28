@@ -513,3 +513,44 @@ pub async fn ensure_assets_folder(
 
     Ok(assets_rel)
 }
+
+// ---------------------------------------------------------------------------
+// Folder dialog — opens a native folder picker and creates a notebook
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn open_folder_as_notebook(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<NotebookMeta, String> {
+    let dir = std::path::PathBuf::from(&path);
+    if !dir.exists() || !dir.is_dir() {
+        return Err(format!("Not a valid directory: {path}"));
+    }
+
+    let name = dir
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    let now = now_millis();
+    let id = uuid::Uuid::new_v4().to_string();
+
+    let nb = NotebookMeta {
+        id,
+        name,
+        source_type: "local".into(),
+        source_config: serde_json::json!({ "path": path }),
+        sort_order: now,
+        created_at: now,
+        updated_at: now,
+    };
+
+    {
+        let mut nbs = state.notebooks.lock().map_err(|e| e.to_string())?;
+        nbs.push(nb.clone());
+    }
+    state.save_manifest()?;
+    Ok(nb)
+}
