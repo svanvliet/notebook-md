@@ -9,6 +9,7 @@ const ContactPage = lazy(() => import('./components/marketing/ContactPage'));
 const TermsPage = lazy(() => import('./components/legal/TermsPage'));
 const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage'));
 const PublicDocumentViewer = lazy(() => import('./components/public/PublicDocumentViewer'));
+const DownloadPage = lazy(() => import('./components/marketing/DownloadPage'));
 
 function AppRoutes() {
   const location = useLocation();
@@ -25,6 +26,7 @@ function AppRoutes() {
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/download" element={<DownloadPage />} />
         {/* Auth callback routes — App handles these via useEffect */}
         <Route path="/app/magic-link" element={<App />} />
         <Route path="/app/verify-email" element={<App />} />
