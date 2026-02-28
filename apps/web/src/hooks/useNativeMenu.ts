@@ -41,8 +41,8 @@ export function useNativeMenu({ onMenuAction }: UseNativeMenuOptions): void {
           callbackRef.current?.(event.payload as MenuAction);
         });
         unlisten = unlistenFn;
-      } catch {
-        // ignore if not in Tauri
+      } catch (err) {
+        console.error('[useNativeMenu] Failed to register menu listener:', err);
       }
     })();
 

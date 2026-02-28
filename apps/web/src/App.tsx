@@ -36,6 +36,7 @@ import { useDocumentRoute } from './hooks/useDocumentRoute';
 import { useDocumentOutline } from './hooks/useDocumentOutline';
 import type { Editor } from '@tiptap/react';
 import { useNativeMenu, type MenuAction } from './hooks/useNativeMenu';
+import { isTauriEnvironment } from './stores/storageAdapterFactory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -114,8 +115,23 @@ export default function App() {
           if (nb.activeNotebook) nb.handleCreateFile(nb.activeNotebook.id, '', 'file');
           break;
         case 'open_folder':
-          setShowAddNotebook(true);
-          setInitialSource('local-folder');
+          if (isTauriEnvironment()) {
+            // Directly invoke folder dialog — don't go through AddNotebookModal
+            (async () => {
+              try {
+                const { open } = await import('@tauri-apps/plugin-dialog');
+                const selected = await open({ directory: true, title: 'Open Notebook Folder' });
+                if (selected) {
+                  const { invoke } = await import('@tauri-apps/api/core');
+                  await invoke('open_folder_as_notebook', { path: selected });
+                  nb.reloadNotebooks();
+                  addToast('Opened folder as notebook', 'success');
+                }
+              } catch (err) {
+                addToast(`Failed to open folder: ${err}`, 'error');
+              }
+            })();
+          }
           break;
         case 'save':
           // Cmd+S is already handled by useAutoSave keydown listener
@@ -138,7 +154,7 @@ export default function App() {
         default:
           break;
       }
-    }, [nb.activeNotebook, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, sidebar, mode, setMode, addToast]),
+    }, [nb.activeNotebook, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast]),
   });
 
   // Enter demo mode via /demo route or "Try Demo" button
@@ -787,6 +803,11 @@ export default function App() {
             track(AnalyticsEvents.NOTEBOOK_CREATED, { sourceType });
           }}
           onCancel={closeAddNotebook}
+          onFolderOpened={() => {
+            closeAddNotebook();
+            nb.reloadNotebooks();
+            addToast('Opened folder as notebook', 'success');
+          }}
           userId={auth.user?.id}
           initialSource={initialSource}
           isDemoMode={auth.isDemoMode}

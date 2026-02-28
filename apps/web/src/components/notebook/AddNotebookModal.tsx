@@ -39,6 +39,7 @@ import {
 interface AddNotebookModalProps {
   onAdd: (name: string, sourceType: SourceType, sourceConfig: Record<string, unknown>) => void;
   onCancel: () => void;
+  onFolderOpened?: () => void;
   userId?: string;
   initialSource?: string | null;
   isDemoMode?: boolean;
@@ -49,7 +50,7 @@ interface AddNotebookModalProps {
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, onFolderOpened, userId, initialSource, isDemoMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
   const cloudEnabled = useFeatureFlag('cloud_notebooks');
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
@@ -83,8 +84,8 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
       const selected = await open({ directory: true, title: 'Open Notebook Folder' });
       if (selected) {
         const { invoke } = await import('@tauri-apps/api/core');
-        const nb = await invoke<{ name: string }>('open_folder_as_notebook', { path: selected });
-        onAdd(nb.name, 'local', { path: selected });
+        await invoke('open_folder_as_notebook', { path: selected });
+        onFolderOpened?.();
       }
     } catch (err) {
       setError(`Failed to open folder: ${err}`);
@@ -141,6 +142,11 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 
         {/* Body */}
         <div className="px-5 py-4 min-h-[220px]">
+          {error && step !== 'name' && (
+            <div className="mb-3 p-2 rounded text-sm bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+              {error}
+            </div>
+          )}
           {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} onDemoSignUp={onDemoSignUp} hiddenSources={cloudEnabled ? [] : ['cloud']} />}
           {step === 'configure' && sourceType === 'github' && (
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
