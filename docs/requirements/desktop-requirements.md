@@ -304,12 +304,12 @@ When a user installs the desktop app and was previously using the web app with l
 
 ### 10.1 Multiple Windows
 
-Tauri v2 natively supports multiple windows via `WebviewWindow::new()`. Each window runs its own React app instance with independent state. Implementation is straightforward — the main complexity is:
-- Window management bookkeeping (track which notebook is in which window)
-- Preventing the same file from being edited in two windows simultaneously
+Tauri v2 natively supports multiple windows via `WebviewWindow::new()`. Each window runs its own React app instance with independent state. Key rules:
+- Each window shows a different notebook — the same notebook cannot be opened in two windows simultaneously
+- If a user tries to open an already-open notebook in a new window, focus the existing window instead
 - "Open in New Window" action in notebook context menu
 
-This adds moderate complexity but is well-supported by Tauri. Included in V1.
+This keeps implementation simple and avoids file-conflict issues. Included in V1.
 
 ---
 
@@ -326,6 +326,8 @@ The "+" menu in the notebook tree includes an "Open Local Folder" option that:
 
 This is in addition to creating new notebooks in the default `~/Documents/Notebook.md/` location.
 
+**No limit** on the number of local folder-based notebooks — local notebooks are free and unlimited (cloud notebooks retain their free-tier limits).
+
 ### 11.2 Save Behavior
 
 - **Auto-save:** Enabled by default with a 2-second debounce after the last edit. Writes to the filesystem after the debounce period.
@@ -340,3 +342,11 @@ When a `.md` file is opened via file association (double-click in Finder/Explore
 - Full editor experience (toolbar, slash commands, AI if authenticated)
 - Save writes back to the original file location
 - No notebook metadata — just a direct file editor
+
+### 11.4 Download Page
+
+A public download page at `notebookmd.io/download` that:
+- Detects the user's OS and highlights the appropriate download button
+- Shows both macOS (.dmg) and Windows (.exe / .msi) options
+- Displays current version number and release notes
+- Linked from the web app header/settings ("Get the Desktop App")
