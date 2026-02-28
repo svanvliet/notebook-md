@@ -2,10 +2,12 @@
 
 mod commands;
 mod state;
+mod watcher;
 
 use state::AppState;
 use std::path::PathBuf;
 use tauri::Manager;
+use watcher::WatcherRegistry;
 
 fn main() {
     tauri::Builder::default()
@@ -22,6 +24,7 @@ fn main() {
 
             let app_state = AppState::new(app_data_dir, notebooks_root);
             app.manage(app_state);
+            app.manage(WatcherRegistry::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -40,6 +43,8 @@ fn main() {
             commands::delete_file,
             commands::move_file,
             commands::ensure_assets_folder,
+            watcher::watch_directory,
+            watcher::unwatch_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Notebook.md");
