@@ -26,6 +26,8 @@ interface TreeNode {
 }
 
 function buildTree(files: { path: string }[]): TreeNode[] {
+  // Filter out folder-only entries (trailing slash or no extension)
+  const realFiles = files.filter(f => !f.path.endsWith('/'));
   const root: TreeNode[] = [];
   const folderMap = new Map<string, TreeNode>();
 
@@ -44,7 +46,7 @@ function buildTree(files: { path: string }[]): TreeNode[] {
     return node;
   };
 
-  for (const f of files) {
+  for (const f of realFiles) {
     const parts = f.path.split('/');
     const name = parts[parts.length - 1];
     const fileNode: TreeNode = { name, path: f.path, isFolder: false, children: [] };
