@@ -19,7 +19,9 @@
     "test:api:notebooks": "npm -w apps/api run test:notebooks",
     "test:api:providers": "npm -w apps/api run test:providers",
     "test:web": "npm -w apps/web run test",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "dev:desktop": "npm -w apps/desktop run dev",
+    "build:desktop": "npm -w apps/web run build && npm -w apps/desktop run build"
   },
   "engines": {
     "node": ">=20.0.0"
