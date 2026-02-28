@@ -855,10 +855,23 @@ Phases 4–6 can be partially parallelized since they modify different parts of 
 | Icon transparency (white background) | ✅ Done | Regenerated all icons with white→transparent conversion |
 | Cookie banner in desktop | ✅ Done | `useCookieConsent.ts` auto-accepts in Tauri |
 | "Local (Browser)" label | ✅ Done | Dynamic label + "Open Folder…" desktop-only source type |
-| Menu actions non-functional | ✅ Done | `useNativeMenu` wired into `App.tsx` |
+| Menu actions non-functional | ✅ Done | Added `capabilities/default.json`; menu events now reach frontend |
+| Open Folder flow broken | ✅ Done | Menu action bypasses modal; modal uses `onFolderOpened` + `reloadNotebooks` |
+| Double-create on folder open | ✅ Done | Rust creates notebook, frontend just refreshes — no duplicate `onAdd` |
+| Silent error swallowing | ✅ Done | `useNativeMenu` logs errors; modal shows errors on source step |
 | WelcomeScreen simplification | ⏳ Pending | Strip MarketingNav/Footer + add "Use offline" button |
 | Version bump script | ✅ Done | `scripts/bump-version.sh` updates all 5 version files |
 | Production API URL in builds | ✅ Done | `VITE_API_URL` injected in CI workflow + `build:desktop` script |
+
+#### Root-Cause Analysis (from Codex review)
+
+The two persistent failures (menu actions + open folder) shared a root cause: **missing Tauri v2 capabilities configuration**. Tauri v2 uses a permission-based security model — without explicit capability grants in `capabilities/default.json`, JS-side APIs (`listen`, `dialog.open`) were silently blocked at runtime. Additional issues:
+
+- **Menu open_folder routing**: `initialSource='local-folder'` sent the modal to a `ComingSoon` fallback instead of triggering the folder dialog
+- **Double-create**: Both Rust and React created a notebook on folder open, producing duplicates or inconsistent state
+- **Error invisibility**: Silent catches in `useNativeMenu` and error display limited to `NameStep` hid all failures
+
+Full review: `docs/reviews/desktop-review-codex.md`
 
 ---
 
@@ -873,7 +886,7 @@ Phases 4–6 can be partially parallelized since they modify different parts of 
 | Phase 5: Native OS | ✅ Complete | Menu bar, dialog/deep-link/window-state plugins, file associations |
 | Phase 6: Auth & Cloud | ✅ Scaffold | useNetworkStatus (4 tests); OAuth/cookies work via WebView |
 | Phase 7: Build & Distribute | ✅ Scaffold | CI workflow, download page, route, production API URL injection |
-| Phase 8: UX Polish | 🔧 Partial | Icons, cookie, labels, menus fixed; welcome screen pending |
+| Phase 8: UX Polish | 🔧 Partial | Icons, cookie, labels, menus, folder-open all fixed; welcome screen pending |
 
 **Test totals:** 232 web tests + 4 Rust tests — all passing
 **Branch:** `feature/desktop` (local, not pushed)

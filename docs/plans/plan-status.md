@@ -5480,7 +5480,10 @@ Full production deployment of all AI features including demo mode, flag gating, 
 - **Icons**: Replaced placeholders with real app logos, white bg → transparent
 - **Cookie banner**: Auto-suppressed in Tauri
 - **Local label**: "Local (Browser)" → "Local (Desktop)" + "Open Folder…" option
-- **Menu actions**: Wired all File/View/Help items to frontend handlers
+- **Menu actions**: Fixed — root cause was missing Tauri v2 `capabilities/default.json`
+- **Open Folder**: Fixed — menu action now directly invokes native dialog; modal uses `onFolderOpened` callback
+- **Double-create fix**: Rust is single owner of notebook creation for folder-open; frontend just reloads
+- **Error handling**: `useNativeMenu` logs errors; modal shows errors on all steps
 - **Version bump**: `scripts/bump-version.sh` updates all 5 version files
 - **Pending**: WelcomeScreen simplification (strip marketing chrome for desktop)
 
@@ -5502,3 +5505,4 @@ Full production deployment of all AI features including demo mode, flag gating, 
 | 1bebb7f | Phase 8: Desktop UX polish & version bump script |
 | b2a1bc0 | Update desktop-plan.md and plan-status.md with Phase 1-8 progress |
 | e1e944e | Set VITE_API_URL for production desktop builds |
+| 93ffe32 | Fix menu actions + open folder: capabilities, routing, double-create |
