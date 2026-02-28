@@ -12,6 +12,7 @@ async function enableAiFlags(page: Page) {
     if (!json.flags) json.flags = {};
     json.flags.ai_content_generation = { enabled: true, variant: null, badge: null };
     json.flags.ai_unlimited_generations = { enabled: true, variant: null, badge: null };
+    json.flags.ai_demo_mode = { enabled: true, variant: null, badge: null };
     await route.fulfill({ json });
   });
 }
@@ -21,7 +22,7 @@ async function enableAiFlags(page: Page) {
  * Avoids needing real Azure OpenAI credentials in E2E.
  */
 async function mockAiGenerate(page: Page, content = '## Hello World\n\nThis is AI-generated content.') {
-  await page.route('**/api/ai/generate', async (route) => {
+  const handler = async (route: any) => {
     const tokens = content.match(/.{1,10}/g) || [content];
     let sseBody = '';
     for (const token of tokens) {
@@ -40,7 +41,9 @@ async function mockAiGenerate(page: Page, content = '## Hello World\n\nThis is A
       },
       body: sseBody,
     });
-  });
+  };
+  await page.route('**/api/ai/generate/demo', handler);
+  await page.route('**/api/ai/generate', handler);
 }
 
 /** Wait for the editor to be ready and click into it. */
@@ -156,8 +159,8 @@ test.describe('AI Content Generation', () => {
   });
 
   test('error state shows retry and dismiss buttons', async ({ page }) => {
-    // Mock an error response
-    await page.route('**/api/ai/generate', async (route) => {
+    // Mock an error response for both auth and demo endpoints
+    const errorHandler = async (route: any) => {
       await route.fulfill({
         status: 200,
         headers: {
@@ -167,7 +170,9 @@ test.describe('AI Content Generation', () => {
         },
         body: `data: ${JSON.stringify({ type: 'error', message: 'AI service unavailable' })}\n\n`,
       });
-    });
+    };
+    await page.route('**/api/ai/generate/demo', errorHandler);
+    await page.route('**/api/ai/generate', errorHandler);
 
     await page.goto('/demo');
     await focusEditor(page);
