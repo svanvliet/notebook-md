@@ -5474,6 +5474,7 @@ Full production deployment of all AI features including demo mode, flag gating, 
 - `.github/workflows/desktop-build.yml`: macOS (arm64/x64) + Windows CI
 - `DownloadPage.tsx` at `/download` with OS detection
 - Code signing secrets wired for tag-based releases
+- `VITE_API_URL=https://api.notebookmd.io` injected in CI "Build web app" step and local `build:desktop` script (production builds hit real API; dev builds use local/empty)
 
 #### Phase 8: UX Polish (Partial) 🔧
 - **Icons**: Replaced placeholders with real app logos, white bg → transparent
@@ -5499,3 +5500,5 @@ Full production deployment of all AI features including demo mode, flag gating, 
 | cb14bb8 | Phase 7: Build pipeline & download page |
 | 9e8e66c | Replace placeholder icons with real app logos |
 | 1bebb7f | Phase 8: Desktop UX polish & version bump script |
+| b2a1bc0 | Update desktop-plan.md and plan-status.md with Phase 1-8 progress |
+| e1e944e | Set VITE_API_URL for production desktop builds |

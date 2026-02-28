@@ -570,10 +570,14 @@
    Create a GitHub Actions workflow (or Azure DevOps pipeline) that:
    1. Checks out the repo
    2. Installs Node.js dependencies (`npm ci`)
-   3. Builds `apps/web` (`npm -w apps/web run build`)
+   3. Builds `apps/web` with `VITE_API_URL=https://api.notebookmd.io` so the bundled app calls the production API
    4. Installs Rust toolchain
    5. Builds the Tauri app (`npm -w apps/desktop run tauri build`)
    6. Uploads artifacts
+
+   **Important:** The web frontend resolves `VITE_API_URL` at build time via `import.meta.env`. In dev, it's unset (empty string → relative URLs to local dev server). In production builds, it must be set to the production API origin. This is handled in:
+   - CI: `env: VITE_API_URL: https://api.notebookmd.io` on the "Build web app" step
+   - Local: `build:desktop` script prefixes the web build with `VITE_API_URL=https://api.notebookmd.io`
 
    Run on: push to `main` (nightly), tags matching `desktop-v*` (release), and PR builds (test-only, no signing).
 
@@ -854,6 +858,7 @@ Phases 4–6 can be partially parallelized since they modify different parts of 
 | Menu actions non-functional | ✅ Done | `useNativeMenu` wired into `App.tsx` |
 | WelcomeScreen simplification | ⏳ Pending | Strip MarketingNav/Footer + add "Use offline" button |
 | Version bump script | ✅ Done | `scripts/bump-version.sh` updates all 5 version files |
+| Production API URL in builds | ✅ Done | `VITE_API_URL` injected in CI workflow + `build:desktop` script |
 
 ---
 
@@ -867,7 +872,7 @@ Phases 4–6 can be partially parallelized since they modify different parts of 
 | Phase 4: File Watching | ✅ Complete | notify crate watcher, useFsWatcher, useAutoSave (7 tests) |
 | Phase 5: Native OS | ✅ Complete | Menu bar, dialog/deep-link/window-state plugins, file associations |
 | Phase 6: Auth & Cloud | ✅ Scaffold | useNetworkStatus (4 tests); OAuth/cookies work via WebView |
-| Phase 7: Build & Distribute | ✅ Scaffold | CI workflow, download page, route |
+| Phase 7: Build & Distribute | ✅ Scaffold | CI workflow, download page, route, production API URL injection |
 | Phase 8: UX Polish | 🔧 Partial | Icons, cookie, labels, menus fixed; welcome screen pending |
 
 **Test totals:** 232 web tests + 4 Rust tests — all passing
