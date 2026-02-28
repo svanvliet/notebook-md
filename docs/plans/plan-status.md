@@ -5368,3 +5368,17 @@ Enabled AI content generation for unauthenticated demo mode users with a configu
 #### Test Results
 - API: 371 passed (25 files)
 - Web: 213 passed (21 files)
+
+#### Follow-up: UI Flag Gating for AI Entry Points
+- Slash command, toolbar button, and mobile FAB now check `ai_demo_mode` (demo) or `ai_content_generation` (auth)
+- `/api/flags` endpoint returns `ai_demo_mode` for anonymous requests
+- E2E tests updated to mock `ai_demo_mode` flag and `/api/ai/generate/demo` endpoint
+- All tests passing: 371 API, 213 web, 29/30 E2E (1 pre-existing cloud share failure)
+
+Files changed:
+| `apps/api/src/app.ts` | Return `ai_demo_mode` for anon flag requests |
+| `apps/web/src/components/editor/SlashCommands.ts` | Added `featureFlag` field |
+| `apps/web/src/components/editor/SlashCommandMenu.tsx` | Filter commands by flag |
+| `apps/web/src/components/editor/EditorToolbar.tsx` | Gate sparkle button |
+| `apps/web/src/components/editor/MobileCommandFab.tsx` | Gate AI in FAB |
+| `e2e/ai.spec.ts` | Mock demo endpoint + `ai_demo_mode` flag |

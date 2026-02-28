@@ -75,6 +75,13 @@
 **Tests:**
 - API: Demo route auth bypass, token cookie generation, quota enforcement, quota exhaustion → 429 with sign-up message, web search blocked
 - Web: Demo modal sign-up CTA, demo client API calls
+- E2E: Updated AI E2E tests to mock demo endpoint and `ai_demo_mode` flag
+
+**UI flag gating:**
+- Slash command "Create with AI" filtered by `featureFlag: 'ai'` field
+- Toolbar sparkle button and mobile FAB conditionally rendered
+- In demo mode: checks `ai_demo_mode` flag; authenticated: checks `ai_content_generation`
+- `/api/flags` returns `ai_demo_mode` for anonymous requests via `isKillSwitched()` check
 
 ---
 
