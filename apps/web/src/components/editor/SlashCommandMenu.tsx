@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Editor } from '@tiptap/react';
 import { slashCommands, slashCommandPluginKey } from './SlashCommands';
 import type { SlashCommand } from './SlashCommands';
+import { useFlag } from '../../hooks/useFlagProvider';
+import { useAuth } from '../../hooks/useAuth';
 
 interface SlashCommandMenuProps {
   editor: Editor | null;
@@ -14,11 +16,15 @@ export function SlashCommandMenu({ editor }: SlashCommandMenuProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const { isDemoMode } = useAuth();
+  const aiEnabled = useFlag(isDemoMode ? 'ai_demo_mode' : 'ai_content_generation');
 
   const filtered = slashCommands.filter(
-    (cmd) =>
-      cmd.title.toLowerCase().includes(query.toLowerCase()) ||
-      cmd.description.toLowerCase().includes(query.toLowerCase()),
+    (cmd) => {
+      if (cmd.featureFlag === 'ai' && !aiEnabled) return false;
+      return cmd.title.toLowerCase().includes(query.toLowerCase()) ||
+        cmd.description.toLowerCase().includes(query.toLowerCase());
+    },
   );
 
   // Listen for slash command state changes from the ProseMirror plugin

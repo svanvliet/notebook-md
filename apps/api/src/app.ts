@@ -224,6 +224,11 @@ app.get('/api/flags', optionalAuth, async (req, res) => {
   for (const [key, resolved] of Object.entries(allFlags)) {
     flags[key] = { enabled: resolved.enabled, variant: resolved.variant, badge: resolved.badge };
   }
+  // For anonymous users, include demo-relevant flags that aren't kill-switched
+  if (!userId) {
+    const demoKilled = await isKillSwitched('ai_demo_mode');
+    flags['ai_demo_mode'] = { enabled: !demoKilled, variant: null, badge: null };
+  }
   res.json({ flags });
 });
 

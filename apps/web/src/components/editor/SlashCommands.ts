@@ -8,6 +8,8 @@ export interface SlashCommand {
   description: string;
   icon: string;
   action: (editor: Editor) => void;
+  /** When set, command is only shown if this feature flag is enabled */
+  featureFlag?: string;
 }
 
 export const slashCommands: SlashCommand[] = [
@@ -15,6 +17,7 @@ export const slashCommands: SlashCommand[] = [
     title: 'Create with AI',
     description: 'Generate content with AI',
     icon: '✨',
+    featureFlag: 'ai',
     action: (editor) => {
       window.dispatchEvent(new CustomEvent('ai:open-prompt', { detail: { editor } }));
     },

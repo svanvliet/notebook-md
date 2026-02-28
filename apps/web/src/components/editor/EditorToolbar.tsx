@@ -2,6 +2,8 @@ import { Editor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { useToast } from '../../hooks/useToast';
+import { useFlag } from '../../hooks/useFlagProvider';
+import { useAuth } from '../../hooks/useAuth';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -275,6 +277,8 @@ function MediaInsertMenu({
 
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const { t } = useTranslation();
+  const { isDemoMode } = useAuth();
+  const aiEnabled = useFlag(isDemoMode ? 'ai_demo_mode' : 'ai_content_generation');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
@@ -564,12 +568,14 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         <Divider />
 
         {/* AI Generate */}
+        {aiEnabled && (
         <ToolbarButton
           onClick={() => window.dispatchEvent(new CustomEvent('ai:open-prompt', { detail: { editor } }))}
           title={t('editor.ai.toolbar.title', 'Create with AI')}
         >
           <SparkleIcon />
         </ToolbarButton>
+        )}
       </span>
 
       {/* Mobile overflow menu */}
