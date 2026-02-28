@@ -68,6 +68,8 @@
 
 **Dependencies:** Phase 1 (Tauri loads the web app)
 
+> **⚠️ Risk note:** This is the riskiest phase. Refactoring `useNotebookManager` to use an abstract adapter touches a critical hook that every part of the app depends on. The adapter pattern with backward-compatible wrappers mitigates this — existing function exports continue to work, and all 213 web tests must pass after the refactor before proceeding to Phase 3.
+
 ### Tasks
 
 1. **Define the `StorageAdapter` interface**
@@ -188,7 +190,7 @@
 2. **Implement notebook directory management**
    Store the default notebook root directory in Tauri's app state. Default to `~/Documents/Notebook.md/` on macOS and `%USERPROFILE%\Documents\Notebook.md\` on Windows. Create the directory on first launch if it doesn't exist.
 
-   Store notebook metadata (id, name, sourceType, sourceConfig, sortOrder, timestamps) in a `notebooks.json` file in the root directory. This is the Tauri equivalent of the IndexedDB notebooks store.
+   Store notebook metadata (id, name, sourceType, sourceConfig, sortOrder, timestamps) in a `notebooks.json` file in **Tauri's app data directory** (e.g., `~/Library/Application Support/io.notebookmd.desktop/` on macOS, `%APPDATA%/io.notebookmd.desktop/` on Windows) — **not** inside the notebook folders themselves. This avoids polluting user project folders (especially important for "Open Local Folder" notebooks that point to arbitrary directories like Git repos). Notebook `sourceConfig` stores the absolute path to each notebook's folder on disk.
 
    Rust structs:
    ```rust
@@ -245,18 +247,26 @@
 8. **Implement `rename_file` command**
    Rename a file or folder. For folders, this is a filesystem rename — all children move automatically. Return the updated `FileEntry`.
 
-9. **Implement notebook CRUD commands**
-   Commands for managing notebook metadata: `create_notebook`, `list_notebooks`, `rename_notebook`, `delete_notebook`, `reorder_notebooks`. These read/write `notebooks.json` in the root directory.
+9. **Implement `move_file` command**
+   Move a file or folder to a different parent directory within the same notebook. Distinct from rename — this changes the file's location in the tree, not its name. Return the updated `FileEntry` with the new path and parentPath.
+
+   ```rust
+   #[tauri::command]
+   async fn move_file(notebook_id: String, old_path: String, new_parent_path: String, state: State<'_, AppState>) -> Result<FileEntry, String>
+   ```
+
+10. **Implement notebook CRUD commands**
+    Commands for managing notebook metadata: `create_notebook`, `list_notebooks`, `rename_notebook`, `delete_notebook`, `reorder_notebooks`. These read/write `notebooks.json` in the Tauri app data directory.
 
    For `delete_notebook`, move the entire notebook folder to trash.
 
-10. **Register all commands in `main.rs`**
+11. **Register all commands in `main.rs`**
     Use `tauri::Builder::default().invoke_handler(tauri::generate_handler![...])` to register all commands.
 
     Files to modify:
     - `apps/desktop/src-tauri/src/main.rs`
 
-11. **Add Rust dependencies to `Cargo.toml`**
+12. **Add Rust dependencies to `Cargo.toml`**
     Add: `serde`, `serde_json`, `trash`, `walkdir` (for recursive directory listing), `tempfile` (for atomic writes).
 
     Files to modify:
@@ -268,7 +278,7 @@
 - Test atomic writes: Verify temp file is created and renamed
 - Test trash: Verify file moves to OS trash (manual verification on macOS/Windows)
 - Integration: Run `tauri dev`, create/edit/delete files through the UI, verify they appear on the actual filesystem
-- Edge cases: Unicode filenames, deeply nested paths, files with special characters, empty files, large files (>1MB)
+- Edge cases: Unicode filenames, deeply nested paths, files with special characters, empty files, large files (>1MB), move across folder boundaries
 
 ---
 
@@ -484,6 +494,8 @@
 **Goal:** Cloud notebooks and authentication work in the desktop app identically to the web app.
 
 **Dependencies:** Phase 1 (Tauri window loads web app), Phase 5 (deep links for auth callbacks)
+
+> **💡 Note:** This phase is likely simpler than estimated. OAuth in WebView2 (Windows) and WebKit (macOS) generally just works — cookies and redirects behave like a real browser. The main real work is the magic link deep link flow and adding Tauri origins to OAuth redirect URI allowlists.
 
 ### Tasks
 
