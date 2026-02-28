@@ -23,7 +23,9 @@ Notebook.md Desktop is a native desktop application that wraps the existing Reac
 
 - Mobile apps (iOS/Android via Tauri Mobile — future phase)
 - Full offline mode for cloud notebooks (GitHub, OneDrive, Google Drive)
-- Desktop-only features not in the web app (e.g., system tray, global shortcuts)
+- System tray / menu bar persistence (standard window behavior — close = quit)
+- Mac App Store / Microsoft Store distribution (direct download only)
+- Sync between desktop local notebooks and web IndexedDB notebooks
 
 ---
 
@@ -227,22 +229,21 @@ Tauri v2's built-in updater with the following flow:
 
 | Channel | macOS | Windows |
 |---------|-------|---------|
-| **Primary** | Direct download from notebookmd.io | Direct download from notebookmd.io |
-| **Future** | Mac App Store | Microsoft Store |
+| **Primary** | Direct download from notebookmd.io (.dmg) | Direct download from notebookmd.io (.exe + .msi) |
 | **Auto-update** | Tauri updater | Tauri updater |
 
 ### 7.3 Code Signing
 
-- **macOS:** Apple Developer ID certificate (required for Gatekeeper)
+- **macOS:** Apple Developer ID certificate; notarized via `notarytool` (required for Gatekeeper). Developer account already available.
 - **Windows:** Code signing certificate (EV certificate recommended to avoid SmartScreen warnings)
 - CI/CD handles signing automatically during release builds
 
 ### 7.4 Target Architectures
 
-| Platform | Architectures |
-|----------|--------------|
-| macOS | Universal binary (Apple Silicon + Intel) |
-| Windows | x64, ARM64 |
+| Platform | Architectures | Installer Formats |
+|----------|--------------|-------------------|
+| macOS | Universal binary (Apple Silicon + Intel) | `.dmg` |
+| Windows | x64, ARM64 | `.exe` (NSIS) + `.msi` |
 
 ---
 
@@ -288,20 +289,54 @@ When a user installs the desktop app and was previously using the web app with l
 
 ---
 
-## 10. Open Questions
+## 10. Decisions (Resolved)
 
-1. **Monetization:** Should the desktop app be free (matching the web app) or a one-time purchase ($19–29 as discussed in requirements.md)? If paid, should it unlock additional features or just be the same app in a native wrapper?
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | Monetization | Free — same monetization strategy as web (future state) |
+| 2 | Windows installer | Both NSIS (.exe) and MSI |
+| 3 | Mac App Store | Direct download only for V1; signed + notarized with Apple Developer account |
+| 4 | Multiple windows | Yes — support multiple windows (see §10.1) |
+| 5 | System tray | No — standard window behavior (close = quit) |
+| 6 | File associations | Open as standalone file outside any notebook |
+| 7 | V1 scope | Full native features: menu bar, file associations, file watching, folder picker for local notebooks |
+| 8 | Auto-save | Debounced auto-save (2s) + explicit Save (⌘S / Ctrl+S) |
 
-2. **Installer type on Windows:** NSIS (more customizable, tradition .exe installer) vs. MSI (enterprise-friendly, Group Policy deployable) vs. both?
+### 10.1 Multiple Windows
 
-3. **Mac App Store:** Should we target the Mac App Store for V1, or start with direct download only? The App Store adds discovery but requires sandbox compliance and Apple's 30% cut.
+Tauri v2 natively supports multiple windows via `WebviewWindow::new()`. Each window runs its own React app instance with independent state. Implementation is straightforward — the main complexity is:
+- Window management bookkeeping (track which notebook is in which window)
+- Preventing the same file from being edited in two windows simultaneously
+- "Open in New Window" action in notebook context menu
 
-4. **Multiple windows:** Should V1 support multiple windows (one per notebook), or start with a single-window experience?
+This adds moderate complexity but is well-supported by Tauri. Included in V1.
 
-5. **System tray / menu bar icon:** Should the app minimize to the system tray, or follow standard window behavior (close = quit)?
+---
 
-6. **File association behavior:** When opening a `.md` file from Finder/Explorer, should we open it in the most relevant notebook, or as a standalone file outside any notebook?
+## 11. Additional V1 Features (from decisions)
 
-7. **Scope for V1:** Should V1 be a thin wrapper (just the web app in a native window with filesystem access), or include more native features (menu bar, file associations, file watching)?
+### 11.1 Local Notebook from Folder Picker
 
-8. **Auto-save vs. manual save:** The web app auto-saves. On desktop with filesystem storage, should we keep auto-save (write on every change), use a debounce (e.g., 2s after last edit), or add explicit Save (⌘S)?
+The "+" menu in the notebook tree includes an "Open Local Folder" option that:
+1. Opens a native folder picker dialog (via Tauri's `dialog` plugin)
+2. User selects any folder on their filesystem
+3. App creates a local notebook pointing to that folder
+4. All `.md` files and subfolders are shown in the notebook tree
+5. Changes are read/written directly to the selected folder
+
+This is in addition to creating new notebooks in the default `~/Documents/Notebook.md/` location.
+
+### 11.2 Save Behavior
+
+- **Auto-save:** Enabled by default with a 2-second debounce after the last edit. Writes to the filesystem after the debounce period.
+- **Explicit save:** ⌘S (macOS) / Ctrl+S (Windows) triggers an immediate write, bypassing the debounce.
+- **Save indicator:** Status bar shows save state — "Saved", "Saving...", "Unsaved changes"
+- **Configurable:** Auto-save can be disabled in Settings, making explicit save the only write trigger.
+
+### 11.3 Standalone File Editing
+
+When a `.md` file is opened via file association (double-click in Finder/Explorer) or drag-and-drop onto the app:
+- Opens in a new window with no notebook sidebar
+- Full editor experience (toolbar, slash commands, AI if authenticated)
+- Save writes back to the original file location
+- No notebook metadata — just a direct file editor
