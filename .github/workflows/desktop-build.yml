@@ -66,6 +66,8 @@ jobs:
 
       - name: Build web app
         run: cd apps/web && npx vite build
+        env:
+          VITE_API_URL: https://api.notebookmd.io
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
