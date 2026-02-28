@@ -20,8 +20,8 @@
     "test:api:providers": "npm -w apps/api run test:providers",
     "test:web": "npm -w apps/web run test",
     "test:e2e": "npx playwright test",
-    "dev:desktop": "npm -w apps/desktop run dev",
-    "build:desktop": "npm -w apps/web run build && npm -w apps/desktop run build"
+    "dev:desktop": "bash scripts/swap-icons.sh dev && npm -w apps/desktop run dev",
+    "build:desktop": "bash scripts/swap-icons.sh prod && npm -w apps/web run build && npm -w apps/desktop run build"
   },
   "engines": {
     "node": ">=20.0.0"

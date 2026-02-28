@@ -750,3 +750,96 @@
 | **Total** | **~18–25 days** | |
 
 Phases 4–6 can be partially parallelized since they modify different parts of the codebase. Phase 7 can begin CI/CD setup as soon as Phase 1 is complete (build pipeline without signing), with signing and distribution added after all features land.
+
+---
+
+## Phase 8: Desktop UX Polish (Post-Scaffold)
+
+**Goal:** Fix the four UX issues discovered during initial desktop testing. The scaffolded app loads the web frontend but doesn't yet adapt the experience for a native desktop context.
+
+**Dependencies:** Phases 1–7 (scaffolding complete)
+
+### Issues & Proposed Changes
+
+#### Issue 1: Homepage shows instead of a streamlined login/signup
+
+**Problem:** When the desktop app launches, unauthenticated users see the full marketing homepage (WelcomeScreen) with `<MarketingNav>` header and `<MarketingFooter>`, including marketing links (Features, About, Contact) and demo-mode CTAs. This is the web conversion funnel — it doesn't make sense in a native app the user already downloaded.
+
+**Proposed fix:** Detect the Tauri environment in `WelcomeScreen` and render a simplified "desktop login" variant:
+- Strip `<MarketingNav>` and `<MarketingFooter>` — no top nav bar, no footer
+- Remove the "Try it free — no account needed" demo-mode CTA (desktop users should create a local notebook or sign in)
+- Keep: logo, sign-in form, sign-up form, OAuth buttons
+- Add: a "Skip — use local notebooks only" button that bypasses auth entirely and drops the user into the editor with the local storage adapter. Desktop doesn't require an account for local-only usage.
+
+**Files to modify:**
+- `apps/web/src/components/welcome/WelcomeScreen.tsx` — Conditionally strip marketing chrome when `isTauriEnvironment()` is true; add "Use offline" skip button
+- `apps/web/src/App.tsx` — When in Tauri and user clicks "skip", set a `desktopOfflineMode` flag (persisted in localStorage) that bypasses the auth gate for local-only notebooks
+
+**Alternative considered:** A completely separate `DesktopWelcome.tsx` component. Rejected because the auth forms, OAuth flow, and 2FA logic would be duplicated. Better to branch within the existing component.
+
+---
+
+#### Issue 2: Cookie consent banner appears in the desktop app
+
+**Problem:** The `CookieConsentBanner` pops up on first launch. Cookie consent is a GDPR/ePrivacy requirement for *websites* that set tracking cookies. A native desktop app doesn't need this — the user already installed the software, and we control the execution context.
+
+**Proposed fix:** Suppress the cookie banner when running in Tauri:
+- In `useCookieConsent.ts`, detect Tauri and auto-accept essential-only consent (or all consent, depending on preference), never showing the banner.
+- Analytics tracking in the desktop app can be handled separately via opt-in in Settings (future), not via a cookie banner.
+
+**Files to modify:**
+- `apps/web/src/hooks/useCookieConsent.ts` — Early return in `useEffect`: if `isTauriEnvironment()`, auto-set consent and skip showing the banner
+
+---
+
+#### Issue 3: "Local (Browser)" shown instead of "Local (Desktop)"
+
+**Problem:** The notebook source picker in `AddNotebookModal` lists "Local (Browser)" as the local option. In the desktop app, this should say "Local (Desktop)" or just "Local" since the files are stored on the filesystem, not in IndexedDB. Additionally, the desktop app should add an "Open Folder…" option that lets users point to an existing directory.
+
+**Proposed fix:**
+1. In `SourceTypes.tsx`, dynamically set the label for the `local` source type based on the runtime environment.
+2. Add a new `local-folder` source type (or an "Open Folder…" button in the source picker) that is only visible in Tauri. When clicked, it invokes Tauri's native folder picker dialog, then calls `open_folder_as_notebook` (already implemented in Phase 5).
+3. Update `AddNotebookModal` source picker to show the folder option in desktop mode.
+
+**Files to modify:**
+- `apps/web/src/components/notebook/SourceTypes.tsx` — Change `local.label` to `'Local (Desktop)'` when in Tauri; add `'local-folder'` source type visible only in Tauri
+- `apps/web/src/components/notebook/AddNotebookModal.tsx` — Handle `local-folder` selection: invoke Tauri dialog, skip name step (use folder name), call `open_folder_as_notebook`
+
+---
+
+#### Issue 4: Native menu items are non-functional
+
+**Problem:** The native menu bar (File → New Notebook, Save, etc.) was scaffolded in Phase 5, but the frontend doesn't yet handle the `menu-action` events. The `useNativeMenu` hook was created but never wired into `App.tsx`.
+
+**Proposed fix:** Wire `useNativeMenu` into the main `App.tsx` component and dispatch each action to the appropriate handler:
+
+| Menu Action | Handler |
+|------------|---------|
+| `new_notebook` | Open the AddNotebookModal |
+| `new_file` | Call `nb.createFile()` in the current notebook |
+| `open_folder` | Invoke Tauri folder dialog → `open_folder_as_notebook` |
+| `save` | Call `flushSave()` from the auto-save hook |
+| `close_tab` | Close the active editor tab |
+| `find` | Focus the editor's search/find UI |
+| `toggle_sidebar` | Toggle sidebar visibility state |
+| `toggle_dark` | Toggle dark mode |
+| `about` | Show an about dialog (version, links) |
+| `check_updates` | Invoke Tauri updater check (stub for now) |
+| `docs` | Open docs URL in default browser |
+
+**Files to modify:**
+- `apps/web/src/App.tsx` — Import and call `useNativeMenu` with a handler that dispatches to existing actions (nb.createFile, sidebar toggle, etc.)
+- `apps/web/src/hooks/useNativeMenu.ts` — Already implemented, no changes needed
+
+---
+
+### Testing Approach
+
+- Manual: Launch desktop app → verify clean login screen (no marketing nav/footer, no demo CTA, "use offline" button works)
+- Manual: Launch desktop app → verify no cookie banner appears
+- Manual: Click "+" to add notebook → verify "Local (Desktop)" label and "Open Folder…" option
+- Manual: File → New Notebook → verify AddNotebookModal opens
+- Manual: File → Save → verify flush save fires (check console or save indicator)
+- Manual: View → Toggle Sidebar → verify sidebar hides/shows
+- Manual: View → Toggle Dark Mode → verify dark mode toggles
+- Automated: Update existing web tests to verify `isTauriEnvironment()` conditional branches
