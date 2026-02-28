@@ -198,6 +198,10 @@ resource "azurerm_container_app" "api" {
         value = tostring(var.ai_daily_generation_limit)
       }
       env {
+        name  = "AI_DEMO_GENERATION_LIMIT"
+        value = tostring(var.ai_demo_generation_limit)
+      }
+      env {
         name        = "BRAVE_SEARCH_API_KEY"
         secret_name = "brave-search-api-key"
       }
