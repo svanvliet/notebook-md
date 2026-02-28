@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/react';
 import { slashCommands } from './SlashCommands';
+import { useFlag } from '../../hooks/useFlagProvider';
+import { useAuth } from '../../hooks/useAuth';
 
 interface MobileCommandFabProps {
   editor: Editor | null;
@@ -9,6 +11,8 @@ interface MobileCommandFabProps {
 
 export function MobileCommandFab({ editor }: MobileCommandFabProps) {
   const { t } = useTranslation();
+  const { isDemoMode } = useAuth();
+  const aiEnabled = useFlag(isDemoMode ? 'ai_demo_mode' : 'ai_content_generation');
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -31,7 +35,9 @@ export function MobileCommandFab({ editor }: MobileCommandFabProps) {
       {/* Command menu */}
       {open && (
         <div className="absolute bottom-16 right-0 w-64 max-h-80 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 mb-2">
-          {slashCommands.map((cmd) => (
+          {slashCommands
+            .filter((cmd) => !cmd.featureFlag || (cmd.featureFlag === 'ai' && aiEnabled))
+            .map((cmd) => (
             <button
               key={cmd.title}
               onClick={() => {
