@@ -138,6 +138,12 @@ variable "ai_daily_generation_limit" {
   default     = 10
 }
 
+variable "ai_demo_generation_limit" {
+  description = "AI generation limit for demo (unauthenticated) users"
+  type        = number
+  default     = 3
+}
+
 variable "brave_search_api_key" {
   description = "Brave Search API key for web grounding in AI content generation"
   type        = string

@@ -34,6 +34,7 @@ domain          = "notebookmd.io"
 # azure_ai_api_key          = ""
 # azure_ai_model            = "gpt-4.1-nano"
 # ai_daily_generation_limit = 10
+# ai_demo_generation_limit  = 3
 
 # Web Search (AI grounding via Brave Search)
 # brave_search_api_key = ""
