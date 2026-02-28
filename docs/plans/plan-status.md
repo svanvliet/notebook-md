@@ -5382,3 +5382,49 @@ Files changed:
 | `apps/web/src/components/editor/EditorToolbar.tsx` | Gate sparkle button |
 | `apps/web/src/components/editor/MobileCommandFab.tsx` | Gate AI in FAB |
 | `e2e/ai.spec.ts` | Mock demo endpoint + `ai_demo_mode` flag |
+
+---
+
+### Production Deployment v0.2.8 — 2026-02-28
+
+#### Summary
+Full production deployment of all AI features including demo mode, flag gating, Brave Search, and Bing removal.
+
+#### Deployment Steps Completed
+
+1. **Terraform Apply**
+   - Added `ai_demo_generation_limit` variable to `variables.tf`, `container_apps.tf`, `terraform.tfvars`
+   - Applied — 2 container apps updated (API receives `AI_DEMO_GENERATION_LIMIT` env var)
+
+2. **Docker Images Built & Pushed** (all `v0.2.8` + `latest`)
+   - `crnotebookmdprod.azurecr.io/api:v0.2.8`
+   - `crnotebookmdprod.azurecr.io/web:v0.2.8`
+   - `crnotebookmdprod.azurecr.io/admin:v0.2.8` *(was missed initially — admin was still on v0.2.0)*
+
+3. **Container Apps Updated**
+   - `ca-notebookmd-api` → `api:v0.2.8`
+   - `ca-notebookmd-web` → `web:v0.2.8`
+   - `ca-notebookmd-admin` → `admin:v0.2.8`
+
+4. **Migration 014 Executed on Production DB**
+   - `ai_demo_mode` feature flag inserted (disabled by default)
+   - Ran via `az containerapp exec` into API container's Node.js REPL
+
+5. **Health Checks Verified**
+   - API: `{"status":"ok","services":{"db":"ok","redis":"ok"}}`
+   - Web: 200
+   - Admin: 200
+
+#### Production Feature Flag State
+| Flag | Status |
+|------|--------|
+| `ai_content_generation` | ✅ Enabled |
+| `ai_web_search` | Status unchanged from prior deploy |
+| `ai_demo_mode` | ❌ Disabled (enable when ready: `UPDATE feature_flags SET enabled = true WHERE key = 'ai_demo_mode'`) |
+
+#### Version History
+| Service | Previous | Current |
+|---------|----------|---------|
+| API | v0.2.7 | v0.2.8 |
+| Web | v0.2.7 | v0.2.8 |
+| Admin | v0.2.0 | v0.2.8 |
