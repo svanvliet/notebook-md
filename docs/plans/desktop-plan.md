@@ -1,6 +1,6 @@
 # Notebook.md — Desktop App Implementation Plan
 
-**Status:** Draft
+**Status:** Phases 1–8 implemented (in progress, on branch `feature/desktop`)
 **Framework:** Tauri v2 (Rust backend, system WebView)
 **Platforms:** macOS (Universal), Windows (x64 + ARM64)
 **Requirements:** [desktop-requirements.md](../requirements/desktop-requirements.md)
@@ -843,3 +843,32 @@ Phases 4–6 can be partially parallelized since they modify different parts of 
 - Manual: View → Toggle Sidebar → verify sidebar hides/shows
 - Manual: View → Toggle Dark Mode → verify dark mode toggles
 - Automated: Update existing web tests to verify `isTauriEnvironment()` conditional branches
+
+### Implementation Status
+
+| Issue | Status | Commit |
+|-------|--------|--------|
+| Icon transparency (white background) | ✅ Done | Regenerated all icons with white→transparent conversion |
+| Cookie banner in desktop | ✅ Done | `useCookieConsent.ts` auto-accepts in Tauri |
+| "Local (Browser)" label | ✅ Done | Dynamic label + "Open Folder…" desktop-only source type |
+| Menu actions non-functional | ✅ Done | `useNativeMenu` wired into `App.tsx` |
+| WelcomeScreen simplification | ⏳ Pending | Strip MarketingNav/Footer + add "Use offline" button |
+| Version bump script | ✅ Done | `scripts/bump-version.sh` updates all 5 version files |
+
+---
+
+## Progress Summary
+
+| Phase | Status | Key Commits |
+|-------|--------|-------------|
+| Phase 1: Scaffolding | ✅ Complete | Tauri v2 project, builds .app/.dmg |
+| Phase 2: Storage Adapter | ✅ Complete | StorageAdapter interface, IndexedDB + Tauri adapters, factory (8 tests) |
+| Phase 3: FS Commands | ✅ Complete | 16 Rust commands, notebook/file CRUD, atomic writes, OS trash (4 tests) |
+| Phase 4: File Watching | ✅ Complete | notify crate watcher, useFsWatcher, useAutoSave (7 tests) |
+| Phase 5: Native OS | ✅ Complete | Menu bar, dialog/deep-link/window-state plugins, file associations |
+| Phase 6: Auth & Cloud | ✅ Scaffold | useNetworkStatus (4 tests); OAuth/cookies work via WebView |
+| Phase 7: Build & Distribute | ✅ Scaffold | CI workflow, download page, route |
+| Phase 8: UX Polish | 🔧 Partial | Icons, cookie, labels, menus fixed; welcome screen pending |
+
+**Test totals:** 232 web tests + 4 Rust tests — all passing
+**Branch:** `feature/desktop` (local, not pushed)
