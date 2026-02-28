@@ -1,20 +1,32 @@
-import { GitHubIcon, OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon, CloudIcon } from '../icons/Icons';
+import { GitHubIcon, OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon, CloudIcon, FolderIcon } from '../icons/Icons';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
 
-export type SourceType = 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
+export type SourceType = 'local' | 'local-folder' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
 
 interface SourceTypeInfo {
   label: string;
   icon: typeof GitHubIcon;
   color: string; // Tailwind text color class
   available: boolean;
+  /** Only show in certain environments */
+  desktopOnly?: boolean;
 }
+
+const isDesktop = typeof window !== 'undefined' && isTauriEnvironment();
 
 export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
   local: {
-    label: 'Local (Browser)',
+    label: isDesktop ? 'Local (Desktop)' : 'Local (Browser)',
     icon: DeviceIcon,
     color: 'text-gray-500',
     available: true,
+  },
+  'local-folder': {
+    label: 'Open Folder…',
+    icon: FolderIcon,
+    color: 'text-amber-600',
+    available: true,
+    desktopOnly: true,
   },
   cloud: {
     label: 'Cloud',

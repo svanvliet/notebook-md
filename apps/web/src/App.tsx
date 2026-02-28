@@ -35,6 +35,7 @@ import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './st
 import { useDocumentRoute } from './hooks/useDocumentRoute';
 import { useDocumentOutline } from './hooks/useDocumentOutline';
 import type { Editor } from '@tiptap/react';
+import { useNativeMenu, type MenuAction } from './hooks/useNativeMenu';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -101,6 +102,44 @@ export default function App() {
   const [demoInitPending, setDemoInitPending] = useState(false);
   // Guard: prevent auto-enter effect from re-entering demo after intentional exit
   const demoExitingRef = useRef(false);
+
+  // Native menu bar actions (desktop only — no-op in browser)
+  useNativeMenu({
+    onMenuAction: useCallback((action: MenuAction) => {
+      switch (action) {
+        case 'new_notebook':
+          setShowAddNotebook(true);
+          break;
+        case 'new_file':
+          if (nb.activeNotebook) nb.handleCreateFile(nb.activeNotebook.id, '', 'file');
+          break;
+        case 'open_folder':
+          setShowAddNotebook(true);
+          setInitialSource('local-folder');
+          break;
+        case 'save':
+          // Cmd+S is already handled by useAutoSave keydown listener
+          break;
+        case 'close_tab':
+          if (nb.activeTabId) nb.handleTabClose(nb.activeTabId);
+          break;
+        case 'toggle_sidebar':
+          sidebar.toggleCollapse();
+          break;
+        case 'toggle_dark':
+          setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'dark' : 'dark');
+          break;
+        case 'about':
+          addToast('Notebook.md v0.1.0 — A beautiful Markdown notebook', 'info');
+          break;
+        case 'docs':
+          window.open('https://www.notebookmd.io/features', '_blank');
+          break;
+        default:
+          break;
+      }
+    }, [nb.activeNotebook, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, sidebar, mode, setMode, addToast]),
+  });
 
   // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {

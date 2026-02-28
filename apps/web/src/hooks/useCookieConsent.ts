@@ -31,14 +31,16 @@ function respectsDNT(): boolean {
   return navigator.doNotTrack === '1' || (navigator as unknown as { globalPrivacyControl?: string }).globalPrivacyControl === '1';
 }
 
+import { isTauriEnvironment } from '../stores/storageAdapterFactory';
+
 export function useCookieConsent() {
   const [consent, setConsent] = useState<ConsentPreferences | null>(() => getStoredConsent());
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
     if (!consent) {
-      // If DNT is set, auto-set essential-only consent
-      if (respectsDNT()) {
+      // Desktop app: no cookie banner needed — auto-accept essentials
+      if (isTauriEnvironment() || respectsDNT()) {
         const essentialOnly: ConsentPreferences = { essential: true, analytics: false, functional: false };
         storeConsent(essentialOnly);
         setConsent(essentialOnly);

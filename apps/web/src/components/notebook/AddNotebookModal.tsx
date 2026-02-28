@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 import { XIcon } from '../icons/Icons';
 import { SOURCE_TYPES, SourceIcon, type SourceType } from './SourceTypes';
 import { useFeatureFlag } from '../../hooks/useFeatureFlag';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 import {
@@ -60,12 +61,33 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
   function handleSelectSource(type: SourceType) {
     const info = SOURCE_TYPES[type];
     if (!info.available) return;
+
+    // "Open Folder…" — invoke native dialog, then add notebook directly
+    if (type === 'local-folder') {
+      handleOpenFolder();
+      return;
+    }
+
     setSourceType(type);
     setError(null);
     if (type === 'local' || type === 'cloud') {
       setStep('name');
     } else {
       setStep('configure');
+    }
+  }
+
+  async function handleOpenFolder() {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({ directory: true, title: 'Open Notebook Folder' });
+      if (selected) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const nb = await invoke<{ name: string }>('open_folder_as_notebook', { path: selected });
+        onAdd(nb.name, 'local', { path: selected });
+      }
+    } catch (err) {
+      setError(`Failed to open folder: ${err}`);
     }
   }
 
@@ -151,8 +173,10 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 // ── Step 1: Source picker ─────────────────────────────────────────────────
 
 function SourcePicker({ onSelect, isDemoMode, onDemoSignUp, hiddenSources = [] }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean; onDemoSignUp?: () => void; hiddenSources?: SourceType[] }) {
+  const isDesktop = isTauriEnvironment();
   const types = (Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][])
-    .filter(([type]) => !hiddenSources.includes(type));
+    .filter(([type, info]) => !hiddenSources.includes(type))
+    .filter(([, info]) => !info.desktopOnly || isDesktop);
 
   return (
     <div className="space-y-2">
