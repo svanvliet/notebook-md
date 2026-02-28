@@ -21,7 +21,7 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">2. Description of Service</h2>
-            <p>Notebook.md is a web-based Markdown editor that allows you to create, edit, and organize Markdown documents stored in your own cloud storage accounts (GitHub, OneDrive, Google Drive). We do not store your document content — it remains in your connected storage providers.</p>
+            <p>Notebook.md is a web-based Markdown editor that allows you to create, edit, and organize Markdown documents. You can connect your own cloud storage accounts (GitHub, OneDrive, Google Drive) or use Cloud notebooks hosted on our servers with encrypted storage. For external-source notebooks, we do not store your document content — it remains in your connected storage providers. For Cloud notebooks, content is stored encrypted (AES-256) on our servers to enable real-time collaboration.</p>
           </section>
 
           <section>
@@ -47,7 +47,7 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">6. Your Content</h2>
-            <p>You retain all rights to your content. We do not claim ownership of any documents you create or edit using the Service. Your content is stored in your connected third-party storage providers, not on our servers.</p>
+            <p>You retain all rights to your content. We do not claim ownership of any documents you create or edit using the Service. For external-source notebooks, your content is stored in your connected third-party storage providers. For Cloud notebooks, your content is stored encrypted on our servers and you may export or permanently delete it at any time.</p>
           </section>
 
           <section>
@@ -67,7 +67,7 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">10. Termination</h2>
-            <p>We may suspend or terminate your access to the Service at any time, with or without cause. Upon termination, your right to use the Service ceases immediately. Your content remains in your connected storage providers.</p>
+            <p>We may suspend or terminate your access to the Service at any time, with or without cause. Upon termination, your right to use the Service ceases immediately. Your content in external-source notebooks remains in your connected storage providers. For Cloud notebooks, you will have 30 days from account deletion to export your data; after that, Cloud notebook content is permanently deleted from our servers.</p>
           </section>
 
           <section>
