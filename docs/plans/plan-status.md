@@ -5458,3 +5458,30 @@ Analyzed Azure Cost Analysis data and identified that Container Apps idle costs 
 #### Docs Updated
 - `infra/DEPLOY.md` — cost table updated with scale-to-zero config and production readiness note
 - `docs/plans/initial-plan.md` — risk table updated for cold start mitigation strategy
+
+### Zombie Revision Cleanup & Prevention — 2026-03-03
+
+Discovered that **77 old Container App revisions** were still `Active` with `Replicas: 1` despite carrying 0% traffic. This was the primary driver of the inflated Azure bill — each deploy via `azure/container-apps-deploy-action@v2` or `az containerapp update` creates a new revision but never deactivates the old one. With `revision_mode = "Multiple"`, old revisions persist indefinitely.
+
+#### Breakdown of Zombie Revisions
+| App | Old Active Revisions | Idle Replicas |
+|-----|---------------------|---------------|
+| API | 25 | 25 |
+| Web | 31 | 31 |
+| Collab | 7 | 7 |
+| Admin | 14 | 14 |
+| **Total** | **77** | **77** |
+
+#### Actions Taken
+
+1. **Immediate cleanup** — Deactivated all 77 old revisions via `az containerapp revision deactivate`
+
+2. **Prevention: deploy.yml** — Added "Deactivate old revisions" step after each deploy for all 4 apps. Queries for revisions with `trafficWeight=0 && active=true` and deactivates them.
+
+3. **Prevention: manual-deploy.sh** — Added Step 5b with the same cleanup loop for all 4 apps.
+
+#### Root Cause
+`revision_mode = "Multiple"` + deploy actions that create new revisions without cleaning up old ones. This is a known Azure Container Apps gotcha — old revisions with `min_replicas >= 1` keep running even at 0% traffic weight.
+
+#### Future Consideration
+If canary/blue-green deployments are not needed, switching to `revision_mode = "Single"` in Terraform would eliminate this class of issue entirely. Deferred for now since it may force-replace the Container App resources.
