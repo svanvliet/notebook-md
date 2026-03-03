@@ -62,7 +62,7 @@ resource "azurerm_container_app" "api" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 5
 
     container {
@@ -336,7 +336,7 @@ resource "azurerm_container_app" "collab" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 5
 
     container {
@@ -431,7 +431,7 @@ resource "azurerm_container_app" "web" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 3
 
     container {
@@ -477,7 +477,7 @@ resource "azurerm_container_app" "admin" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 2
 
     container {
