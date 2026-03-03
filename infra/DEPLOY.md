@@ -225,16 +225,20 @@ az containerapp exec \
 
 ## Estimated Costs (Monthly)
 
+All 4 container apps are configured with `min_replicas = 0` (scale-to-zero) to minimize idle costs during pre-launch. With near-zero traffic, containers scale down completely and you pay only for actual usage. Expect 5–10s cold starts on first request after idle.
+
 | Resource | SKU | ~Cost |
 |----------|-----|-------|
-| PostgreSQL Flexible Server | B_Standard_B1ms | $13 |
+| PostgreSQL Flexible Server | B_Standard_B1ms | $0 (free tier) |
 | Redis Cache | Basic C0 | $16 |
-| Container Apps (4 apps) | Consumption | $0–13 |
+| Container Apps (4 apps) | Consumption, scale-to-zero | $0–5 (idle); ~$660 (always-on) |
 | Front Door | Standard | $35 |
 | Container Registry | Basic | $5 |
 | Key Vault | Standard | $0–1 |
-| Log Analytics + App Insights | 90-day retention | $0–5 |
-| **Total** | | **~$70–88/mo** |
+| Log Analytics + App Insights | 90-day retention, 1 geo | $0–5 |
+| **Total (scale-to-zero)** | | **~$57–67/mo** |
+
+> **When ready for production traffic**, set `min_replicas = 1` on `api` and `web` in `container_apps.tf` to eliminate cold starts for end users. This adds ~$490/mo.
 
 ## Troubleshooting
 

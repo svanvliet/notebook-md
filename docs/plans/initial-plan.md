@@ -951,7 +951,7 @@ Phases are sequential — each builds on the previous. However, within each phas
 | GitHub App webhook reliability | Medium | Implement polling fallback (refresh tree on tab focus) alongside webhooks | 3 |
 | KaTeX requires `unsafe-eval` in CSP | Medium | Verify in Phase 1; if needed, evaluate server-side rendering of math blocks | 1, 5 |
 | IndexedDB storage limits in browsers | Low | 50MB+ available in most browsers; warn users of Local notebook storage limits | 1 |
-| Azure Container Apps cold start latency | Medium | Configure minimum replica count ≥ 1; use health probes to keep warm | 6 |
+| Azure Container Apps cold start latency | Medium | All containers use `min_replicas = 0` (scale-to-zero) to minimize pre-launch costs. Set `min_replicas = 1` on API and Web when production traffic begins. Cold starts are 5–10s for Node.js apps. | 6 |
 
 ---
 

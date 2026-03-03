@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated: 2026-02-27
+**Last Updated: 2026-03-03
 
 ---
 
@@ -5428,3 +5428,33 @@ Full production deployment of all AI features including demo mode, flag gating, 
 | API | v0.2.7 | v0.2.8 |
 | Web | v0.2.7 | v0.2.8 |
 | Admin | v0.2.0 | v0.2.8 |
+
+### Infrastructure Cost Optimization — 2026-03-03
+
+Analyzed Azure Cost Analysis data and identified that Container Apps idle costs were consuming **91% of the monthly bill (~$660/mo out of ~$727/mo)** despite near-zero traffic. All 4 container apps were running 24/7 with `min_replicas = 1`.
+
+#### Changes Applied (Terraform Apply ✅)
+
+1. **Container Apps: Scale-to-zero** (`container_apps.tf`)
+   - `ca-notebookmd-api`: `min_replicas = 1 → 0` (was $303/mo idle)
+   - `ca-notebookmd-web`: `min_replicas = 1 → 0` (was $186/mo idle)
+   - `ca-notebookmd-collab`: `min_replicas = 1 → 0` (was $85/mo idle)
+   - `ca-notebookmd-admin`: `min_replicas = 1 → 0` (was $84/mo idle)
+
+2. **Availability Tests: Reduced** (`monitoring.tf`)
+   - All 3 web tests: reduced from 2-3 geo locations to 1 (us-va-ash-azr)
+   - Frequency: 300s → 600s (5min → 10min)
+   - Saves ~$15/mo in web test execution costs
+
+#### Cost Impact
+| Before | After (projected) | Savings |
+|--------|-------------------|---------|
+| ~$727/mo | ~$60-80/mo | **~$650/mo (89%)** |
+
+#### Trade-offs
+- Cold starts of 5-10s on first request after idle period (acceptable for pre-launch)
+- When ready for production traffic, set `min_replicas = 1` on API and Web
+
+#### Docs Updated
+- `infra/DEPLOY.md` — cost table updated with scale-to-zero config and production readiness note
+- `docs/plans/initial-plan.md` — risk table updated for cold start mitigation strategy
