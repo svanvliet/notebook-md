@@ -1,0 +1,30 @@
+name: Update Repository Description
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['README.md', 'package.json']
+
+permissions:
+  administration: write
+
+jobs:
+  update-description:
+    name: Set repository description
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read description from package.json
+        id: pkg
+        run: echo "description=$(node -p "require('./package.json').description")" >> "$GITHUB_OUTPUT"
+
+      - name: Update description via GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            --method PATCH \
+            /repos/${{ github.repository }} \
+            -f description="${{ steps.pkg.outputs.description }}"

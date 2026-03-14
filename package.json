@@ -1,5 +1,6 @@
 {
   "name": "notebook-md",
+  "description": "WYSIWYG Markdown notebook editor — bring your own cloud storage via OneDrive, Google Drive, or GitHub.",
   "private": true,
   "workspaces": [
     "apps/*",
