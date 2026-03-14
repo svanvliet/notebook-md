@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ──
-FROM --platform=linux/amd64 node:22-alpine AS deps
+FROM --platform=linux/amd64 node:25-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
@@ -10,7 +10,7 @@ COPY packages/shared/package.json packages/shared/
 RUN npm ci --ignore-scripts
 
 # ── Stage 2: Build ──
-FROM --platform=linux/amd64 node:22-alpine AS build
+FROM --platform=linux/amd64 node:25-alpine AS build
 WORKDIR /app
 COPY --from=deps /app .
 COPY . .
