@@ -1,0 +1,576 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────
+#  rotate-credentials.sh — Full credential rotation with restart support
+#
+#  Rotates every secret that was exposed in the tfplan leak, updates
+#  terraform.tfvars, runs the encryption-key data migration, applies
+#  Terraform, and verifies API health.
+#
+#  Usage:
+#    ./scripts/rotate-credentials.sh              # Start or resume
+#    ./scripts/rotate-credentials.sh --reset      # Wipe state and start fresh
+#    ./scripts/rotate-credentials.sh --status     # Show progress
+#    ./scripts/rotate-credentials.sh --dry-run    # Show what would happen
+# ──────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+# ── Configuration ─────────────────────────────────────────────────────
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TF_DIR="$REPO_ROOT/infra/terraform"
+TFVARS="$TF_DIR/terraform.tfvars"
+STATE_DIR="$REPO_ROOT/.credential-rotation"
+STATE_FILE="$STATE_DIR/state"
+NEW_VALS_FILE="$STATE_DIR/new-values"
+RESOURCE_GROUP="rg-notebookmd-prod"
+API_CONTAINER="ca-notebookmd-api"
+API_HEALTH_URL="https://api.notebookmd.io/api/health"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# ── Helpers ───────────────────────────────────────────────────────────
+
+log()  { echo -e "${GREEN}✅ $*${NC}"; }
+warn() { echo -e "${YELLOW}⚠️  $*${NC}"; }
+err()  { echo -e "${RED}❌ $*${NC}" >&2; }
+info() { echo -e "${CYAN}ℹ️  $*${NC}"; }
+header() { echo -e "\n${BOLD}═══ $* ═══${NC}\n"; }
+
+get_state() {
+  [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE" || echo "not-started"
+}
+
+set_state() {
+  mkdir -p "$STATE_DIR"
+  echo "$1" > "$STATE_FILE"
+}
+
+save_val() {
+  mkdir -p "$STATE_DIR"
+  # Append or overwrite a key=value in new-values file
+  local key="$1" val="$2"
+  if [[ -f "$NEW_VALS_FILE" ]] && grep -q "^${key}=" "$NEW_VALS_FILE" 2>/dev/null; then
+    # Use a temp file for portability (macOS sed -i differs from GNU)
+    local tmp="$NEW_VALS_FILE.tmp"
+    grep -v "^${key}=" "$NEW_VALS_FILE" > "$tmp" || true
+    echo "${key}=${val}" >> "$tmp"
+    mv "$tmp" "$NEW_VALS_FILE"
+  else
+    echo "${key}=${val}" >> "$NEW_VALS_FILE"
+  fi
+}
+
+load_val() {
+  [[ -f "$NEW_VALS_FILE" ]] && grep "^${1}=" "$NEW_VALS_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo ""
+}
+
+read_tfvar() {
+  # Extract a value from terraform.tfvars (handles quoted strings and heredocs)
+  local key="$1"
+  grep "^${key}" "$TFVARS" 2>/dev/null | head -1 | sed 's/^[^=]*=\s*"\(.*\)"/\1/' || echo ""
+}
+
+prompt_secret() {
+  local name="$1" instructions="$2"
+  local existing
+  existing=$(load_val "$name")
+  if [[ -n "$existing" ]]; then
+    info "Using previously saved value for ${name}"
+    return 0
+  fi
+
+  echo ""
+  echo -e "${BOLD}ACTION REQUIRED: Rotate ${name}${NC}"
+  echo -e "${CYAN}${instructions}${NC}"
+  echo ""
+  read -rp "Paste the new value for ${name} (or 'skip' to defer): " value
+  if [[ "$value" == "skip" ]]; then
+    warn "Skipping ${name} — you must rotate this manually later!"
+    save_val "$name" "__SKIPPED__"
+    return 1
+  fi
+  save_val "$name" "$value"
+  log "Saved ${name}"
+}
+
+prompt_multiline_secret() {
+  local name="$1" instructions="$2"
+  local existing
+  existing=$(load_val "$name")
+  if [[ -n "$existing" ]]; then
+    info "Using previously saved value for ${name}"
+    return 0
+  fi
+
+  echo ""
+  echo -e "${BOLD}ACTION REQUIRED: Rotate ${name}${NC}"
+  echo -e "${CYAN}${instructions}${NC}"
+  echo ""
+  echo "Paste the full PEM content below (end with a line containing only 'EOF'):"
+  local value=""
+  while IFS= read -r line; do
+    [[ "$line" == "EOF" ]] && break
+    value="${value}${line}\n"
+  done
+  # Remove trailing newline
+  value="${value%\\n}"
+  save_val "$name" "$value"
+  log "Saved ${name}"
+}
+
+update_tfvar() {
+  local key="$1" val="$2"
+  local escaped_val
+  escaped_val=$(printf '%s' "$val" | sed 's/[&/\]/\\&/g')
+
+  if grep -q "^${key}\s*=" "$TFVARS" 2>/dev/null; then
+    # Replace existing line (handles simple quoted values)
+    sed -i.bak "s|^${key}\s*=.*|${key} = \"${escaped_val}\"|" "$TFVARS"
+  elif grep -q "^# *${key}\s*=" "$TFVARS" 2>/dev/null; then
+    # Uncomment and set
+    sed -i.bak "s|^# *${key}\s*=.*|${key} = \"${escaped_val}\"|" "$TFVARS"
+  else
+    # Append
+    echo "${key} = \"${escaped_val}\"" >> "$TFVARS"
+  fi
+  rm -f "$TFVARS.bak"
+}
+
+update_tfvar_heredoc() {
+  # For multi-line values like PEM keys, use heredoc syntax in tfvars
+  local key="$1" val="$2"
+
+  # Remove any existing block for this key (single line or heredoc)
+  local tmp="$TFVARS.tmp"
+  # Simple approach: remove the line and re-add with heredoc
+  grep -v "^${key}\s*=" "$TFVARS" > "$tmp" 2>/dev/null || true
+  # Also remove any existing heredoc block
+  # (terraform.tfvars doesn't actually support heredoc — use escaped newlines)
+  mv "$tmp" "$TFVARS"
+
+  # Terraform .tfvars: multi-line strings use literal \n inside quotes
+  # The PEM key in our val already has \n literal sequences from save_val
+  echo "${key} = \"${val}\"" >> "$TFVARS"
+}
+
+# ── Precondition checks ──────────────────────────────────────────────
+
+check_prereqs() {
+  header "Checking prerequisites"
+
+  local missing=0
+  for cmd in az terraform openssl node psql; do
+    if ! command -v "$cmd" &>/dev/null; then
+      err "Required command not found: ${cmd}"
+      missing=1
+    fi
+  done
+  [[ $missing -eq 1 ]] && exit 1
+
+  if [[ ! -f "$TFVARS" ]]; then
+    err "terraform.tfvars not found at $TFVARS"
+    exit 1
+  fi
+
+  # Verify Azure login
+  if ! az account show &>/dev/null; then
+    err "Not logged in to Azure. Run: az login"
+    exit 1
+  fi
+
+  # Verify Terraform is initialized
+  if [[ ! -d "$TF_DIR/.terraform" ]]; then
+    info "Initializing Terraform..."
+    (cd "$TF_DIR" && terraform init -input=false)
+  fi
+
+  log "All prerequisites met"
+}
+
+# ── Steps ─────────────────────────────────────────────────────────────
+
+step_generate_auto() {
+  header "Step 1/7: Generating auto-rotatable secrets"
+
+  if [[ -z "$(load_val db_admin_password)" ]]; then
+    save_val "db_admin_password" "$(openssl rand -base64 32 | tr -d '=/+' | head -c 30)"
+    log "Generated new db_admin_password"
+  else
+    info "db_admin_password already generated"
+  fi
+
+  if [[ -z "$(load_val session_secret)" ]]; then
+    save_val "session_secret" "$(openssl rand -base64 48)"
+    log "Generated new session_secret"
+  else
+    info "session_secret already generated"
+  fi
+
+  if [[ -z "$(load_val encryption_key)" ]]; then
+    save_val "encryption_key" "$(openssl rand -hex 16)"
+    log "Generated new encryption_key (32 hex chars = 16 bytes)"
+  else
+    info "encryption_key already generated"
+  fi
+
+  if [[ -z "$(load_val github_webhook_secret)" ]]; then
+    save_val "github_webhook_secret" "$(openssl rand -hex 32)"
+    log "Generated new github_webhook_secret"
+  else
+    info "github_webhook_secret already generated"
+  fi
+
+  set_state "auto-generated"
+}
+
+step_prompt_manual() {
+  header "Step 2/7: Manual credential rotation"
+  info "You'll be prompted to rotate each credential that requires a web UI."
+  info "Already-entered values are preserved (restart-safe)."
+  echo ""
+
+  prompt_secret "sendgrid_api_key" \
+    "Go to: https://app.sendgrid.com/settings/api_keys
+     → Create API Key → Full Access → Copy the key" || true
+
+  prompt_secret "github_client_secret" \
+    "Go to: https://github.com/settings/developers → OAuth Apps → notebook-md
+     → Generate a new client secret → Copy it" || true
+
+  prompt_secret "github_app_client_secret" \
+    "Go to: https://github.com/settings/apps/notebook-md
+     → Client secrets → Generate a new client secret → Copy it" || true
+
+  prompt_multiline_secret "github_app_private_key" \
+    "Go to: https://github.com/settings/apps/notebook-md
+     → Private keys → Generate a private key
+     → Download the .pem file, then cat it and paste below" || true
+
+  prompt_secret "microsoft_client_secret" \
+    "Go to: https://portal.azure.com → Azure Active Directory
+     → App registrations → Notebook.md → Certificates & secrets
+     → New client secret → Copy the Value" || true
+
+  prompt_secret "google_client_secret" \
+    "Go to: https://console.cloud.google.com/apis/credentials
+     → OAuth 2.0 Client IDs → Notebook.md
+     → Reset Secret → Copy the new secret" || true
+
+  prompt_secret "azure_ai_api_key" \
+    "Go to: Azure Portal → Azure OpenAI / AI Foundry resource
+     → Keys and Endpoint → Regenerate Key 1 → Copy it
+     (Or: az cognitiveservices account keys regenerate --name <name> --resource-group $RESOURCE_GROUP --key-name key1)" || true
+
+  prompt_secret "brave_search_api_key" \
+    "Go to: https://api.search.brave.com/app/keys
+     → Generate new API key → Copy it" || true
+
+  # Check if any were skipped
+  local skipped=0
+  for key in sendgrid_api_key github_client_secret github_app_client_secret \
+             github_app_private_key microsoft_client_secret google_client_secret \
+             azure_ai_api_key brave_search_api_key; do
+    local val
+    val=$(load_val "$key")
+    if [[ "$val" == "__SKIPPED__" ]]; then
+      warn "SKIPPED: ${key}"
+      skipped=$((skipped + 1))
+    fi
+  done
+
+  if [[ $skipped -gt 0 ]]; then
+    warn "${skipped} credential(s) were skipped — they will keep their OLD (compromised) values!"
+    read -rp "Continue anyway? [y/N] " confirm
+    [[ "$confirm" =~ ^[Yy] ]] || exit 1
+  fi
+
+  set_state "manual-collected"
+}
+
+step_reencrypt_data() {
+  header "Step 3/7: Re-encrypting database data"
+
+  local old_key new_key db_url
+  old_key=$(read_tfvar "encryption_key")
+  new_key=$(load_val "encryption_key")
+
+  if [[ -z "$old_key" ]]; then
+    err "Cannot read old encryption_key from $TFVARS"
+    exit 1
+  fi
+  if [[ -z "$new_key" ]]; then
+    err "New encryption_key not generated"
+    exit 1
+  fi
+  if [[ "$old_key" == "$new_key" ]]; then
+    warn "Old and new encryption keys are the same — skipping migration"
+    set_state "data-reencrypted"
+    return
+  fi
+
+  # Get the production DATABASE_URL from current Key Vault
+  info "Fetching production DATABASE_URL from Key Vault..."
+  db_url=$(az keyvault secret show \
+    --name database-url \
+    --vault-name "kv-notebookmd-prod" \
+    --query "value" -o tsv 2>/dev/null) || {
+    err "Failed to read DATABASE_URL from Key Vault. Are you logged in to Azure?"
+    exit 1
+  }
+
+  info "Running re-encryption migration..."
+  DATABASE_URL="$db_url" node "$REPO_ROOT/scripts/reencrypt-data.mjs" "$old_key" "$new_key"
+
+  if [[ $? -ne 0 ]]; then
+    err "Re-encryption failed! Database was rolled back — no data loss."
+    exit 1
+  fi
+
+  log "Database re-encryption complete"
+  set_state "data-reencrypted"
+}
+
+step_update_tfvars() {
+  header "Step 4/7: Updating terraform.tfvars"
+
+  # Backup current tfvars
+  cp "$TFVARS" "$STATE_DIR/terraform.tfvars.backup.$(date +%s)"
+  info "Backed up current terraform.tfvars"
+
+  # Auto-generated secrets
+  for key in db_admin_password session_secret encryption_key github_webhook_secret; do
+    local val
+    val=$(load_val "$key")
+    if [[ -n "$val" ]]; then
+      update_tfvar "$key" "$val"
+      log "Updated ${key}"
+    fi
+  done
+
+  # Manually rotated secrets
+  for key in sendgrid_api_key github_client_secret github_app_client_secret \
+             microsoft_client_secret google_client_secret azure_ai_api_key \
+             brave_search_api_key; do
+    local val
+    val=$(load_val "$key")
+    if [[ -n "$val" && "$val" != "__SKIPPED__" ]]; then
+      update_tfvar "$key" "$val"
+      log "Updated ${key}"
+    elif [[ "$val" == "__SKIPPED__" ]]; then
+      warn "Keeping old value for ${key} (was skipped)"
+    fi
+  done
+
+  # GitHub App private key (multi-line)
+  local pk_val
+  pk_val=$(load_val "github_app_private_key")
+  if [[ -n "$pk_val" && "$pk_val" != "__SKIPPED__" ]]; then
+    update_tfvar_heredoc "github_app_private_key" "$pk_val"
+    log "Updated github_app_private_key"
+  fi
+
+  log "terraform.tfvars updated"
+  set_state "tfvars-updated"
+}
+
+step_terraform_plan() {
+  header "Step 5/7: Terraform plan"
+
+  info "Running terraform plan..."
+  (cd "$TF_DIR" && terraform plan -out=rotation.tfplan -input=false)
+
+  echo ""
+  echo -e "${BOLD}Review the plan above carefully.${NC}"
+  read -rp "Apply this plan? [y/N] " confirm
+  if [[ ! "$confirm" =~ ^[Yy] ]]; then
+    warn "Aborted. Re-run the script to resume from this step."
+    exit 1
+  fi
+
+  set_state "plan-approved"
+}
+
+step_terraform_apply() {
+  header "Step 6/7: Terraform apply"
+
+  info "Applying terraform changes..."
+  (cd "$TF_DIR" && terraform apply rotation.tfplan)
+
+  if [[ $? -ne 0 ]]; then
+    err "Terraform apply failed!"
+    err "Fix the issue and re-run this script — it will resume from this step."
+    exit 1
+  fi
+
+  # Clean up plan file
+  rm -f "$TF_DIR/rotation.tfplan"
+
+  log "Terraform apply complete — all secrets updated in Azure"
+  set_state "applied"
+}
+
+step_verify() {
+  header "Step 7/7: Verifying deployment"
+
+  info "Waiting for API to become healthy..."
+  local attempts=0 max=30
+
+  while [[ $attempts -lt $max ]]; do
+    local status
+    status=$(curl -s -o /dev/null -w "%{http_code}" "$API_HEALTH_URL" 2>/dev/null || echo "000")
+    if [[ "$status" == "200" ]]; then
+      log "API is healthy (HTTP 200)"
+      break
+    fi
+    attempts=$((attempts + 1))
+    echo "  Attempt ${attempts}/${max} — status: ${status}"
+    sleep 10
+  done
+
+  if [[ $attempts -ge $max ]]; then
+    err "API health check failed after $((max * 10)) seconds!"
+    err "Check logs: az containerapp logs show --name $API_CONTAINER --resource-group $RESOURCE_GROUP --type console"
+    err "You may need to rollback: ./scripts/manual-rollback.sh"
+    exit 1
+  fi
+
+  # Verify email would work (can't send test, but check SMTP config)
+  info "Checking container secrets were updated..."
+  local secret_count
+  secret_count=$(az containerapp secret list \
+    --name "$API_CONTAINER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query "length(@)" -o tsv 2>/dev/null) || true
+
+  if [[ -n "$secret_count" && "$secret_count" -gt 10 ]]; then
+    log "Container has ${secret_count} secrets configured"
+  else
+    warn "Could not verify container secrets (count: ${secret_count:-unknown})"
+  fi
+
+  set_state "verified"
+
+  header "🎉 ROTATION COMPLETE"
+  echo -e "${GREEN}All credentials have been rotated and deployed.${NC}"
+  echo ""
+  echo "Post-rotation checklist:"
+  echo "  □ Test sign-in with each OAuth provider (GitHub, Google, Microsoft)"
+  echo "  □ Test email delivery (sign up flow or password reset)"
+  echo "  □ Test AI content generation"
+  echo "  □ Test GitHub repo integration (if used)"
+  echo "  □ Verify 2FA still works for any users with TOTP enabled"
+  echo "  □ Update the webhook secret in GitHub App settings to match:"
+  echo "    $(load_val github_webhook_secret)"
+  echo ""
+  echo "State files are in $STATE_DIR — delete when satisfied:"
+  echo "  rm -rf $STATE_DIR"
+}
+
+# ── CLI ───────────────────────────────────────────────────────────────
+
+show_status() {
+  local state
+  state=$(get_state)
+  echo "Current state: ${state}"
+  echo ""
+  echo "Steps:"
+  local steps=("not-started" "auto-generated" "manual-collected" "data-reencrypted" "tfvars-updated" "plan-approved" "applied" "verified")
+  local labels=("Generate auto secrets" "Collect manual secrets" "Re-encrypt DB data" "Update terraform.tfvars" "Terraform plan" "Terraform apply" "Verify health")
+
+  local current_found=false
+  for i in "${!labels[@]}"; do
+    local step_state="${steps[$((i + 1))]}"
+    if [[ "$current_found" == "true" ]]; then
+      echo -e "  ⬜ ${labels[$i]}"
+    elif [[ "$state" == "$step_state" ]]; then
+      echo -e "  ${GREEN}✅ ${labels[$i]}${NC}"
+      current_found=true
+    elif [[ "$state" == "not-started" ]]; then
+      echo -e "  ⬜ ${labels[$i]}"
+    else
+      echo -e "  ${GREEN}✅ ${labels[$i]}${NC}"
+    fi
+  done
+}
+
+main() {
+  case "${1:-}" in
+    --reset)
+      rm -rf "$STATE_DIR"
+      log "State cleared — starting fresh on next run"
+      exit 0
+      ;;
+    --status)
+      show_status
+      exit 0
+      ;;
+    --dry-run)
+      info "DRY RUN — would execute these steps:"
+      echo "  1. Generate db_admin_password, session_secret, encryption_key, github_webhook_secret"
+      echo "  2. Prompt for: sendgrid, github oauth, github app, microsoft, google, azure ai, brave"
+      echo "  3. Re-encrypt identity_links + users.totp_secret_enc with new encryption key"
+      echo "  4. Update terraform.tfvars with all new values"
+      echo "  5. terraform plan + terraform apply"
+      echo "  6. Verify API health at $API_HEALTH_URL"
+      exit 0
+      ;;
+    --help|-h)
+      echo "Usage: $0 [--reset|--status|--dry-run|--help]"
+      echo ""
+      echo "  (no args)   Start or resume credential rotation"
+      echo "  --reset     Clear all state and start fresh"
+      echo "  --status    Show current progress"
+      echo "  --dry-run   Show what would happen without doing anything"
+      echo "  --help      Show this help"
+      exit 0
+      ;;
+  esac
+
+  echo -e "${BOLD}"
+  echo "╔═══════════════════════════════════════════════════════════╗"
+  echo "║           CREDENTIAL ROTATION — notebook-md              ║"
+  echo "║                                                           ║"
+  echo "║  This script rotates all compromised production secrets,  ║"
+  echo "║  migrates encrypted data, and deploys via Terraform.      ║"
+  echo "║                                                           ║"
+  echo "║  Progress is checkpointed — safe to interrupt & resume.   ║"
+  echo "╚═══════════════════════════════════════════════════════════╝"
+  echo -e "${NC}"
+
+  local state
+  state=$(get_state)
+  info "Current state: ${state}"
+
+  check_prereqs
+
+  # Resume from last completed step (ordered fall-through)
+  local steps_to_run=()
+  case "$state" in
+    not-started)       steps_to_run=(generate_auto prompt_manual reencrypt_data update_tfvars terraform_plan terraform_apply verify) ;;
+    auto-generated)    steps_to_run=(prompt_manual reencrypt_data update_tfvars terraform_plan terraform_apply verify) ;;
+    manual-collected)  steps_to_run=(reencrypt_data update_tfvars terraform_plan terraform_apply verify) ;;
+    data-reencrypted)  steps_to_run=(update_tfvars terraform_plan terraform_apply verify) ;;
+    tfvars-updated)    steps_to_run=(terraform_plan terraform_apply verify) ;;
+    plan-approved)     steps_to_run=(terraform_apply verify) ;;
+    applied)           steps_to_run=(verify) ;;
+    verified)
+      log "Rotation already complete! Use --reset to start over."
+      exit 0
+      ;;
+    *)
+      err "Unknown state: ${state}. Use --reset to start fresh."
+      exit 1
+      ;;
+  esac
+
+  for step in "${steps_to_run[@]}"; do
+    "step_${step}"
+  done
+}
+
+main "$@"

@@ -39,3 +39,4 @@ test-results/
 *.tfplan
 tfplan
 .copilot/
+.credential-rotation/
