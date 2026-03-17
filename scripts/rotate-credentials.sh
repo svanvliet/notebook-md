@@ -228,15 +228,117 @@ step_generate_auto() {
   set_state "auto-generated"
 }
 
+step_rotate_microsoft() {
+  local existing
+  existing=$(load_val "microsoft_client_secret")
+  if [[ -n "$existing" ]]; then
+    info "microsoft_client_secret already rotated"
+    return 0
+  fi
+
+  info "Rotating Microsoft OAuth client secret via Azure CLI..."
+  local ms_client_id
+  ms_client_id=$(read_tfvar "microsoft_client_id")
+  if [[ -z "$ms_client_id" ]]; then
+    warn "microsoft_client_id not found in tfvars — falling back to manual prompt"
+    return 1
+  fi
+
+  # Find the Azure AD app by client ID
+  local app_object_id
+  app_object_id=$(az ad app list --filter "appId eq '${ms_client_id}'" --query "[0].id" -o tsv 2>/dev/null) || true
+  if [[ -z "$app_object_id" ]]; then
+    warn "Could not find Azure AD app for client ID ${ms_client_id} — falling back to manual prompt"
+    return 1
+  fi
+
+  local new_secret
+  new_secret=$(az ad app credential reset \
+    --id "$app_object_id" \
+    --display-name "rotated-$(date +%Y%m%d)" \
+    --query "password" -o tsv 2>/dev/null) || {
+    warn "az ad app credential reset failed — falling back to manual prompt"
+    return 1
+  }
+
+  save_val "microsoft_client_secret" "$new_secret"
+  log "Rotated microsoft_client_secret via Azure CLI"
+}
+
+step_rotate_azure_ai() {
+  local existing
+  existing=$(load_val "azure_ai_api_key")
+  if [[ -n "$existing" ]]; then
+    info "azure_ai_api_key already rotated"
+    return 0
+  fi
+
+  info "Rotating Azure AI API key via Azure CLI..."
+  local endpoint
+  endpoint=$(read_tfvar "azure_ai_endpoint")
+  if [[ -z "$endpoint" ]]; then
+    warn "azure_ai_endpoint not found in tfvars — falling back to manual prompt"
+    return 1
+  fi
+
+  # Extract resource name from endpoint URL (e.g., https://notebookmd-ai.openai.azure.com → notebookmd-ai)
+  local resource_name
+  resource_name=$(echo "$endpoint" | sed -E 's|https?://([^.]+)\..*|\1|')
+  if [[ -z "$resource_name" ]]; then
+    warn "Could not parse resource name from endpoint — falling back to manual prompt"
+    return 1
+  fi
+
+  # Try to find the resource group (may differ from app resource group)
+  local ai_rg
+  ai_rg=$(az cognitiveservices account list --query "[?name=='${resource_name}'].resourceGroup" -o tsv 2>/dev/null) || true
+  if [[ -z "$ai_rg" ]]; then
+    # Fall back to the main resource group
+    ai_rg="$RESOURCE_GROUP"
+  fi
+
+  local new_key
+  new_key=$(az cognitiveservices account keys regenerate \
+    --name "$resource_name" \
+    --resource-group "$ai_rg" \
+    --key-name key1 \
+    --query "key1" -o tsv 2>/dev/null) || {
+    warn "az cognitiveservices keys regenerate failed — falling back to manual prompt"
+    return 1
+  }
+
+  save_val "azure_ai_api_key" "$new_key"
+  log "Rotated azure_ai_api_key via Azure CLI"
+}
+
 step_prompt_manual() {
-  header "Step 2/7: Manual credential rotation"
-  info "You'll be prompted to rotate each credential that requires a web UI."
+  header "Step 2/7: Credential rotation (auto + manual)"
+
+  info "Automating rotations where CLI/API is available..."
   info "Already-entered values are preserved (restart-safe)."
+  echo ""
+
+  # ── CLI-automated rotations ──
+  step_rotate_microsoft || \
+    prompt_secret "microsoft_client_secret" \
+      "Go to: https://portal.azure.com → Azure Active Directory
+       → App registrations → Notebook.md → Certificates & secrets
+       → New client secret → Copy the Value" || true
+
+  step_rotate_azure_ai || \
+    prompt_secret "azure_ai_api_key" \
+      "Go to: Azure Portal → Azure OpenAI / AI Foundry resource
+       → Keys and Endpoint → Regenerate Key 1 → Copy it" || true
+
+  # ── Manual-only rotations (no API/CLI exists) ──
+  echo ""
+  info "The following credentials must be rotated manually (no CLI/API available):"
   echo ""
 
   prompt_secret "sendgrid_api_key" \
     "Go to: https://app.sendgrid.com/settings/api_keys
-     → Create API Key → Full Access → Copy the key" || true
+     → Create API Key → Full Access → Copy the key
+     (The old key was already revoked by SendGrid)" || true
 
   prompt_secret "github_client_secret" \
     "Go to: https://github.com/settings/developers → OAuth Apps → notebook-md
@@ -249,22 +351,12 @@ step_prompt_manual() {
   prompt_multiline_secret "github_app_private_key" \
     "Go to: https://github.com/settings/apps/notebook-md
      → Private keys → Generate a private key
-     → Download the .pem file, then cat it and paste below" || true
-
-  prompt_secret "microsoft_client_secret" \
-    "Go to: https://portal.azure.com → Azure Active Directory
-     → App registrations → Notebook.md → Certificates & secrets
-     → New client secret → Copy the Value" || true
+     → Download the .pem file, then cat it and paste contents below" || true
 
   prompt_secret "google_client_secret" \
     "Go to: https://console.cloud.google.com/apis/credentials
      → OAuth 2.0 Client IDs → Notebook.md
      → Reset Secret → Copy the new secret" || true
-
-  prompt_secret "azure_ai_api_key" \
-    "Go to: Azure Portal → Azure OpenAI / AI Foundry resource
-     → Keys and Endpoint → Regenerate Key 1 → Copy it
-     (Or: az cognitiveservices account keys regenerate --name <name> --resource-group $RESOURCE_GROUP --key-name key1)" || true
 
   prompt_secret "brave_search_api_key" \
     "Go to: https://api.search.brave.com/app/keys
@@ -512,7 +604,8 @@ main() {
     --dry-run)
       info "DRY RUN — would execute these steps:"
       echo "  1. Generate db_admin_password, session_secret, encryption_key, github_webhook_secret"
-      echo "  2. Prompt for: sendgrid, github oauth, github app, microsoft, google, azure ai, brave"
+      echo "  2. Auto-rotate microsoft_client_secret (az ad), azure_ai_api_key (az cognitiveservices)"
+      echo "     Prompt for: sendgrid, github oauth, github app+PEM, google, brave"
       echo "  3. Re-encrypt identity_links + users.totp_secret_enc with new encryption key"
       echo "  4. Update terraform.tfvars with all new values"
       echo "  5. terraform plan + terraform apply"
