@@ -70,9 +70,9 @@ load_val() {
 }
 
 read_tfvar() {
-  # Extract a value from terraform.tfvars (handles quoted strings and heredocs)
+  # Extract a value from terraform.tfvars (handles quoted strings)
   local key="$1"
-  grep "^${key}" "$TFVARS" 2>/dev/null | head -1 | sed 's/^[^=]*=\s*"\(.*\)"/\1/' || echo ""
+  grep "^${key}" "$TFVARS" 2>/dev/null | head -1 | sed 's/^[^=]*=[[:space:]]*"\(.*\)"/\1/' || echo ""
 }
 
 prompt_secret() {
@@ -128,12 +128,12 @@ update_tfvar() {
   local escaped_val
   escaped_val=$(printf '%s' "$val" | sed 's/[&/\]/\\&/g')
 
-  if grep -q "^${key}\s*=" "$TFVARS" 2>/dev/null; then
+  if grep -q "^${key}[[:space:]]*=" "$TFVARS" 2>/dev/null; then
     # Replace existing line (handles simple quoted values)
-    sed -i.bak "s|^${key}\s*=.*|${key} = \"${escaped_val}\"|" "$TFVARS"
-  elif grep -q "^# *${key}\s*=" "$TFVARS" 2>/dev/null; then
+    sed -i.bak "s|^${key}[[:space:]]*=.*|${key} = \"${escaped_val}\"|" "$TFVARS"
+  elif grep -q "^# *${key}[[:space:]]*=" "$TFVARS" 2>/dev/null; then
     # Uncomment and set
-    sed -i.bak "s|^# *${key}\s*=.*|${key} = \"${escaped_val}\"|" "$TFVARS"
+    sed -i.bak "s|^# *${key}[[:space:]]*=.*|${key} = \"${escaped_val}\"|" "$TFVARS"
   else
     # Append
     echo "${key} = \"${escaped_val}\"" >> "$TFVARS"
@@ -148,7 +148,7 @@ update_tfvar_heredoc() {
   # Remove any existing block for this key (single line or heredoc)
   local tmp="$TFVARS.tmp"
   # Simple approach: remove the line and re-add with heredoc
-  grep -v "^${key}\s*=" "$TFVARS" > "$tmp" 2>/dev/null || true
+  grep -v "^${key}[[:space:]]*=" "$TFVARS" > "$tmp" 2>/dev/null || true
   # Also remove any existing heredoc block
   # (terraform.tfvars doesn't actually support heredoc — use escaped newlines)
   mv "$tmp" "$TFVARS"
@@ -158,13 +158,182 @@ update_tfvar_heredoc() {
   echo "${key} = \"${val}\"" >> "$TFVARS"
 }
 
+# ── Validation ────────────────────────────────────────────────────────
+
+validate_environment() {
+  header "Validating environment for credential rotation"
+  local failures=0
+
+  # 1. Azure CLI
+  info "Checking Azure CLI login..."
+  if az account show &>/dev/null; then
+    local sub_name sub_id
+    sub_name=$(az account show --query "name" -o tsv 2>/dev/null)
+    sub_id=$(az account show --query "id" -o tsv 2>/dev/null)
+    local expected_sub
+    expected_sub=$(read_tfvar "subscription_id")
+    if [[ -n "$expected_sub" && "$sub_id" != "$expected_sub" ]]; then
+      err "FAIL: Wrong Azure subscription"
+      err "  Current:  ${sub_id} (${sub_name})"
+      err "  Expected: ${expected_sub}"
+      err "  Fix: az account set --subscription ${expected_sub}"
+      failures=$((failures + 1))
+    else
+      log "Azure CLI: ${sub_name} (${sub_id:0:8}...)"
+    fi
+  else
+    err "FAIL: Not logged in to Azure (run: az login)"
+    failures=$((failures + 1))
+  fi
+
+  # 2. Terraform backend
+  info "Checking Terraform state backend..."
+  if (cd "$TF_DIR" && terraform init -input=false -no-color 2>&1 | tail -1 | grep -q "initialized"); then
+    log "Terraform backend accessible"
+  else
+    # Try init and capture the error
+    local tf_err
+    tf_err=$(cd "$TF_DIR" && terraform init -input=false -no-color 2>&1 | tail -3)
+    err "FAIL: Terraform init failed"
+    err "  ${tf_err}"
+    failures=$((failures + 1))
+  fi
+
+  # 3. Key Vault
+  info "Checking Key Vault access..."
+  if az keyvault secret show --name database-url --vault-name kv-notebookmd-prod --query "name" -o tsv &>/dev/null; then
+    log "Key Vault: kv-notebookmd-prod accessible"
+  else
+    err "FAIL: Cannot access Key Vault kv-notebookmd-prod"
+    err "  Check tenant and access policies"
+    failures=$((failures + 1))
+  fi
+
+  # 4. PostgreSQL
+  info "Checking PostgreSQL server..."
+  if az postgres flexible-server show --name psql-notebookmd-prod --resource-group "$RESOURCE_GROUP" --query "state" -o tsv &>/dev/null; then
+    local pg_state
+    pg_state=$(az postgres flexible-server show --name psql-notebookmd-prod --resource-group "$RESOURCE_GROUP" --query "state" -o tsv 2>/dev/null)
+    log "PostgreSQL: psql-notebookmd-prod (${pg_state})"
+  else
+    err "FAIL: Cannot access PostgreSQL server psql-notebookmd-prod"
+    failures=$((failures + 1))
+  fi
+
+  # 5. Container App
+  info "Checking Container App..."
+  if az containerapp show --name "$API_CONTAINER" --resource-group "$RESOURCE_GROUP" --query "name" -o tsv &>/dev/null; then
+    log "Container App: ${API_CONTAINER} accessible"
+  else
+    err "FAIL: Cannot access Container App ${API_CONTAINER}"
+    failures=$((failures + 1))
+  fi
+
+  # 6. Microsoft AD app
+  info "Checking Microsoft AD app..."
+  local ms_client_id
+  ms_client_id=$(read_tfvar "microsoft_client_id")
+  if [[ -n "$ms_client_id" ]]; then
+    local app_name
+    app_name=$(az ad app list --filter "appId eq '${ms_client_id}'" --query "[0].displayName" -o tsv 2>/dev/null)
+    if [[ -n "$app_name" ]]; then
+      log "Azure AD app: ${app_name} (${ms_client_id:0:8}...)"
+    else
+      warn "WARN: Could not find Azure AD app for ${ms_client_id:0:8}..."
+      warn "  microsoft_client_secret will require manual rotation"
+    fi
+  fi
+
+  # 7. Azure AI resource
+  info "Checking Azure AI resource..."
+  local ai_endpoint
+  ai_endpoint=$(read_tfvar "azure_ai_endpoint")
+  if [[ -n "$ai_endpoint" ]]; then
+    local ai_name
+    ai_name=$(az cognitiveservices account list \
+      --query "[?contains(properties.endpoint, '$(echo "$ai_endpoint" | sed "s|/$||")')].name" \
+      -o tsv 2>/dev/null | head -1) || true
+    if [[ -n "$ai_name" ]]; then
+      log "Azure AI: ${ai_name}"
+    else
+      warn "WARN: Could not find Azure AI resource for ${ai_endpoint}"
+      warn "  azure_ai_api_key will require manual rotation"
+    fi
+  fi
+
+  # 8. Node.js pg module
+  info "Checking Node.js pg module..."
+  if node -e "require('pg')" &>/dev/null; then
+    log "Node.js pg module available"
+  else
+    err "FAIL: Node.js pg module not found (run: npm install)"
+    failures=$((failures + 1))
+  fi
+
+  # 9. Database connectivity
+  info "Checking database connectivity..."
+  local db_url
+  db_url=$(az keyvault secret show --name database-url --vault-name kv-notebookmd-prod --query "value" -o tsv 2>/dev/null) || true
+  if [[ -n "$db_url" ]]; then
+    local db_test
+    db_test=$(DATABASE_URL="$db_url" node -e "
+      const pg = require('pg');
+      const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+      c.connect()
+        .then(() => c.query('SELECT 1 as ok'))
+        .then(() => { console.log('OK'); c.end(); })
+        .catch(e => { console.log('FAIL:' + e.message); c.end(); });
+    " 2>&1)
+    if [[ "$db_test" == "OK" ]]; then
+      log "Database: connection verified"
+
+      # Count rows to migrate
+      local counts
+      counts=$(DATABASE_URL="$db_url" node -e "
+        const pg = require('pg');
+        const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+        c.connect()
+          .then(() => c.query(\"SELECT (SELECT count(*) FROM identity_links WHERE access_token_enc IS NOT NULL) as links, (SELECT count(*) FROM users WHERE totp_secret_enc IS NOT NULL) as totp\"))
+          .then(r => { console.log(r.rows[0].links + ' identity_links, ' + r.rows[0].totp + ' TOTP users'); c.end(); })
+          .catch(e => { console.log('query failed'); c.end(); });
+      " 2>&1)
+      info "Data to re-encrypt: ${counts}"
+    else
+      err "FAIL: Database connection failed: ${db_test}"
+      failures=$((failures + 1))
+    fi
+  else
+    warn "WARN: Could not fetch DATABASE_URL (Key Vault may be inaccessible)"
+  fi
+
+  # 10. API health
+  info "Checking API health endpoint..."
+  local http_status
+  http_status=$(curl -sf -o /dev/null -w "%{http_code}" "$API_HEALTH_URL" 2>/dev/null || echo "000")
+  if [[ "$http_status" == "200" ]]; then
+    log "API health: HTTP 200"
+  else
+    warn "WARN: API health returned HTTP ${http_status} (may be in scale-to-zero)"
+  fi
+
+  # Summary
+  echo ""
+  if [[ $failures -eq 0 ]]; then
+    header "✅ ALL CHECKS PASSED — ready to rotate"
+    return 0
+  else
+    header "❌ ${failures} CHECK(S) FAILED — fix before running rotation"
+    return 1
+  fi
+}
+
 # ── Precondition checks ──────────────────────────────────────────────
 
 check_prereqs() {
   header "Checking prerequisites"
 
   local missing=0
-  for cmd in az terraform openssl node psql; do
+  for cmd in az terraform openssl node psql curl; do
     if ! command -v "$cmd" &>/dev/null; then
       err "Required command not found: ${cmd}"
       missing=1
@@ -183,10 +352,30 @@ check_prereqs() {
     exit 1
   fi
 
+  # Verify correct Azure subscription
+  local expected_sub
+  expected_sub=$(read_tfvar "subscription_id")
+  if [[ -n "$expected_sub" ]]; then
+    local current_sub
+    current_sub=$(az account show --query "id" -o tsv 2>/dev/null)
+    if [[ "$current_sub" != "$expected_sub" ]]; then
+      err "Wrong Azure subscription!"
+      err "  Current:  ${current_sub}"
+      err "  Expected: ${expected_sub} (from terraform.tfvars)"
+      err "Run: az login   (then select the correct account)"
+      err " or: az account set --subscription ${expected_sub}"
+      exit 1
+    fi
+    log "Azure subscription verified: ${expected_sub:0:8}..."
+  fi
+
   # Verify Terraform is initialized
   if [[ ! -d "$TF_DIR/.terraform" ]]; then
     info "Initializing Terraform..."
-    (cd "$TF_DIR" && terraform init -input=false)
+    (cd "$TF_DIR" && terraform init -input=false) || {
+      err "Terraform init failed — check your Azure credentials and backend config"
+      exit 1
+    }
   fi
 
   log "All prerequisites met"
@@ -281,21 +470,32 @@ step_rotate_azure_ai() {
     return 1
   fi
 
-  # Extract resource name from endpoint URL (e.g., https://notebookmd-ai.openai.azure.com → notebookmd-ai)
-  local resource_name
-  resource_name=$(echo "$endpoint" | sed -E 's|https?://([^.]+)\..*|\1|')
-  if [[ -z "$resource_name" ]]; then
-    warn "Could not parse resource name from endpoint — falling back to manual prompt"
+  # Find the Cognitive Services account that matches this endpoint.
+  # Endpoints vary in format (e.g., https://eastus.api.cognitive.microsoft.com/,
+  # https://my-resource.openai.azure.com/) so we search by endpoint match.
+  local resource_info
+  resource_info=$(az cognitiveservices account list \
+    --query "[?contains(properties.endpoint, '$(echo "$endpoint" | sed "s|/$||")')].{name:name, rg:resourceGroup}" \
+    -o tsv 2>/dev/null | head -1) || true
+
+  if [[ -z "$resource_info" ]]; then
+    # Try broader search: list all and find by endpoint substring
+    resource_info=$(az cognitiveservices account list \
+      --query "[].{name:name, rg:resourceGroup, ep:properties.endpoint}" -o tsv 2>/dev/null \
+      | grep -i "$(echo "$endpoint" | sed 's|https://||;s|/$||')" | head -1) || true
+  fi
+
+  if [[ -z "$resource_info" ]]; then
+    warn "Could not find Azure AI resource for endpoint ${endpoint}"
+    warn "Falling back to manual prompt"
     return 1
   fi
 
-  # Try to find the resource group (may differ from app resource group)
-  local ai_rg
-  ai_rg=$(az cognitiveservices account list --query "[?name=='${resource_name}'].resourceGroup" -o tsv 2>/dev/null) || true
-  if [[ -z "$ai_rg" ]]; then
-    # Fall back to the main resource group
-    ai_rg="$RESOURCE_GROUP"
-  fi
+  local resource_name ai_rg
+  resource_name=$(echo "$resource_info" | awk '{print $1}')
+  ai_rg=$(echo "$resource_info" | awk '{print $2}')
+
+  info "Found resource: ${resource_name} in ${ai_rg}"
 
   local new_key
   new_key=$(az cognitiveservices account keys regenerate \
@@ -612,13 +812,18 @@ main() {
       echo "  6. Verify API health at $API_HEALTH_URL"
       exit 0
       ;;
+    --validate)
+      validate_environment
+      exit $?
+      ;;
     --help|-h)
-      echo "Usage: $0 [--reset|--status|--dry-run|--help]"
+      echo "Usage: $0 [--reset|--status|--dry-run|--validate|--help]"
       echo ""
       echo "  (no args)   Start or resume credential rotation"
       echo "  --reset     Clear all state and start fresh"
       echo "  --status    Show current progress"
       echo "  --dry-run   Show what would happen without doing anything"
+      echo "  --validate  Test all CLI commands and resource access (read-only)"
       echo "  --help      Show this help"
       exit 0
       ;;
