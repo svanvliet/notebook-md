@@ -188,14 +188,13 @@ validate_environment() {
 
   # 2. Terraform backend
   info "Checking Terraform state backend..."
-  if (cd "$TF_DIR" && terraform init -input=false -no-color 2>&1 | tail -1 | grep -q "initialized"); then
+  local tf_output
+  tf_output=$(cd "$TF_DIR" && terraform init -input=false -no-color 2>&1)
+  if echo "$tf_output" | grep -q "successfully initialized"; then
     log "Terraform backend accessible"
   else
-    # Try init and capture the error
-    local tf_err
-    tf_err=$(cd "$TF_DIR" && terraform init -input=false -no-color 2>&1 | tail -3)
     err "FAIL: Terraform init failed"
-    err "  ${tf_err}"
+    err "  $(echo "$tf_output" | tail -3)"
     failures=$((failures + 1))
   fi
 
@@ -277,29 +276,34 @@ validate_environment() {
   if [[ -n "$db_url" ]]; then
     local db_test
     db_test=$(DATABASE_URL="$db_url" node -e "
+      setTimeout(() => { console.log('FAIL:connection timed out (firewall?)'); process.exit(1); }, 10000);
       const pg = require('pg');
-      const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+      const c = new pg.Client({connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 8000, ssl: {rejectUnauthorized: false}});
       c.connect()
         .then(() => c.query('SELECT 1 as ok'))
-        .then(() => { console.log('OK'); c.end(); })
-        .catch(e => { console.log('FAIL:' + e.message); c.end(); });
-    " 2>&1)
+        .then(() => { console.log('OK'); c.end(); process.exit(0); })
+        .catch(e => { console.log('FAIL:' + e.message); c.end(); process.exit(1); });
+    " 2>&1) || true
     if [[ "$db_test" == "OK" ]]; then
       log "Database: connection verified"
 
       # Count rows to migrate
       local counts
       counts=$(DATABASE_URL="$db_url" node -e "
+        setTimeout(() => { console.log('query timed out'); process.exit(1); }, 10000);
         const pg = require('pg');
-        const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+        const c = new pg.Client({connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 8000, ssl: {rejectUnauthorized: false}});
         c.connect()
           .then(() => c.query(\"SELECT (SELECT count(*) FROM identity_links WHERE access_token_enc IS NOT NULL) as links, (SELECT count(*) FROM users WHERE totp_secret_enc IS NOT NULL) as totp\"))
-          .then(r => { console.log(r.rows[0].links + ' identity_links, ' + r.rows[0].totp + ' TOTP users'); c.end(); })
-          .catch(e => { console.log('query failed'); c.end(); });
-      " 2>&1)
+          .then(r => { console.log(r.rows[0].links + ' identity_links, ' + r.rows[0].totp + ' TOTP users'); c.end(); process.exit(0); })
+          .catch(e => { console.log('query failed'); c.end(); process.exit(1); });
+      " 2>&1) || true
       info "Data to re-encrypt: ${counts}"
     else
-      err "FAIL: Database connection failed: ${db_test}"
+      err "FAIL: Database connection failed"
+      # Strip node warnings, show only FAIL line
+      echo "$db_test" | grep "^FAIL:" | while read -r line; do err "  $line"; done
+      err "  If firewall: az postgres flexible-server firewall-rule create --name temp-rotation --resource-group rg-notebookmd-prod --server-name psql-notebookmd-prod --start-ip-address <YOUR_IP> --end-ip-address <YOUR_IP>"
       failures=$((failures + 1))
     fi
   else
