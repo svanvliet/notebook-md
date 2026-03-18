@@ -441,7 +441,7 @@ check_prereqs() {
   header "Checking prerequisites"
 
   local missing=0
-  for cmd in az terraform openssl node psql curl; do
+  for cmd in az terraform openssl node curl; do
     if ! command -v "$cmd" &>/dev/null; then
       err "Required command not found: ${cmd}"
       missing=1
