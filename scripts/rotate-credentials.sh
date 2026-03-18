@@ -257,7 +257,7 @@ update_tfvar_heredoc() {
   local key="$1" pem_file="$STATE_DIR/${key}.pem"
 
   if [[ ! -f "$pem_file" ]]; then
-    warn "No PEM file found for ${key} — skipping"
+    err "PEM file not found at: ${pem_file}"
     return 1
   fi
 
@@ -816,13 +816,26 @@ step_update_tfvars() {
   done
 
   # GitHub App private key (multi-line — stored in separate .pem file)
+  local pem_file="$STATE_DIR/github_app_private_key.pem"
   local pk_marker
   pk_marker=$(load_val "github_app_private_key")
-  if [[ "$pk_marker" == "__PEM_FILE__" ]] || [[ -f "$STATE_DIR/github_app_private_key.pem" ]]; then
+
+  # If PEM was saved by old code directly in new-values, extract it to .pem file
+  if [[ -z "$pk_marker" ]] || [[ "$pk_marker" == "__SKIPPED__" ]]; then
+    : # handled below
+  elif [[ "$pk_marker" != "__PEM_FILE__" ]] && [[ ! -f "$pem_file" ]]; then
+    # Old format: PEM content stored inline — but only first line was captured
+    warn "PEM key was stored in old format — please re-provide it"
+  fi
+
+  if [[ -f "$pem_file" ]]; then
     update_tfvar_heredoc "github_app_private_key"
     log "Updated github_app_private_key"
   elif [[ "$pk_marker" == "__SKIPPED__" ]]; then
     warn "Keeping old value for github_app_private_key (was skipped)"
+  else
+    warn "No .pem file at ${pem_file} — github_app_private_key NOT updated"
+    warn "  To fix: copy your .pem file there and re-run from this step"
   fi
 
   log "terraform.tfvars updated"
