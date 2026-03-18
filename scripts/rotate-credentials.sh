@@ -371,7 +371,7 @@ validate_environment() {
         .then(() => c.query('SELECT 1 as ok'))
         .then(() => { console.log('OK'); c.end(); process.exit(0); })
         .catch(e => { console.log('FAIL:' + e.message); c.end(); process.exit(1); });
-    " 2>&1) || true
+    " 2>/dev/null) || true
 
     # If first attempt failed (likely firewall), auto-add rule and retry
     if [[ "$db_test" != "OK" ]]; then
@@ -386,7 +386,7 @@ validate_environment() {
             .then(() => c.query('SELECT 1 as ok'))
             .then(() => { console.log('OK'); c.end(); process.exit(0); })
             .catch(e => { console.log('FAIL:' + e.message); c.end(); process.exit(1); });
-        " 2>&1) || true
+        " 2>/dev/null) || true
       fi
     fi
 
@@ -403,7 +403,7 @@ validate_environment() {
           .then(() => c.query(\"SELECT (SELECT count(*) FROM identity_links WHERE access_token_enc IS NOT NULL) as links, (SELECT count(*) FROM users WHERE totp_secret_enc IS NOT NULL) as totp\"))
           .then(r => { console.log(r.rows[0].links + ' identity_links, ' + r.rows[0].totp + ' TOTP users'); c.end(); process.exit(0); })
           .catch(e => { console.log('query failed'); c.end(); process.exit(1); });
-      " 2>&1) || true
+      " 2>/dev/null) || true
       info "Data to re-encrypt: ${counts}"
     else
       err "FAIL: Database connection failed (even after adding firewall rule)"
