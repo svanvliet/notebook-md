@@ -187,9 +187,10 @@ prompt_secret() {
 
 prompt_multiline_secret() {
   local name="$1" instructions="$2"
-  local existing
-  existing=$(load_val "$name")
-  if [[ -n "$existing" ]]; then
+  # Multi-line secrets are stored in their own file to avoid delimiter issues
+  local pem_file="$STATE_DIR/${name}.pem"
+
+  if [[ -f "$pem_file" ]]; then
     info "Using previously saved value for ${name}"
     return 0
   fi
@@ -206,17 +207,18 @@ prompt_multiline_secret() {
     return 1
   fi
 
-  local raw_value=""
+  mkdir -p "$STATE_DIR"
   if [[ "$input" == "paste" ]]; then
     echo "Paste PEM content below (reading ends automatically after -----END line):"
+    local raw_value=""
     while IFS= read -r line; do
       raw_value="${raw_value}${line}
 "
-      # Auto-detect PEM end marker
       if [[ "$line" == -----END* ]]; then
         break
       fi
     done
+    printf '%s' "$raw_value" > "$pem_file"
   else
     # Treat input as a file path (expand ~ if present)
     local filepath="${input/#\~/$HOME}"
@@ -224,16 +226,11 @@ prompt_multiline_secret() {
       err "File not found: ${filepath}"
       return 1
     fi
-    raw_value=$(cat "$filepath")
+    cp "$filepath" "$pem_file"
   fi
 
-  # Store as single line with literal \n sequences
-  local value
-  value=$(printf '%s' "$raw_value" | sed ':a;N;$!ba;s/\n/\\n/g')
-  # Remove trailing \n if present
-  value="${value%\\n}"
-
-  save_val "$name" "$value"
+  # Also set a marker in new-values so the skipped-check works
+  save_val "$name" "__PEM_FILE__"
   log "Saved ${name}"
 }
 
@@ -256,20 +253,40 @@ update_tfvar() {
 }
 
 update_tfvar_heredoc() {
-  # For multi-line values like PEM keys, use heredoc syntax in tfvars
-  local key="$1" val="$2"
+  # Write a multi-line value (PEM key) using Terraform heredoc syntax
+  local key="$1" pem_file="$STATE_DIR/${key}.pem"
 
-  # Remove any existing block for this key (single line or heredoc)
+  if [[ ! -f "$pem_file" ]]; then
+    warn "No PEM file found for ${key} — skipping"
+    return 1
+  fi
+
+  # Remove any existing entry for this key (single-line or heredoc block)
   local tmp="$TFVARS.tmp"
-  # Simple approach: remove the line and re-add with heredoc
-  grep -v "^${key}[[:space:]]*=" "$TFVARS" > "$tmp" 2>/dev/null || true
-  # Also remove any existing heredoc block
-  # (terraform.tfvars doesn't actually support heredoc — use escaped newlines)
+  # Use awk to remove both formats:
+  #   key = "value"           (single line)
+  #   key = <<-EOT ... EOT    (heredoc block)
+  awk -v key="$key" '
+    BEGIN { skip=0 }
+    # Match heredoc start: key = <<-EOT or key = <<EOT
+    $0 ~ "^" key "[[:space:]]*=.*<<-?EOT" { skip=1; next }
+    # Match heredoc end
+    skip && /^[[:space:]]*EOT[[:space:]]*$/ { skip=0; next }
+    # Match single-line: key = "..."
+    !skip && $0 ~ "^" key "[[:space:]]*=" { next }
+    # Skip lines inside heredoc
+    skip { next }
+    # Print everything else
+    { print }
+  ' "$TFVARS" > "$tmp"
   mv "$tmp" "$TFVARS"
 
-  # Terraform .tfvars: multi-line strings use literal \n inside quotes
-  # The PEM key in our val already has \n literal sequences from save_val
-  echo "${key} = \"${val}\"" >> "$TFVARS"
+  # Append new heredoc block
+  {
+    echo "${key} = <<-EOT"
+    cat "$pem_file"
+    echo "EOT"
+  } >> "$TFVARS"
 }
 
 # ── Validation ────────────────────────────────────────────────────────
@@ -798,12 +815,14 @@ step_update_tfvars() {
     fi
   done
 
-  # GitHub App private key (multi-line)
-  local pk_val
-  pk_val=$(load_val "github_app_private_key")
-  if [[ -n "$pk_val" && "$pk_val" != "__SKIPPED__" ]]; then
-    update_tfvar_heredoc "github_app_private_key" "$pk_val"
+  # GitHub App private key (multi-line — stored in separate .pem file)
+  local pk_marker
+  pk_marker=$(load_val "github_app_private_key")
+  if [[ "$pk_marker" == "__PEM_FILE__" ]] || [[ -f "$STATE_DIR/github_app_private_key.pem" ]]; then
+    update_tfvar_heredoc "github_app_private_key"
     log "Updated github_app_private_key"
+  elif [[ "$pk_marker" == "__SKIPPED__" ]]; then
+    warn "Keeping old value for github_app_private_key (was skipped)"
   fi
 
   log "terraform.tfvars updated"
