@@ -254,7 +254,8 @@ update_tfvar() {
 
 update_tfvar_heredoc() {
   # Write a multi-line value (PEM key) using Terraform heredoc syntax
-  local key="$1" pem_file="$STATE_DIR/${key}.pem"
+  local key="$1"
+  local pem_file="$STATE_DIR/${key}.pem"
 
   if [[ ! -f "$pem_file" ]]; then
     err "PEM file not found at: ${pem_file}"
