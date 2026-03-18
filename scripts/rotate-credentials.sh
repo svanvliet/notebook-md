@@ -23,8 +23,11 @@ STATE_DIR="$REPO_ROOT/.credential-rotation"
 STATE_FILE="$STATE_DIR/state"
 NEW_VALS_FILE="$STATE_DIR/new-values"
 RESOURCE_GROUP="rg-notebookmd-prod"
+PG_SERVER="psql-notebookmd-prod"
+PG_FIREWALL_RULE="temp-credential-rotation"
 API_CONTAINER="ca-notebookmd-api"
 API_HEALTH_URL="https://api.notebookmd.io/api/health"
+FIREWALL_ADDED=false
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,6 +43,90 @@ warn() { echo -e "${YELLOW}⚠️  $*${NC}"; }
 err()  { echo -e "${RED}❌ $*${NC}" >&2; }
 info() { echo -e "${CYAN}ℹ️  $*${NC}"; }
 header() { echo -e "\n${BOLD}═══ $* ═══${NC}\n"; }
+
+# ── PostgreSQL firewall management ────────────────────────────────────
+
+get_my_ip() {
+  curl -s --max-time 5 https://ifconfig.me 2>/dev/null \
+    || curl -s --max-time 5 https://api.ipify.org 2>/dev/null \
+    || curl -s --max-time 5 https://checkip.amazonaws.com 2>/dev/null \
+    || echo ""
+}
+
+ensure_pg_firewall() {
+  # Add a temporary firewall rule for the current IP if not already added
+  if [[ "$FIREWALL_ADDED" == "true" ]]; then
+    return 0
+  fi
+
+  local my_ip
+  my_ip=$(get_my_ip)
+  if [[ -z "$my_ip" ]]; then
+    err "Could not determine your public IP address"
+    err "  Add a firewall rule manually:"
+    err "  az postgres flexible-server firewall-rule create --rule-name $PG_FIREWALL_RULE --resource-group $RESOURCE_GROUP --name $PG_SERVER --start-ip-address <YOUR_IP> --end-ip-address <YOUR_IP>"
+    return 1
+  fi
+
+  info "Adding temporary PostgreSQL firewall rule for ${my_ip}..."
+  if az postgres flexible-server firewall-rule create \
+    --rule-name "$PG_FIREWALL_RULE" \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$PG_SERVER" \
+    --start-ip-address "$my_ip" \
+    --end-ip-address "$my_ip" \
+    -o none 2>/dev/null; then
+    FIREWALL_ADDED=true
+    log "Firewall rule added for ${my_ip}"
+  else
+    # Rule may already exist — try updating it
+    if az postgres flexible-server firewall-rule update \
+      --rule-name "$PG_FIREWALL_RULE" \
+      --resource-group "$RESOURCE_GROUP" \
+      --name "$PG_SERVER" \
+      --start-ip-address "$my_ip" \
+      --end-ip-address "$my_ip" \
+      -o none 2>/dev/null; then
+      FIREWALL_ADDED=true
+      log "Firewall rule updated for ${my_ip}"
+    else
+      err "Failed to create/update firewall rule"
+      return 1
+    fi
+  fi
+
+  # Azure firewall rules need time to propagate
+  info "Waiting 10s for firewall rule to propagate..."
+  sleep 10
+}
+
+remove_pg_firewall() {
+  # Remove the temporary firewall rule (safe to call multiple times)
+  if [[ "$FIREWALL_ADDED" != "true" ]]; then
+    return 0
+  fi
+
+  info "Removing temporary PostgreSQL firewall rule..."
+  if az postgres flexible-server firewall-rule delete \
+    --rule-name "$PG_FIREWALL_RULE" \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$PG_SERVER" \
+    --yes -o none 2>/dev/null; then
+    FIREWALL_ADDED=false
+    log "Firewall rule removed"
+  else
+    warn "Could not remove firewall rule '$PG_FIREWALL_RULE' — please remove it manually:"
+    warn "  az postgres flexible-server firewall-rule delete --rule-name $PG_FIREWALL_RULE --resource-group $RESOURCE_GROUP --name $PG_SERVER --yes"
+  fi
+}
+
+cleanup_on_exit() {
+  local exit_code=$?
+  remove_pg_firewall
+  exit $exit_code
+}
+
+trap cleanup_on_exit EXIT
 
 get_state() {
   [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE" || echo "not-started"
@@ -210,12 +297,12 @@ validate_environment() {
 
   # 4. PostgreSQL
   info "Checking PostgreSQL server..."
-  if az postgres flexible-server show --name psql-notebookmd-prod --resource-group "$RESOURCE_GROUP" --query "state" -o tsv &>/dev/null; then
+  if az postgres flexible-server show --name "$PG_SERVER" --resource-group "$RESOURCE_GROUP" --query "state" -o tsv &>/dev/null; then
     local pg_state
-    pg_state=$(az postgres flexible-server show --name psql-notebookmd-prod --resource-group "$RESOURCE_GROUP" --query "state" -o tsv 2>/dev/null)
-    log "PostgreSQL: psql-notebookmd-prod (${pg_state})"
+    pg_state=$(az postgres flexible-server show --name "$PG_SERVER" --resource-group "$RESOURCE_GROUP" --query "state" -o tsv 2>/dev/null)
+    log "PostgreSQL: ${PG_SERVER} (${pg_state})"
   else
-    err "FAIL: Cannot access PostgreSQL server psql-notebookmd-prod"
+    err "FAIL: Cannot access PostgreSQL server ${PG_SERVER}"
     failures=$((failures + 1))
   fi
 
@@ -269,11 +356,12 @@ validate_environment() {
     failures=$((failures + 1))
   fi
 
-  # 9. Database connectivity
+  # 9. Database connectivity (auto-manages firewall rule)
   info "Checking database connectivity..."
   local db_url
   db_url=$(az keyvault secret show --name database-url --vault-name kv-notebookmd-prod --query "value" -o tsv 2>/dev/null) || true
   if [[ -n "$db_url" ]]; then
+    # First attempt — may fail due to firewall
     local db_test
     db_test=$(DATABASE_URL="$db_url" node -e "
       setTimeout(() => { console.log('FAIL:connection timed out (firewall?)'); process.exit(1); }, 10000);
@@ -284,6 +372,24 @@ validate_environment() {
         .then(() => { console.log('OK'); c.end(); process.exit(0); })
         .catch(e => { console.log('FAIL:' + e.message); c.end(); process.exit(1); });
     " 2>&1) || true
+
+    # If first attempt failed (likely firewall), auto-add rule and retry
+    if [[ "$db_test" != "OK" ]]; then
+      warn "Direct DB connection failed — adding temporary firewall rule..."
+      if ensure_pg_firewall; then
+        info "Retrying database connection..."
+        db_test=$(DATABASE_URL="$db_url" node -e "
+          setTimeout(() => { console.log('FAIL:connection timed out'); process.exit(1); }, 15000);
+          const pg = require('pg');
+          const c = new pg.Client({connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 12000, ssl: {rejectUnauthorized: false}});
+          c.connect()
+            .then(() => c.query('SELECT 1 as ok'))
+            .then(() => { console.log('OK'); c.end(); process.exit(0); })
+            .catch(e => { console.log('FAIL:' + e.message); c.end(); process.exit(1); });
+        " 2>&1) || true
+      fi
+    fi
+
     if [[ "$db_test" == "OK" ]]; then
       log "Database: connection verified"
 
@@ -300,10 +406,8 @@ validate_environment() {
       " 2>&1) || true
       info "Data to re-encrypt: ${counts}"
     else
-      err "FAIL: Database connection failed"
-      # Strip node warnings, show only FAIL line
+      err "FAIL: Database connection failed (even after adding firewall rule)"
       echo "$db_test" | grep "^FAIL:" | while read -r line; do err "  $line"; done
-      err "  If firewall: az postgres flexible-server firewall-rule create --name temp-rotation --resource-group rg-notebookmd-prod --server-name psql-notebookmd-prod --start-ip-address <YOUR_IP> --end-ip-address <YOUR_IP>"
       failures=$((failures + 1))
     fi
   else
@@ -619,15 +723,20 @@ step_reencrypt_data() {
     exit 1
   }
 
-  info "Running re-encryption migration..."
-  DATABASE_URL="$db_url" node "$REPO_ROOT/scripts/reencrypt-data.mjs" "$old_key" "$new_key"
+  # Ensure we can reach the database (add firewall rule if needed)
+  ensure_pg_firewall || {
+    err "Cannot open database firewall. Re-encryption requires direct DB access."
+    exit 1
+  }
 
-  if [[ $? -ne 0 ]]; then
+  info "Running re-encryption migration..."
+  if DATABASE_URL="$db_url" node "$REPO_ROOT/scripts/reencrypt-data.mjs" "$old_key" "$new_key"; then
+    log "Database re-encryption complete"
+  else
     err "Re-encryption failed! Database was rolled back — no data loss."
     exit 1
   fi
 
-  log "Database re-encryption complete"
   set_state "data-reencrypted"
 }
 
