@@ -198,14 +198,41 @@ prompt_multiline_secret() {
   echo -e "${BOLD}ACTION REQUIRED: Rotate ${name}${NC}"
   echo -e "${CYAN}${instructions}${NC}"
   echo ""
-  echo "Paste the full PEM content below (end with a line containing only 'EOF'):"
-  local value=""
-  while IFS= read -r line; do
-    [[ "$line" == "EOF" ]] && break
-    value="${value}${line}\n"
-  done
-  # Remove trailing newline
+  read -rp "Enter path to .pem file (or 'paste' to paste, 'skip' to defer): " input
+
+  if [[ "$input" == "skip" ]]; then
+    warn "Skipping ${name} — you must rotate this manually later!"
+    save_val "$name" "__SKIPPED__"
+    return 1
+  fi
+
+  local raw_value=""
+  if [[ "$input" == "paste" ]]; then
+    echo "Paste PEM content below (reading ends automatically after -----END line):"
+    while IFS= read -r line; do
+      raw_value="${raw_value}${line}
+"
+      # Auto-detect PEM end marker
+      if [[ "$line" == -----END* ]]; then
+        break
+      fi
+    done
+  else
+    # Treat input as a file path (expand ~ if present)
+    local filepath="${input/#\~/$HOME}"
+    if [[ ! -f "$filepath" ]]; then
+      err "File not found: ${filepath}"
+      return 1
+    fi
+    raw_value=$(cat "$filepath")
+  fi
+
+  # Store as single line with literal \n sequences
+  local value
+  value=$(printf '%s' "$raw_value" | sed ':a;N;$!ba;s/\n/\\n/g')
+  # Remove trailing \n if present
   value="${value%\\n}"
+
   save_val "$name" "$value"
   log "Saved ${name}"
 }
@@ -659,7 +686,7 @@ step_prompt_manual() {
   prompt_multiline_secret "github_app_private_key" \
     "Go to: https://github.com/settings/apps/notebook-md
      → Private keys → Generate a private key
-     → Download the .pem file, then cat it and paste contents below" || true
+     → Download the .pem file" || true
 
   prompt_secret "google_client_secret" \
     "Go to: https://console.cloud.google.com/apis/credentials
