@@ -651,6 +651,7 @@ The current publish uses the GitHub Merges API which only does regular merge com
 - [x] Shared `node_modules` cache across CI jobs (install once, restore everywhere)
 - [x] Selective E2E: skip when only API internals changed (no UI/docker impact)
 - [x] SHA-based image tags (`0.1.0-<sha>`) for unique Container Apps revisions
+- [x] Post-deploy revision cleanup: deactivate old revisions (trafficWeight=0) to prevent zombie replicas accumulating costs
 - [x] GitHub Environment `production` with protection rules (manual approval) — configured in deploy + rollback workflows
 - [x] Environment-scoped secrets for Azure credentials (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID)
 - [x] Branch protection on `main`: deferred — requires GitHub Team plan for private repos; revisit when repo goes public
@@ -951,7 +952,8 @@ Phases are sequential — each builds on the previous. However, within each phas
 | GitHub App webhook reliability | Medium | Implement polling fallback (refresh tree on tab focus) alongside webhooks | 3 |
 | KaTeX requires `unsafe-eval` in CSP | Medium | Verify in Phase 1; if needed, evaluate server-side rendering of math blocks | 1, 5 |
 | IndexedDB storage limits in browsers | Low | 50MB+ available in most browsers; warn users of Local notebook storage limits | 1 |
-| Azure Container Apps cold start latency | Medium | Configure minimum replica count ≥ 1; use health probes to keep warm | 6 |
+| Azure Container Apps cold start latency | Medium | All containers use `min_replicas = 0` (scale-to-zero) to minimize pre-launch costs. Set `min_replicas = 1` on API and Web when production traffic begins. Cold starts are 5–10s for Node.js apps. | 6 |
+| Container Apps zombie revisions | High | With `revision_mode = "Multiple"`, each deploy leaves old revisions active with idle replicas. Both `deploy.yml` and `manual-deploy.sh` now deactivate old revisions post-deploy. Consider switching to `revision_mode = "Single"` if canary deploys aren't needed. | 6 |
 
 ---
 

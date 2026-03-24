@@ -238,7 +238,7 @@ jobs:
           docker push "$IMAGE:latest"
 
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: ${{ env.ACR_NAME }}.azurecr.io/api:${{ needs.preflight.outputs.image-tag }}
           format: table
@@ -364,7 +364,7 @@ jobs:
           docker push "$IMAGE:latest"
 
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: ${{ env.ACR_NAME }}.azurecr.io/collab:${{ needs.preflight.outputs.image-tag }}
           format: table
@@ -398,6 +398,14 @@ jobs:
           containerAppName: ca-notebookmd-api
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/api:${{ needs.preflight.outputs.image-tag }}
+
+      - name: Deactivate old API revisions
+        run: |
+          az containerapp revision list \
+            --name ca-notebookmd-api --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "[?properties.trafficWeight==\`0\` && properties.active==\`true\`].name" -o tsv \
+          | xargs -I{} az containerapp revision deactivate \
+            --name ca-notebookmd-api --resource-group ${{ env.RESOURCE_GROUP }} --revision {}
 
       - name: Verify API health
         run: |
@@ -441,6 +449,14 @@ jobs:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/web:${{ needs.preflight.outputs.image-tag }}
 
+      - name: Deactivate old Web revisions
+        run: |
+          az containerapp revision list \
+            --name ca-notebookmd-web --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "[?properties.trafficWeight==\`0\` && properties.active==\`true\`].name" -o tsv \
+          | xargs -I{} az containerapp revision deactivate \
+            --name ca-notebookmd-web --resource-group ${{ env.RESOURCE_GROUP }} --revision {}
+
   deploy-admin:
     name: Deploy Admin
     runs-on: ubuntu-latest
@@ -469,6 +485,14 @@ jobs:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/admin:${{ needs.preflight.outputs.image-tag }}
 
+      - name: Deactivate old Admin revisions
+        run: |
+          az containerapp revision list \
+            --name ca-notebookmd-admin --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "[?properties.trafficWeight==\`0\` && properties.active==\`true\`].name" -o tsv \
+          | xargs -I{} az containerapp revision deactivate \
+            --name ca-notebookmd-admin --resource-group ${{ env.RESOURCE_GROUP }} --revision {}
+
   deploy-collab:
     name: Deploy Collab
     runs-on: ubuntu-latest
@@ -496,6 +520,14 @@ jobs:
           containerAppName: ca-notebookmd-collab
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/collab:${{ needs.preflight.outputs.image-tag }}
+
+      - name: Deactivate old Collab revisions
+        run: |
+          az containerapp revision list \
+            --name ca-notebookmd-collab --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "[?properties.trafficWeight==\`0\` && properties.active==\`true\`].name" -o tsv \
+          | xargs -I{} az containerapp revision deactivate \
+            --name ca-notebookmd-collab --resource-group ${{ env.RESOURCE_GROUP }} --revision {}
 
   summary:
     name: Deploy Summary

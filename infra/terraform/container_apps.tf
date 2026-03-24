@@ -62,7 +62,7 @@ resource "azurerm_container_app" "api" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 5
 
     container {
@@ -222,22 +222,22 @@ resource "azurerm_container_app" "api" {
 
   secret {
     name                = "database-url"
-    key_vault_secret_id = azurerm_key_vault_secret.db_connection_string.id
+    key_vault_secret_id = azurerm_key_vault_secret.db_connection_string.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
     name                = "redis-url"
-    key_vault_secret_id = azurerm_key_vault_secret.redis_connection_string.id
+    key_vault_secret_id = azurerm_key_vault_secret.redis_connection_string.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
     name                = "session-secret"
-    key_vault_secret_id = azurerm_key_vault_secret.session_secret.id
+    key_vault_secret_id = azurerm_key_vault_secret.session_secret.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
     name                = "encryption-key"
-    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.id
+    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
@@ -336,7 +336,7 @@ resource "azurerm_container_app" "collab" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 5
 
     container {
@@ -386,17 +386,17 @@ resource "azurerm_container_app" "collab" {
 
   secret {
     name                = "db-admin-password"
-    key_vault_secret_id = azurerm_key_vault_secret.db_admin_password.id
+    key_vault_secret_id = azurerm_key_vault_secret.db_admin_password.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
     name                = "redis-url"
-    key_vault_secret_id = azurerm_key_vault_secret.redis_connection_string.id
+    key_vault_secret_id = azurerm_key_vault_secret.redis_connection_string.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
   secret {
     name                = "encryption-key"
-    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.id
+    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.versionless_id
     identity            = azurerm_user_assigned_identity.container_apps.id
   }
 
@@ -431,7 +431,7 @@ resource "azurerm_container_app" "web" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 3
 
     container {
@@ -477,7 +477,7 @@ resource "azurerm_container_app" "admin" {
   }
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 2
 
     container {

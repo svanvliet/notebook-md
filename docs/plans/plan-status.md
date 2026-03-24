@@ -2,7 +2,7 @@
 
 **Purpose:** This document is the running register of implementation progress, decisions made, and context needed for any agent session to continue the work. If a session ends, a new agent should read this file first to understand where we left off.
 
-**Last Updated: 2026-02-27
+**Last Updated: 2026-03-03
 
 ---
 
@@ -5506,3 +5506,60 @@ Full production deployment of all AI features including demo mode, flag gating, 
 | b2a1bc0 | Update desktop-plan.md and plan-status.md with Phase 1-8 progress |
 | e1e944e | Set VITE_API_URL for production desktop builds |
 | 93ffe32 | Fix menu actions + open folder: capabilities, routing, double-create |
+
+### Infrastructure Cost Optimization — 2026-03-03
+
+Analyzed Azure Cost Analysis data and identified that Container Apps idle costs were consuming **91% of the monthly bill (~$660/mo out of ~$727/mo)** despite near-zero traffic. All 4 container apps were running 24/7 with `min_replicas = 1`.
+
+#### Changes Applied (Terraform Apply ✅)
+
+1. **Container Apps: Scale-to-zero** (`container_apps.tf`)
+   - `ca-notebookmd-api`: `min_replicas = 1 → 0` (was $303/mo idle)
+   - `ca-notebookmd-web`: `min_replicas = 1 → 0` (was $186/mo idle)
+   - `ca-notebookmd-collab`: `min_replicas = 1 → 0` (was $85/mo idle)
+   - `ca-notebookmd-admin`: `min_replicas = 1 → 0` (was $84/mo idle)
+
+2. **Availability Tests: Reduced** (`monitoring.tf`)
+   - All 3 web tests: reduced from 2-3 geo locations to 1 (us-va-ash-azr)
+   - Frequency: 300s → 600s (5min → 10min)
+   - Saves ~$15/mo in web test execution costs
+
+#### Cost Impact
+| Before | After (projected) | Savings |
+|--------|-------------------|---------|
+| ~$727/mo | ~$60-80/mo | **~$650/mo (89%)** |
+
+#### Trade-offs
+- Cold starts of 5-10s on first request after idle period (acceptable for pre-launch)
+- When ready for production traffic, set `min_replicas = 1` on API and Web
+
+#### Docs Updated
+- `infra/DEPLOY.md` — cost table updated with scale-to-zero config and production readiness note
+- `docs/plans/initial-plan.md` — risk table updated for cold start mitigation strategy
+
+### Zombie Revision Cleanup & Prevention — 2026-03-03
+
+Discovered that **77 old Container App revisions** were still `Active` with `Replicas: 1` despite carrying 0% traffic. This was the primary driver of the inflated Azure bill — each deploy via `azure/container-apps-deploy-action@v2` or `az containerapp update` creates a new revision but never deactivates the old one. With `revision_mode = "Multiple"`, old revisions persist indefinitely.
+
+#### Breakdown of Zombie Revisions
+| App | Old Active Revisions | Idle Replicas |
+|-----|---------------------|---------------|
+| API | 25 | 25 |
+| Web | 31 | 31 |
+| Collab | 7 | 7 |
+| Admin | 14 | 14 |
+| **Total** | **77** | **77** |
+
+#### Actions Taken
+
+1. **Immediate cleanup** — Deactivated all 77 old revisions via `az containerapp revision deactivate`
+
+2. **Prevention: deploy.yml** — Added "Deactivate old revisions" step after each deploy for all 4 apps. Queries for revisions with `trafficWeight=0 && active=true` and deactivates them.
+
+3. **Prevention: manual-deploy.sh** — Added Step 5b with the same cleanup loop for all 4 apps.
+
+#### Root Cause
+`revision_mode = "Multiple"` + deploy actions that create new revisions without cleaning up old ones. This is a known Azure Container Apps gotcha — old revisions with `min_replicas >= 1` keep running even at 0% traffic weight.
+
+#### Future Consideration
+If canary/blue-green deployments are not needed, switching to `revision_mode = "Single"` in Terraform would eliminate this class of issue entirely. Deferred for now since it may force-replace the Container App resources.

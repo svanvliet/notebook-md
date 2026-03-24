@@ -101,6 +101,23 @@ az containerapp update \
 
 echo ""
 
+# ── Step 5b: Deactivate old revisions ──────────────────────────────────
+echo "🧹 Deactivating old revisions..."
+for app in api web admin collab; do
+  old=$(az containerapp revision list \
+    --name "ca-notebookmd-$app" --resource-group "$RG" \
+    --query "[?properties.trafficWeight==\`0\` && properties.active==\`true\`].name" -o tsv)
+  count=$(echo "$old" | grep -c . 2>/dev/null || echo 0)
+  if [ "$count" -gt 0 ]; then
+    echo "$old" | xargs -I{} az containerapp revision deactivate \
+      --name "ca-notebookmd-$app" --resource-group "$RG" --revision {}
+    echo "  ✓ $app: deactivated $count old revision(s)"
+  else
+    echo "  ✓ $app: no old revisions"
+  fi
+done
+echo ""
+
 # ── Step 6: Health check ────────────────────────────────────────────────
 echo "🏥 Waiting for API health check..."
 for i in $(seq 1 30); do

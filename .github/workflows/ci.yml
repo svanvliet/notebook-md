@@ -241,7 +241,7 @@ jobs:
       - run: docker build -f docker/Dockerfile.api -t notebookmd-api:${{ github.sha }} .
 
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: notebookmd-api:${{ github.sha }}
           format: table
