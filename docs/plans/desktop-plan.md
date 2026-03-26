@@ -881,15 +881,15 @@ Full review: `docs/reviews/desktop-review-codex.md`
 |-------|--------|-------------|
 | Phase 1: Scaffolding | ✅ Complete | Tauri v2 project, builds .app/.dmg |
 | Phase 2: Storage Adapter | ✅ Complete | StorageAdapter interface, IndexedDB + Tauri adapters, factory (8 tests) |
-| Phase 3: FS Commands | ✅ Complete | 16 Rust commands, notebook/file CRUD, atomic writes, OS trash (4 tests) |
+| Phase 3: FS Commands | ✅ Complete | 18 Rust commands, notebook/file CRUD, atomic writes, OS trash, standalone file ops |
 | Phase 4: File Watching | ✅ Complete | notify crate watcher, useFsWatcher, useAutoSave (7 tests) |
-| Phase 5: Native OS | ✅ Complete | Menu bar, dialog/window-state plugins, file associations |
+| Phase 5: Native OS | ✅ Complete | Menu bar, dialog/window-state plugins, file associations, file-open events |
 | Phase 6: Auth & Cloud | ⏸️ Deferred | See "Deferred Features" below |
-| Phase 7: Build & Distribute | ⏸️ Deferred (partial) | CI workflow scaffolded; signing/updater/download page deferred |
+| Phase 7: Build & Distribute | ✅ Complete | Signed + notarized builds via `scripts/build-desktop.sh` |
 | Phase 8: UX Polish | ✅ Complete | Icons, cookie, labels, menus, folder-open, auth bypass, desktop empty state |
 
 **Test totals:** 232 web tests + 4 Rust tests — all passing
-**Branch:** `feature/desktop` (local, not pushed)
+**Branch:** `feature/desktop` → merged to `main`
 
 ---
 
@@ -906,21 +906,59 @@ The desktop app was simplified to focus on its core value: a zero-auth local mar
 5. **Zero API calls** — Desktop init uses TauriFilesystemAdapter directly; no `syncNotebooksFromServer`, no permission polling
 6. **Deferred plugins removed** — `tauri-plugin-deep-link` and `tauri-plugin-notification` removed from Cargo.toml, main.rs, and capabilities
 7. **Unused hooks unwired** — `useDeepLink` and `useNetworkStatus` were never imported in App.tsx (confirmed clean)
+8. **Standalone file open** — Cmd+O opens any .md file directly in the editor (no notebook required), with auto-save
+9. **File associations** — `.md` files double-clicked in Finder emit `file-open` events to the frontend
+10. **Large directory guard** — Blocks home dir, root, /Users etc. from being opened as notebooks
+11. **File type filter** — Notebook tree only shows .md/.mdx/.markdown/.txt and image files
+12. **External folder safety** — "Close Folder" (not "Delete") for external folders; no filesystem deletion
+13. **Duplicate prevention** — `open_folder_as_notebook` returns existing notebook if path already registered
+14. **Signed builds** — `scripts/build-desktop.sh` produces signed + notarized .app/.dmg via Developer ID certificate
 
 ### Files modified
 
 | File | Change |
 |------|--------|
-| `apps/web/src/App.tsx` | Auth gate gated with `isDesktop`, TitleBar/DemoBanner/QuotaBanner conditionals, NotebookPane `onOpenFolder` prop, AddNotebookModal `isDesktopMode` prop |
-| `apps/web/src/hooks/useNotebookManager.ts` | Init effect uses Tauri adapter directly in desktop; permission polling skipped |
-| `apps/web/src/components/layout/TitleBar.tsx` | `isDesktopMode` prop; desktop shows Settings button instead of account dropdown |
-| `apps/web/src/components/layout/NotebookPane.tsx` | Desktop empty state with "Open Folder" / "New Notebook" buttons; `onOpenFolder` prop |
-| `apps/web/src/components/notebook/SourceTypes.tsx` | `webOnly` flag on cloud sources; hidden on desktop |
-| `apps/web/src/components/notebook/AddNotebookModal.tsx` | `isDesktopMode` prop; SourcePicker filters `webOnly` sources |
-| `apps/desktop/src-tauri/src/main.rs` | Removed deep-link and notification plugin init |
-| `apps/desktop/src-tauri/Cargo.toml` | Removed `tauri-plugin-deep-link` and `tauri-plugin-notification` |
-| `apps/desktop/src-tauri/tauri.conf.json` | Removed deep-link plugin config |
-| `apps/desktop/src-tauri/capabilities/default.json` | Removed `deep-link:default` and `notification:default` permissions |
+| `apps/web/src/App.tsx` | Auth gate, isDesktop, standalone file open, large dir guard, file-open listener, menu handlers |
+| `apps/web/src/hooks/useNotebookManager.ts` | Tauri adapter in init/save/open, standalone tabs, local-folder type support |
+| `apps/web/src/hooks/useNativeMenu.ts` | Added `open_file` MenuAction |
+| `apps/web/src/components/layout/TitleBar.tsx` | `isDesktopMode` prop; Settings button replaces account dropdown |
+| `apps/web/src/components/layout/NotebookPane.tsx` | Desktop empty state; `onOpenFolder` prop |
+| `apps/web/src/components/notebook/SourceTypes.tsx` | `webOnly` flag on cloud sources; `local-folder` type |
+| `apps/web/src/components/notebook/AddNotebookModal.tsx` | `isDesktopMode` prop; filters `webOnly` sources |
+| `apps/web/src/components/notebook/NotebookTree.tsx` | "Close Folder" for local-folder notebooks |
+| `apps/web/src/stores/localNotebookStore.ts` | Added `local-folder` to sourceType union |
+| `apps/desktop/src-tauri/src/main.rs` | Removed deferred plugins, file-open event handler, Emitter import |
+| `apps/desktop/src-tauri/src/commands.rs` | `local-folder` sourceType, dedup check, standalone file ops, file type filter |
+| `apps/desktop/src-tauri/src/state.rs` | `StandaloneFile` struct |
+| `apps/desktop/src-tauri/src/menu.rs` | Open File (Cmd+O), Open Folder (Cmd+Shift+O) |
+| `apps/desktop/src-tauri/Cargo.toml` | Removed deferred plugin deps |
+| `apps/desktop/src-tauri/tauri.conf.json` | Removed deep-link config |
+| `apps/desktop/src-tauri/capabilities/default.json` | Removed deferred permissions |
+| `scripts/build-desktop.sh` | Signed + notarized build script |
+| `docs/plans/desktop-plan.md` | This document |
+
+---
+
+## Build & Distribution
+
+### Local Development
+```bash
+./desktop.sh          # Starts Docker + API + Web + Tauri (hot-reload)
+```
+
+### Production Build (signed + notarized)
+```bash
+./scripts/build-desktop.sh                # Full build with notarization
+./scripts/build-desktop.sh --skip-notarize  # Signed only (faster)
+```
+
+**Prerequisites:**
+- Apple Developer ID certificate in Keychain (auto-imported from `~/certs/apple-developer/`)
+- Rust toolchain, Node.js, npm dependencies installed
+
+**Output:**
+- `apps/desktop/src-tauri/target/release/bundle/macos/Notebook.md.app` — signed + notarized
+- `apps/desktop/src-tauri/target/release/bundle/dmg/Notebook.md_0.1.0_aarch64.dmg` — signed DMG
 
 ---
 
@@ -936,8 +974,6 @@ These features are partially or fully scaffolded in the codebase but not wired i
 | **Auto-updater** (Tauri updater plugin) | Not implemented | Adds CI/CD complexity; manual updates fine for V1 |
 | **Multiple windows** | Not implemented | Nice-to-have; adds state management complexity |
 | **Native notifications** | Plugin removed | Only needed for file-watch alerts + update prompts |
-| **File associations** (`.md` double-click) | Configured in tauri.conf.json, handler not wired | Requires standalone editor view |
 | **Download page** (`/download` route) | Not implemented | No distribution channel yet |
 | **IndexedDB → filesystem migration** | Not implemented | No web users to migrate from yet |
-| **Standalone file editor** | Not implemented | Needs separate route + simplified UI for file associations |
 | **AI features in desktop** | Scaffolded (AI hooks) | Requires auth + API key management |
