@@ -19,7 +19,9 @@
     "test:api:notebooks": "npm -w apps/api run test:notebooks",
     "test:api:providers": "npm -w apps/api run test:providers",
     "test:web": "npm -w apps/web run test",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "dev:desktop": "bash scripts/swap-icons.sh dev && npm -w apps/desktop run dev",
+    "build:desktop": "bash scripts/swap-icons.sh prod && VITE_API_URL=https://api.notebookmd.io npm -w apps/web run build && npm -w apps/desktop run build"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -27,5 +29,8 @@
   "devDependencies": {
     "@playwright/test": "1.58.2",
     "smee-client": "^5.0.0"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.6.0"
   }
 }

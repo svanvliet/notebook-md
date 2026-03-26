@@ -5429,6 +5429,84 @@ Full production deployment of all AI features including demo mode, flag gating, 
 | Web | v0.2.7 | v0.2.8 |
 | Admin | v0.2.0 | v0.2.8 |
 
+---
+
+### Desktop App — Tauri v2 Implementation (2026-02-28)
+
+**Branch:** `feature/desktop` (local, not pushed)
+
+#### Phase 1: Scaffolding ✅
+- Created `apps/desktop/` workspace with Tauri v2 config
+- Builds .app (macOS) and .dmg bundles
+- Root scripts: `dev:desktop`, `build:desktop`
+
+#### Phase 2: Storage Adapter Abstraction ✅
+- `StorageAdapter` interface in `apps/web/src/stores/StorageAdapter.ts`
+- `IndexedDBAdapter` wrapping existing localNotebookStore (web)
+- `TauriFilesystemAdapter` stub with invoke calls (desktop)
+- `storageAdapterFactory.ts` with runtime platform detection
+- `StorageAdapterContext.tsx` React provider
+- 8 new tests
+
+#### Phase 3: Tauri FS Commands ✅
+- `state.rs`: AppState, NotebookMeta, FileEntry, notebooks.json manifest
+- `commands.rs`: 16 Rust commands — full notebook + file CRUD
+- Atomic writes (tempfile + rename), OS trash (trash crate), walkdir
+- 4 Rust unit tests
+
+#### Phase 4: File Watching & Auto-Save ✅
+- `watcher.rs`: notify crate, WatcherRegistry, fs-change events
+- `useFsWatcher.ts`: subscribes to FS events, debounced tree refresh
+- `useAutoSave.ts`: 2s debounce, Cmd+S flush, saved/saving/unsaved state
+- 7 new tests
+
+#### Phase 5: Native OS Integration ✅
+- `menu.rs`: File/Edit/View/Help + macOS app menu
+- Tauri plugins: dialog, deep-link, window-state, notification
+- File associations (.md/.mdx/.markdown), deep link scheme (notebookmd://)
+- `useNativeMenu.ts`, `useDeepLink.ts` frontend hooks
+
+#### Phase 6: Auth & Cloud Scaffold ✅
+- `useNetworkStatus.ts`: online/offline detection (4 tests)
+- OAuth + cookies work natively in WebView (no changes needed)
+
+#### Phase 7: Build & Distribute Scaffold ✅
+- `.github/workflows/desktop-build.yml`: macOS (arm64/x64) + Windows CI
+- `DownloadPage.tsx` at `/download` with OS detection
+- Code signing secrets wired for tag-based releases
+- `VITE_API_URL=https://api.notebookmd.io` injected in CI "Build web app" step and local `build:desktop` script (production builds hit real API; dev builds use local/empty)
+
+#### Phase 8: UX Polish (Partial) 🔧
+- **Icons**: Replaced placeholders with real app logos, white bg → transparent
+- **Cookie banner**: Auto-suppressed in Tauri
+- **Local label**: "Local (Browser)" → "Local (Desktop)" + "Open Folder…" option
+- **Menu actions**: Fixed — root cause was missing Tauri v2 `capabilities/default.json`
+- **Open Folder**: Fixed — menu action now directly invokes native dialog; modal uses `onFolderOpened` callback
+- **Double-create fix**: Rust is single owner of notebook creation for folder-open; frontend just reloads
+- **Error handling**: `useNativeMenu` logs errors; modal shows errors on all steps
+- **Version bump**: `scripts/bump-version.sh` updates all 5 version files
+- **Pending**: WelcomeScreen simplification (strip marketing chrome for desktop)
+
+#### Test Counts
+- Web: 232 tests (24 test files) — all passing
+- Rust: 4 unit tests — all passing
+
+#### Commits (feature/desktop)
+| Hash | Message |
+|------|---------|
+| 2172ba1 | Phase 1: Scaffold Tauri v2 desktop app |
+| 5bf442f | Phase 2: Storage adapter abstraction layer |
+| 6de1bce | Phase 3: Tauri FS commands (Rust backend) |
+| cc463df | Phase 4: File watching & auto-save |
+| 7074e01 | Phase 5: Native OS integration |
+| c3acb4c | Phase 6: Auth & cloud integration scaffold |
+| cb14bb8 | Phase 7: Build pipeline & download page |
+| 9e8e66c | Replace placeholder icons with real app logos |
+| 1bebb7f | Phase 8: Desktop UX polish & version bump script |
+| b2a1bc0 | Update desktop-plan.md and plan-status.md with Phase 1-8 progress |
+| e1e944e | Set VITE_API_URL for production desktop builds |
+| 93ffe32 | Fix menu actions + open folder: capabilities, routing, double-create |
+
 ### Infrastructure Cost Optimization — 2026-03-03
 
 Analyzed Azure Cost Analysis data and identified that Container Apps idle costs were consuming **91% of the monthly bill (~$660/mo out of ~$727/mo)** despite near-zero traffic. All 4 container apps were running 24/7 with `min_replicas = 1`.

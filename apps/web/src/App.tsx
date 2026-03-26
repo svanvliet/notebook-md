@@ -35,10 +35,13 @@ import { createDemoNotebook, DEMO_NOTEBOOK_ID, GETTING_STARTED_PATH } from './st
 import { useDocumentRoute } from './hooks/useDocumentRoute';
 import { useDocumentOutline } from './hooks/useDocumentOutline';
 import type { Editor } from '@tiptap/react';
+import { useNativeMenu, type MenuAction } from './hooks/useNativeMenu';
+import { isTauriEnvironment } from './stores/storageAdapterFactory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
+  const isDesktop = isTauriEnvironment();
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
   const outline = useOutlineResize();
@@ -101,6 +104,125 @@ export default function App() {
   const [demoInitPending, setDemoInitPending] = useState(false);
   // Guard: prevent auto-enter effect from re-entering demo after intentional exit
   const demoExitingRef = useRef(false);
+
+  // Helper: open a standalone file (outside any notebook) in the editor
+  const openStandaloneFile = useCallback(async (filePath: string) => {
+    if (!isTauriEnvironment()) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const file = await invoke<{ path: string; name: string; content: string; updatedAt: number }>('read_standalone_file', { path: filePath });
+      const { isMarkdownContent, markdownToHtml } = await import('./components/editor/markdownConverter');
+      let content = file.content;
+      if (isMarkdownContent(content)) {
+        content = markdownToHtml(content);
+      }
+      nb.openStandaloneTab(file.path, file.name, content, file.updatedAt);
+    } catch (err) {
+      addToast(`Failed to open file: ${err}`, 'error');
+    }
+  }, [nb, addToast]);
+
+  // Helper: validate a folder path isn't too broad (home dir, root, etc.)
+  const isLargeDirectory = (path: string) => {
+    const home = typeof window !== 'undefined' ? (window as unknown as Record<string, string>).__HOME__ : '';
+    const normalized = path.replace(/\/+$/, '');
+    const blocked = ['/', '/Users', '/home', '/var', '/tmp', '/System', '/Library', 'C:\\', 'C:\\Users'];
+    if (blocked.includes(normalized)) return true;
+    if (home && normalized === home.replace(/\/+$/, '')) return true;
+    return false;
+  };
+
+  // Listen for file-open events (file associations: double-click .md in Finder)
+  useEffect(() => {
+    if (!isDesktop) return;
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlistenFn = await listen<string>('file-open', (event) => {
+          openStandaloneFile(event.payload);
+        });
+        unlisten = unlistenFn;
+      } catch (err) {
+        console.error('[file-open] Failed to listen:', err);
+      }
+    })();
+    return () => { unlisten?.(); };
+  }, [isDesktop, openStandaloneFile]);
+
+  // Native menu bar actions (desktop only — no-op in browser)
+  useNativeMenu({
+    onMenuAction: useCallback((action: MenuAction) => {
+      switch (action) {
+        case 'new_notebook':
+          setShowAddNotebook(true);
+          break;
+        case 'new_file':
+          if (nb.activeTab) nb.handleCreateFile(nb.activeTab.notebookId, '', 'file');
+          break;
+        case 'open_file':
+          if (isTauriEnvironment()) {
+            (async () => {
+              try {
+                const { open } = await import('@tauri-apps/plugin-dialog');
+                const selected = await open({
+                  title: 'Open Markdown File',
+                  filters: [{ name: 'Markdown', extensions: ['md', 'mdx', 'markdown', 'txt'] }],
+                });
+                if (selected) {
+                  openStandaloneFile(selected as string);
+                }
+              } catch (err) {
+                addToast(`Failed to open file: ${err}`, 'error');
+              }
+            })();
+          }
+          break;
+        case 'open_folder':
+          if (isTauriEnvironment()) {
+            (async () => {
+              try {
+                const { open } = await import('@tauri-apps/plugin-dialog');
+                const selected = await open({ directory: true, title: 'Open Notebook Folder' });
+                if (selected) {
+                  if (isLargeDirectory(selected as string)) {
+                    addToast('This folder is too broad. Choose a specific project or notes folder instead.', 'error');
+                    return;
+                  }
+                  const { invoke } = await import('@tauri-apps/api/core');
+                  await invoke('open_folder_as_notebook', { path: selected });
+                  nb.reloadNotebooks();
+                  addToast('Opened folder as notebook', 'success');
+                }
+              } catch (err) {
+                addToast(`Failed to open folder: ${err}`, 'error');
+              }
+            })();
+          }
+          break;
+        case 'save':
+          // Cmd+S is already handled by useAutoSave keydown listener
+          break;
+        case 'close_tab':
+          if (nb.activeTabId) nb.handleTabClose(nb.activeTabId);
+          break;
+        case 'toggle_sidebar':
+          sidebar.toggleCollapse();
+          break;
+        case 'toggle_dark':
+          setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'dark' : 'dark');
+          break;
+        case 'about':
+          addToast('Notebook.md v0.1.0 — A beautiful Markdown notebook', 'info');
+          break;
+        case 'docs':
+          window.open('https://www.notebookmd.io/features', '_blank');
+          break;
+        default:
+          break;
+      }
+    }, [nb.activeTab, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast, openStandaloneFile, isLargeDirectory]),
+  });
 
   // Enter demo mode via /demo route or "Try Demo" button
   const handleEnterDemo = useCallback(async () => {
@@ -170,7 +292,7 @@ export default function App() {
   // Restore previously open tabs after notebooks finish loading.
   // This is the SOLE initial tab opener — URL→State is blocked until this completes.
   useEffect(() => {
-    if (!auth.isSignedIn || nb.notebooks.length === 0 || nb.tabs.length > 0) return;
+    if ((!isDesktop && !auth.isSignedIn) || nb.notebooks.length === 0 || nb.tabs.length > 0) return;
     // Skip if demo init is in progress (it handles its own file opening)
     if (demoInitPending) return;
 
@@ -215,7 +337,7 @@ export default function App() {
         docRoute.completeInitialLoad();
       });
     }
-  }, [auth.isSignedIn, auth.isDemoMode, nb.notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isDesktop, auth.isSignedIn, auth.isDemoMode, nb.notebooks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear welcomeView after it's been consumed (one-shot)
   useEffect(() => {
@@ -444,8 +566,8 @@ export default function App() {
     [nb],
   );
 
-  // Welcome screen when not signed in
-  if (!auth.isSignedIn && !auth.loading) {
+  // Welcome screen when not signed in (skip for desktop — no auth required)
+  if (!isDesktop && !auth.isSignedIn && !auth.loading) {
     // Store deep link URL for post-login redirect
     if (location.pathname.startsWith('/app/') && !location.pathname.startsWith('/app/magic-link') && !location.pathname.startsWith('/app/verify-email') && !location.pathname.startsWith('/app/auth-error')) {
       sessionStorage.setItem('nb:returnTo', location.pathname);
@@ -497,8 +619,8 @@ export default function App() {
     );
   }
 
-  // Loading state
-  if (auth.loading) {
+  // Loading state (desktop skips auth, so never blocks on auth.loading)
+  if (!isDesktop && auth.loading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-gray-500 dark:text-gray-400">Loading...</div>
@@ -506,8 +628,8 @@ export default function App() {
     );
   }
 
-  // Post-signup 2FA onboarding
-  if (showOnboarding2fa && auth.isSignedIn) {
+  // Post-signup 2FA onboarding (not applicable on desktop)
+  if (!isDesktop && showOnboarding2fa && auth.isSignedIn) {
     return (
       <OnboardingTwoFactor
         onSetup={auth.setup2fa}
@@ -529,8 +651,9 @@ export default function App() {
       <TitleBar
         displayMode={mode}
         onDisplayModeChange={setMode}
-        user={auth.user}
-        isDemoMode={auth.isDemoMode}
+        user={isDesktop ? undefined : auth.user}
+        isDemoMode={!isDesktop && auth.isDemoMode}
+        isDesktopMode={isDesktop}
         onSignOut={auth.signOut}
         onExitDemo={() => { setWelcomeView(undefined); handleExitDemo(); }}
         onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }}
@@ -539,8 +662,8 @@ export default function App() {
         onDevLogin={auth.devSkipAuth}
         onToggleMobilePane={() => setMobilePaneOpen(v => !v)}
       />
-      {auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }} />}
-      {auth.user && <QuotaBanner />}
+      {!isDesktop && auth.isDemoMode && <DemoBanner onCreateAccount={() => { setWelcomeView('signup'); handleExitDemo(); }} />}
+      {!isDesktop && auth.user && <QuotaBanner />}
       <ToastContainer />
       <div className="flex-1 flex min-h-0">
         <NotebookPane
@@ -551,7 +674,6 @@ export default function App() {
           notebooks={nb.notebooks}
           files={nb.files}
           loadingNotebooks={nb.loadingNotebooks}
-          pendingPrs={nb.pendingPrs}
           onCreateNotebook={() => setShowAddNotebook(true)}
           onDeleteNotebook={nb.handleDeleteNotebook}
           onRenameNotebook={nb.handleRenameNotebook}
@@ -631,6 +753,24 @@ export default function App() {
               addToast(data.error || 'Failed to decline invitation', 'error');
             }
           }}
+          onOpenFolder={isDesktop ? async () => {
+            try {
+              const { open } = await import('@tauri-apps/plugin-dialog');
+              const selected = await open({ directory: true, title: 'Open Notebook Folder' });
+              if (selected) {
+                if (isLargeDirectory(selected as string)) {
+                  addToast('This folder is too broad. Choose a specific project or notes folder instead.', 'error');
+                  return;
+                }
+                const { invoke } = await import('@tauri-apps/api/core');
+                await invoke('open_folder_as_notebook', { path: selected });
+                nb.reloadNotebooks();
+                addToast('Opened folder as notebook', 'success');
+              }
+            } catch (err) {
+              addToast(`Failed to open folder: ${err}`, 'error');
+            }
+          } : undefined}
         />
         <OutlinePane
           headings={headings}
@@ -748,9 +888,15 @@ export default function App() {
             track(AnalyticsEvents.NOTEBOOK_CREATED, { sourceType });
           }}
           onCancel={closeAddNotebook}
+          onFolderOpened={() => {
+            closeAddNotebook();
+            nb.reloadNotebooks();
+            addToast('Opened folder as notebook', 'success');
+          }}
           userId={auth.user?.id}
           initialSource={initialSource}
           isDemoMode={auth.isDemoMode}
+          isDesktopMode={isDesktop}
           onDemoSignUp={() => { closeAddNotebook(); setWelcomeView('signup'); handleExitDemo(); }}
           existingNames={nb.notebooks.map((n) => n.name)}
         />

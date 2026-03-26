@@ -3,7 +3,7 @@ import { openDB, deleteDB, type IDBPDatabase } from 'idb';
 export interface NotebookMeta {
   id: string;
   name: string;
-  sourceType: 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
+  sourceType: 'local' | 'local-folder' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
   /** Source-specific config (e.g., { owner, repo, branch, rootPath } for GitHub) */
   sourceConfig: Record<string, unknown>;
   /** Display order in the notebook pane (lower = higher) */

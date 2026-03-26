@@ -823,7 +823,7 @@ export function NotebookTree({
                     <>
                       <CtxDivider />
                       <CtxItem icon={<RenameIcon />} label={t('notebook.rename')} onClick={() => { if (ctxNb) startRename('notebook', ctxNb.id, ctxNb.name); }} />
-                      <CtxItem icon={<TrashIcon />} label={t('notebook.delete')} danger onClick={() => { onDeleteNotebook(ctxNbId); setContextMenu(null); }} />
+                      <CtxItem icon={<TrashIcon />} label={ctxNb?.sourceType === 'local-folder' ? 'Close Folder' : t('notebook.delete')} danger onClick={() => { onDeleteNotebook(ctxNbId); setContextMenu(null); }} />
                     </>
                   )}
                 </>

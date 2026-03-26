@@ -47,10 +47,21 @@ export function PrivacyPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">3. Data We Do NOT Collect</h2>
+            <p className="mb-2">Notebook.md offers two storage models with different data handling:</p>
+            <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mt-4">External-Source Notebooks (GitHub, OneDrive, Google Drive)</h3>
             <ul className="list-disc pl-6 space-y-1">
               <li><strong>Your document content</strong> — We never read, store, or process the content of your Markdown files. Documents are read from and saved directly to your connected storage providers.</li>
               <li><strong>File contents in transit</strong> — Document content passes through our server only as a proxy to your storage provider and is not logged or stored.</li>
-              <li><strong>Browsing activity outside the app</strong></li>
+            </ul>
+            <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mt-4">Cloud Notebooks</h3>
+            <ul className="list-disc pl-6 space-y-1">
+              <li><strong>Encrypted storage</strong> — Cloud notebook content is stored encrypted (AES-256) on our servers to enable real-time collaboration and sharing.</li>
+              <li><strong>Your control</strong> — You can export or permanently delete your Cloud notebook content at any time from your account settings.</li>
+              <li><strong>No analytics on content</strong> — We do not analyze, mine, or use your Cloud notebook content for any purpose other than providing the Service.</li>
+            </ul>
+            <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mt-4">General</h3>
+            <ul className="list-disc pl-6 space-y-1">
+              <li><strong>Browsing activity outside the app</strong> — We do not track your browsing activity outside of Notebook.md.</li>
             </ul>
           </section>
 

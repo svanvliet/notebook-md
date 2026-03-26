@@ -1,0 +1,5 @@
+# Rust build artifacts
+target/
+
+# Generated app icon source
+app-icon.png

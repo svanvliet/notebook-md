@@ -1,50 +1,69 @@
-import { GitHubIcon, OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon, CloudIcon } from '../icons/Icons';
+import { GitHubIcon, OneDriveIcon, GoogleDriveIcon, AppleIcon, DeviceIcon, CloudOffIcon, CloudIcon, FolderIcon } from '../icons/Icons';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
 
-export type SourceType = 'local' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
+export type SourceType = 'local' | 'local-folder' | 'github' | 'onedrive' | 'google-drive' | 'icloud' | 'cloud';
 
 interface SourceTypeInfo {
   label: string;
   icon: typeof GitHubIcon;
   color: string; // Tailwind text color class
   available: boolean;
+  /** Only show in certain environments */
+  desktopOnly?: boolean;
+  /** Only show in web (browser) — hidden on desktop */
+  webOnly?: boolean;
 }
+
+const isDesktop = typeof window !== 'undefined' && isTauriEnvironment();
 
 export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
   local: {
-    label: 'Local (Browser)',
+    label: isDesktop ? 'Local (Desktop)' : 'Local (Browser)',
     icon: DeviceIcon,
     color: 'text-gray-500',
     available: true,
+  },
+  'local-folder': {
+    label: 'Open Folder…',
+    icon: FolderIcon,
+    color: 'text-amber-600',
+    available: true,
+    desktopOnly: true,
   },
   cloud: {
     label: 'Cloud',
     icon: CloudIcon,
     color: 'text-blue-500',
     available: true,
+    webOnly: true,
   },
   github: {
     label: 'GitHub',
     icon: GitHubIcon,
     color: 'text-gray-800 dark:text-white',
     available: true,
+    webOnly: true,
   },
   onedrive: {
     label: 'OneDrive',
     icon: OneDriveIcon,
     color: 'text-blue-500',
     available: true,
+    webOnly: true,
   },
   'google-drive': {
     label: 'Google Drive',
     icon: GoogleDriveIcon,
     color: 'text-green-500',
     available: true,
+    webOnly: true,
   },
   icloud: {
     label: 'iCloud',
     icon: AppleIcon,
     color: 'text-gray-600 dark:text-gray-300',
     available: false,
+    webOnly: true,
   },
 };
 

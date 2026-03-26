@@ -1,12 +1,18 @@
 # Notebook.md
 
-A web application for creating, editing, and organizing Markdown notebooks through an intuitive WYSIWYG canvas interface. Notebooks are stored in your existing cloud storage and version control systems — OneDrive, Google Drive, and GitHub — so your content stays where you control it.
+A web application for creating, editing, and organizing Markdown notebooks through an intuitive WYSIWYG canvas interface. Connect your existing cloud storage (OneDrive, Google Drive, GitHub), or use Cloud notebooks for real-time co-authoring with encrypted storage you control.
 
 ## Features
 
 -   **WYSIWYG Markdown editor** — Tiptap/ProseMirror with full GFM support, slash commands, floating table toolbar, and raw markdown toggle
     
--   **Bring your own storage** — connect OneDrive, Google Drive, or GitHub repos as notebook sources (local browser storage available now)
+-   **Bring your own storage** — connect OneDrive, Google Drive, or GitHub repos as notebook sources (local browser storage available too)
+
+-   **Cloud notebooks** — hosted encrypted storage with real-time co-authoring, sharing, and public links
+    
+-   **Real-time co-authoring** — write together with live cursors, presence indicators, and zero merge conflicts
+
+-   **Sharing & permissions** — invite collaborators as Owner, Editor, or Viewer; create public view-only links
     
 -   **Multi-provider auth** — email + password, magic link, or OAuth (Microsoft, GitHub, Google)
     
@@ -27,7 +33,7 @@ A web application for creating, editing, and organizing Markdown notebooks throu
 | --- | --- |
 | Frontend | React 19, TypeScript, Tailwind CSS, Tiptap |
 | Backend | Express 5, TypeScript, node-pg-migrate |
-| Database | PostgreSQL 16 (metadata only — no document content stored) |
+| Database | PostgreSQL 16 (account metadata + Cloud notebook content, encrypted) |
 | Cache | Redis 7 (sessions, rate limiting) |
 | Email | Nodemailer (Mailpit for local dev) |
 | Infrastructure | Docker Compose (local), containers (production) |
@@ -38,12 +44,15 @@ A web application for creating, editing, and organizing Markdown notebooks throu
 notebook-md/
 ├── apps/
 │   ├── web/          # React frontend (Vite, port 5173)
-│   └── api/          # Express API server (port 3001)
+│   ├── api/          # Express API server (port 3001)
+│   ├── admin/        # Admin console (React, separate deploy)
+│   └── collab/       # WebSocket collaboration server
 ├── packages/
 │   └── shared/       # Shared types and utilities
 ├── docker/           # Docker configuration
-├── requirements/     # Product requirements document
-├── plans/            # Implementation plan and status
+├── docs/             # Requirements, plans, and documentation
+├── infra/            # Terraform infrastructure-as-code
+├── e2e/              # Playwright end-to-end tests
 ├── dev.sh            # Development startup script
 └── docker-compose.yml
 ```
@@ -130,7 +139,7 @@ GitHub can't deliver webhooks to `localhost`. We use [smee.io](https://smee.io) 
 
 ## Status
 
-🚧 **In development** — Phase 1 (editor) and Phase 2 (auth) complete. See `plans/` for progress.
+🚀 **Live at [www.notebookmd.io](https://www.notebookmd.io)** — Cloud notebooks, co-authoring, AI generation, and BYO storage all available. See `docs/plans/` for roadmap.
 
 ## License
 

@@ -19,6 +19,7 @@ import {
   type NotebookMeta,
   type FileEntry,
 } from '../stores/localNotebookStore';
+import { getStorageAdapter, isTauriEnvironment } from '../stores/storageAdapterFactory';
 import { markdownToHtml, htmlToMarkdown, isMarkdownContent } from '../components/editor/markdownConverter';
 import {
   listGitHubTree,
@@ -236,21 +237,37 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     setTabs([]);
     setActiveTabId(null);
     (async () => {
-      await syncNotebooksFromServer();
-      // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
-      // (syncNotebooksFromServer already called setNotebooks, but we reset the flag here)
-      tabRestorationDone.current = false;
-      // Re-read to ensure we have the latest after sync (sync already set state, but
-      // tabRestorationDone needs to be false before the render that triggers restoration)
-      const nbs = await listNotebooks();
-      tabRestorationDone.current = false;
-      setNotebooks(nbs);
+      if (isTauriEnvironment()) {
+        // Desktop: load directly from the Tauri filesystem adapter (no API sync)
+        const adapter = getStorageAdapter();
+        tabRestorationDone.current = false;
+        const nbs = await adapter.listNotebooks();
+        tabRestorationDone.current = false;
+        setNotebooks(nbs);
+        const fileMap: Record<string, FileEntry[]> = {};
+        for (const nb of nbs) {
+          if (nb.sourceType === 'local' || nb.sourceType === 'local-folder' || !nb.sourceType) {
+            fileMap[nb.id] = await adapter.listFiles(nb.id);
+          }
+        }
+        setFiles(fileMap);
+      } else {
+        await syncNotebooksFromServer();
+        // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
+        // (syncNotebooksFromServer already called setNotebooks, but we reset the flag here)
+        tabRestorationDone.current = false;
+        // Re-read to ensure we have the latest after sync (sync already set state, but
+        // tabRestorationDone needs to be false before the render that triggers restoration)
+        const nbs = await listNotebooks();
+        tabRestorationDone.current = false;
+        setNotebooks(nbs);
+      }
     })();
   }, [userId]);
 
-  // Poll for permission changes on shared notebooks (every 60s)
+  // Poll for permission changes on shared notebooks (every 60s) — skip on desktop
   useEffect(() => {
-    if (!userId || isDemoMode) return;
+    if (!userId || isDemoMode || isTauriEnvironment()) return;
     const hasShared = notebooks.some(nb => nb.sharedBy);
     const hasShares = notebooks.some(nb => nb.hasShares);
     if (!hasShared && !hasShares) return;
@@ -464,7 +481,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   const handleDeleteNotebook = useCallback(async (id: string) => {
     const nb = notebooks.find((n) => n.id === id);
     if (!nb) return;
-    if (!confirm(`Delete notebook "${nb.name}" and all its files? This cannot be undone.`)) return;
+    const isExternalFolder = nb.sourceType === 'local-folder';
+    const confirmMsg = isExternalFolder
+      ? `Close folder "${nb.name}"? The folder and its files will not be deleted.`
+      : `Delete notebook "${nb.name}" and all its files? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
 
     // Close any open tabs from this notebook
     setTabs((prev) => prev.filter((t) => t.notebookId !== id));
@@ -476,14 +497,19 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       return prev;
     });
 
-    await deleteNb(id);
+    if (isTauriEnvironment()) {
+      const adapter = getStorageAdapter();
+      await adapter.deleteNotebook(id);
+    } else {
+      await deleteNb(id);
+    }
     setNotebooks((prev) => prev.filter((n) => n.id !== id));
     setFiles((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
-    toast?.(`Deleted notebook "${nb.name}"`, 'success');
+    toast?.(isExternalFolder ? `Closed folder "${nb.name}"` : `Deleted notebook "${nb.name}"`, 'success');
   }, [notebooks, tabs, flash, toast]);
 
   const handleRenameNotebook = useCallback(async (id: string, name: string) => {
@@ -1054,7 +1080,12 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       }
 
       // Local file
-      const entry = await getFile(notebookId, path);
+      let entry: FileEntry | undefined;
+      if (isTauriEnvironment()) {
+        entry = await getStorageAdapter().getFile(notebookId, path);
+      } else {
+        entry = await getFile(notebookId, path);
+      }
       if (!entry || entry.type === 'folder') return;
 
       // Convert markdown to HTML if the stored content is raw markdown
@@ -1090,6 +1121,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const nb = notebooks.find((n) => n.id === tab.notebookId);
       // Convert HTML from the WYSIWYG editor back to Markdown for storage
       const markdown = htmlToMarkdown(tab.content);
+
+      // Standalone file (opened outside any notebook)
+      if (tab.notebookId === '__standalone__' && isTauriEnvironment()) {
+        const { invoke: tauriInvoke } = await import('@tauri-apps/api/core');
+        await tauriInvoke('write_standalone_file', { path: tab.path, content: markdown });
+        return undefined;
+      }
+
       if (nb && nb.sourceType === 'github') {
         const rootPath = nb.sourceConfig.rootPath as string;
         const branch = await ensureWorkingBranch(tab.notebookId, nb);
@@ -1111,7 +1150,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         return result.sha ?? undefined;
       }
       // Local save
-      await saveFileContent(tab.notebookId, tab.path, markdown);
+      if (isTauriEnvironment()) {
+        await getStorageAdapter().saveFileContent(tab.notebookId, tab.path, markdown);
+      } else {
+        await saveFileContent(tab.notebookId, tab.path, markdown);
+      }
       return undefined;
     },
     [notebooks, ensureWorkingBranch],
@@ -1492,16 +1535,39 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   }, [toast]);
 
   const reloadNotebooks = useCallback(async () => {
-    const nbs = await listNotebooks();
+    const adapter = isTauriEnvironment() ? getStorageAdapter() : null;
+    const nbs = adapter ? await adapter.listNotebooks() : await listNotebooks();
     setNotebooks(nbs);
     const fileMap: Record<string, FileEntry[]> = {};
     for (const nb of nbs) {
-      if (nb.sourceType === 'local' || !nb.sourceType) {
-        fileMap[nb.id] = await listFiles(nb.id);
+      if (nb.sourceType === 'local' || nb.sourceType === 'local-folder' || !nb.sourceType) {
+        fileMap[nb.id] = adapter ? await adapter.listFiles(nb.id) : await listFiles(nb.id);
       }
     }
     setFiles(fileMap);
   }, []);
+
+  // Open a standalone file (not inside any notebook) as a tab
+  const openStandaloneTab = useCallback((filePath: string, name: string, htmlContent: string, updatedAt: number) => {
+    const tabId = `__standalone__:${filePath}`;
+    // If already open, just switch to it
+    if (tabs.find((t) => t.id === tabId)) {
+      setActiveTabId(tabId);
+      return;
+    }
+    const tab: OpenTab = {
+      id: tabId,
+      notebookId: '__standalone__',
+      path: filePath,
+      name,
+      content: htmlContent,
+      savedContent: htmlContent,
+      hasUnsavedChanges: false,
+      lastSaved: updatedAt,
+    };
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tabId);
+  }, [tabs]);
 
   // Restore previously open tabs from sessionStorage + URL file (single coordinated flow)
   const restoreTabs = useCallback(async (urlFile?: { notebookId: string; path: string } | null) => {
@@ -1731,6 +1797,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
+    openStandaloneTab,
     syncNotebooksFromServer,
     restoreTabs,
     pendingPrs,

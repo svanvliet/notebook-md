@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 import { XIcon } from '../icons/Icons';
 import { SOURCE_TYPES, SourceIcon, type SourceType } from './SourceTypes';
 import { useFeatureFlag } from '../../hooks/useFeatureFlag';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 import {
@@ -38,9 +39,11 @@ import {
 interface AddNotebookModalProps {
   onAdd: (name: string, sourceType: SourceType, sourceConfig: Record<string, unknown>) => void;
   onCancel: () => void;
+  onFolderOpened?: () => void;
   userId?: string;
   initialSource?: string | null;
   isDemoMode?: boolean;
+  isDesktopMode?: boolean;
   onDemoSignUp?: () => void;
   /** Existing notebook names for uniqueness validation */
   existingNames?: string[];
@@ -48,7 +51,7 @@ interface AddNotebookModalProps {
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDemoMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, onFolderOpened, userId, initialSource, isDemoMode, isDesktopMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
   const cloudEnabled = useFeatureFlag('cloud_notebooks');
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
@@ -60,12 +63,33 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
   function handleSelectSource(type: SourceType) {
     const info = SOURCE_TYPES[type];
     if (!info.available) return;
+
+    // "Open Folder…" — invoke native dialog, then add notebook directly
+    if (type === 'local-folder') {
+      handleOpenFolder();
+      return;
+    }
+
     setSourceType(type);
     setError(null);
     if (type === 'local' || type === 'cloud') {
       setStep('name');
     } else {
       setStep('configure');
+    }
+  }
+
+  async function handleOpenFolder() {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({ directory: true, title: 'Open Notebook Folder' });
+      if (selected) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('open_folder_as_notebook', { path: selected });
+        onFolderOpened?.();
+      }
+    } catch (err) {
+      setError(`Failed to open folder: ${err}`);
     }
   }
 
@@ -119,6 +143,11 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 
         {/* Body */}
         <div className="px-5 py-4 min-h-[220px]">
+          {error && step !== 'name' && (
+            <div className="mb-3 p-2 rounded text-sm bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+              {error}
+            </div>
+          )}
           {step === 'source' && <SourcePicker onSelect={handleSelectSource} isDemoMode={isDemoMode} onDemoSignUp={onDemoSignUp} hiddenSources={cloudEnabled ? [] : ['cloud']} />}
           {step === 'configure' && sourceType === 'github' && (
             <GitHubConfig onConfigured={handleConfigured} onBack={goBack} />
@@ -151,8 +180,11 @@ export function AddNotebookModal({ onAdd, onCancel, userId, initialSource, isDem
 // ── Step 1: Source picker ─────────────────────────────────────────────────
 
 function SourcePicker({ onSelect, isDemoMode, onDemoSignUp, hiddenSources = [] }: { onSelect: (type: SourceType) => void; isDemoMode?: boolean; onDemoSignUp?: () => void; hiddenSources?: SourceType[] }) {
+  const isDesktop = isTauriEnvironment();
   const types = (Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][])
-    .filter(([type]) => !hiddenSources.includes(type));
+    .filter(([type, info]) => !hiddenSources.includes(type))
+    .filter(([, info]) => !info.desktopOnly || isDesktop)
+    .filter(([, info]) => !info.webOnly || !isDesktop);
 
   return (
     <div className="space-y-2">
