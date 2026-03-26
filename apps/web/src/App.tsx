@@ -41,6 +41,7 @@ import { isTauriEnvironment } from './stores/storageAdapterFactory';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
+  const isDesktop = isTauriEnvironment();
   const { mode, setMode } = useDisplayMode();
   const sidebar = useSidebarResize();
   const outline = useOutlineResize();
@@ -498,8 +499,6 @@ export default function App() {
     },
     [nb],
   );
-
-  const isDesktop = isTauriEnvironment();
 
   // Welcome screen when not signed in (skip for desktop — no auth required)
   if (!isDesktop && !auth.isSignedIn && !auth.loading) {
