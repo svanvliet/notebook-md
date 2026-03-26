@@ -7,11 +7,11 @@ mod watcher;
 
 use state::AppState;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use watcher::WatcherRegistry;
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .setup(|app| {
@@ -69,19 +69,14 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building Notebook.md");
 
-    app.run(|app_handle, event| {
-        #[allow(clippy::single_match)]
-        match event {
-            tauri::RunEvent::Opened { urls } => {
-                // File association: user double-clicked a .md file in Finder/Explorer
-                for url in urls {
-                    if let Ok(path) = url.to_file_path() {
-                        let path_str = path.to_string_lossy().to_string();
-                        let _ = app_handle.emit("file-open", path_str);
-                    }
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::Opened { urls } = &event {
+            for url in urls {
+                if let Ok(path) = url.to_file_path() {
+                    let path_str = path.to_string_lossy().to_string();
+                    let _ = _app_handle.emit("file-open", path_str);
                 }
             }
-            _ => {}
         }
     });
 }

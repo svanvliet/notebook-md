@@ -158,7 +158,7 @@ export default function App() {
           setShowAddNotebook(true);
           break;
         case 'new_file':
-          if (nb.activeNotebook) nb.handleCreateFile(nb.activeNotebook.id, '', 'file');
+          if (nb.activeTab) nb.handleCreateFile(nb.activeTab.notebookId, '', 'file');
           break;
         case 'open_file':
           if (isTauriEnvironment()) {
@@ -221,7 +221,7 @@ export default function App() {
         default:
           break;
       }
-    }, [nb.activeNotebook, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast, openStandaloneFile, isLargeDirectory]),
+    }, [nb.activeTab, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast, openStandaloneFile, isLargeDirectory]),
   });
 
   // Enter demo mode via /demo route or "Try Demo" button
@@ -674,7 +674,6 @@ export default function App() {
           notebooks={nb.notebooks}
           files={nb.files}
           loadingNotebooks={nb.loadingNotebooks}
-          pendingPrs={nb.pendingPrs}
           onCreateNotebook={() => setShowAddNotebook(true)}
           onDeleteNotebook={nb.handleDeleteNotebook}
           onRenameNotebook={nb.handleRenameNotebook}
