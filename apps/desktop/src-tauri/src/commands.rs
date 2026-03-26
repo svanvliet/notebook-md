@@ -32,6 +32,22 @@ fn should_skip(name: &str) -> bool {
         || name == "target"
 }
 
+/// Check if a file has a supported extension (markdown or image).
+/// Directories always pass the filter.
+fn is_supported_file(path: &std::path::Path, is_dir: bool) -> bool {
+    if is_dir {
+        return true;
+    }
+    match path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) {
+        Some(ext) => matches!(
+            ext.as_str(),
+            "md" | "mdx" | "markdown" | "txt"
+                | "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "ico" | "bmp"
+        ),
+        None => false,
+    }
+}
+
 fn find_notebook(state: &AppState, id: &str) -> Result<NotebookMeta, String> {
     let nbs = state.notebooks.lock().map_err(|e| e.to_string())?;
     nbs.iter()
@@ -290,6 +306,11 @@ pub async fn list_notebook_files(
 
         let meta = entry.metadata().map_err(|e| e.to_string())?;
 
+        // Only include supported file types (markdown, images) and directories
+        if !is_supported_file(abs, meta.is_dir()) {
+            continue;
+        }
+
         entries.push(FileEntry {
             path: rel,
             notebook_id: notebook_id.clone(),
@@ -336,6 +357,12 @@ pub async fn list_children(
         }
 
         let meta = item.metadata().map_err(|e| e.to_string())?;
+
+        // Only include supported file types (markdown, images) and directories
+        if !is_supported_file(&item.path(), meta.is_dir()) {
+            continue;
+        }
+
         let rel = if parent_path.is_empty() {
             name.clone()
         } else {
