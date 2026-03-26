@@ -883,10 +883,61 @@ Full review: `docs/reviews/desktop-review-codex.md`
 | Phase 2: Storage Adapter | ✅ Complete | StorageAdapter interface, IndexedDB + Tauri adapters, factory (8 tests) |
 | Phase 3: FS Commands | ✅ Complete | 16 Rust commands, notebook/file CRUD, atomic writes, OS trash (4 tests) |
 | Phase 4: File Watching | ✅ Complete | notify crate watcher, useFsWatcher, useAutoSave (7 tests) |
-| Phase 5: Native OS | ✅ Complete | Menu bar, dialog/deep-link/window-state plugins, file associations |
-| Phase 6: Auth & Cloud | ✅ Scaffold | useNetworkStatus (4 tests); OAuth/cookies work via WebView |
-| Phase 7: Build & Distribute | ✅ Scaffold | CI workflow, download page, route, production API URL injection |
-| Phase 8: UX Polish | 🔧 Partial | Icons, cookie, labels, menus, folder-open all fixed; welcome screen pending |
+| Phase 5: Native OS | ✅ Complete | Menu bar, dialog/window-state plugins, file associations |
+| Phase 6: Auth & Cloud | ⏸️ Deferred | See "Deferred Features" below |
+| Phase 7: Build & Distribute | ⏸️ Deferred (partial) | CI workflow scaffolded; signing/updater/download page deferred |
+| Phase 8: UX Polish | ✅ Complete | Icons, cookie, labels, menus, folder-open, auth bypass, desktop empty state |
 
 **Test totals:** 232 web tests + 4 Rust tests — all passing
 **Branch:** `feature/desktop` (local, not pushed)
+
+---
+
+## Desktop V1 Simplification (March 2026)
+
+The desktop app was simplified to focus on its core value: a zero-auth local markdown editor. Open the app → pick a folder or file → start editing.
+
+### What changed
+
+1. **Auth gate bypassed** — Desktop skips WelcomeScreen entirely, goes straight to the editor
+2. **Cloud sources hidden** — Source picker shows only "Local (Desktop)" and "Open Folder…"
+3. **Account UI hidden** — No sign-in, avatar, or account menu in TitleBar; just a Settings button
+4. **Desktop empty state** — First launch shows "Open Folder" / "New Notebook" CTAs in the notebook pane
+5. **Zero API calls** — Desktop init uses TauriFilesystemAdapter directly; no `syncNotebooksFromServer`, no permission polling
+6. **Deferred plugins removed** — `tauri-plugin-deep-link` and `tauri-plugin-notification` removed from Cargo.toml, main.rs, and capabilities
+7. **Unused hooks unwired** — `useDeepLink` and `useNetworkStatus` were never imported in App.tsx (confirmed clean)
+
+### Files modified
+
+| File | Change |
+|------|--------|
+| `apps/web/src/App.tsx` | Auth gate gated with `isDesktop`, TitleBar/DemoBanner/QuotaBanner conditionals, NotebookPane `onOpenFolder` prop, AddNotebookModal `isDesktopMode` prop |
+| `apps/web/src/hooks/useNotebookManager.ts` | Init effect uses Tauri adapter directly in desktop; permission polling skipped |
+| `apps/web/src/components/layout/TitleBar.tsx` | `isDesktopMode` prop; desktop shows Settings button instead of account dropdown |
+| `apps/web/src/components/layout/NotebookPane.tsx` | Desktop empty state with "Open Folder" / "New Notebook" buttons; `onOpenFolder` prop |
+| `apps/web/src/components/notebook/SourceTypes.tsx` | `webOnly` flag on cloud sources; hidden on desktop |
+| `apps/web/src/components/notebook/AddNotebookModal.tsx` | `isDesktopMode` prop; SourcePicker filters `webOnly` sources |
+| `apps/desktop/src-tauri/src/main.rs` | Removed deep-link and notification plugin init |
+| `apps/desktop/src-tauri/Cargo.toml` | Removed `tauri-plugin-deep-link` and `tauri-plugin-notification` |
+| `apps/desktop/src-tauri/tauri.conf.json` | Removed deep-link plugin config |
+| `apps/desktop/src-tauri/capabilities/default.json` | Removed `deep-link:default` and `notification:default` permissions |
+
+---
+
+## Deferred Features (V2+)
+
+These features are partially or fully scaffolded in the codebase but not wired into the desktop V1 flow. The code remains in the repo for future use.
+
+| Feature | Status | Rationale |
+|---------|--------|-----------|
+| **Authentication** (OAuth, magic links, 2FA) | Scaffolded (useAuth, WelcomeScreen) | Not needed for local-only editing; adds startup friction |
+| **Cloud notebooks** (GitHub, OneDrive, Google Drive) | Scaffolded (SourceTypes, cloud adapters) | Requires auth + API; not core desktop value prop |
+| **Deep links** (`notebookmd://`) | Plugin removed; useDeepLink.ts retained | Only needed for magic link auth callbacks |
+| **Auto-updater** (Tauri updater plugin) | Not implemented | Adds CI/CD complexity; manual updates fine for V1 |
+| **Multiple windows** | Not implemented | Nice-to-have; adds state management complexity |
+| **Native notifications** | Plugin removed | Only needed for file-watch alerts + update prompts |
+| **File associations** (`.md` double-click) | Configured in tauri.conf.json, handler not wired | Requires standalone editor view |
+| **Download page** (`/download` route) | Not implemented | No distribution channel yet |
+| **IndexedDB → filesystem migration** | Not implemented | No web users to migrate from yet |
+| **Standalone file editor** | Not implemented | Needs separate route + simplified UI for file associations |
+| **AI features in desktop** | Scaffolded (AI hooks) | Requires auth + API key management |

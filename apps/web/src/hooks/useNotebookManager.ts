@@ -237,21 +237,37 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     setTabs([]);
     setActiveTabId(null);
     (async () => {
-      await syncNotebooksFromServer();
-      // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
-      // (syncNotebooksFromServer already called setNotebooks, but we reset the flag here)
-      tabRestorationDone.current = false;
-      // Re-read to ensure we have the latest after sync (sync already set state, but
-      // tabRestorationDone needs to be false before the render that triggers restoration)
-      const nbs = await listNotebooks();
-      tabRestorationDone.current = false;
-      setNotebooks(nbs);
+      if (isTauriEnvironment()) {
+        // Desktop: load directly from the Tauri filesystem adapter (no API sync)
+        const adapter = getStorageAdapter();
+        tabRestorationDone.current = false;
+        const nbs = await adapter.listNotebooks();
+        tabRestorationDone.current = false;
+        setNotebooks(nbs);
+        const fileMap: Record<string, FileEntry[]> = {};
+        for (const nb of nbs) {
+          if (nb.sourceType === 'local' || !nb.sourceType) {
+            fileMap[nb.id] = await adapter.listFiles(nb.id);
+          }
+        }
+        setFiles(fileMap);
+      } else {
+        await syncNotebooksFromServer();
+        // Reset BEFORE setNotebooks so restoration effect sees false when notebooks trigger re-render
+        // (syncNotebooksFromServer already called setNotebooks, but we reset the flag here)
+        tabRestorationDone.current = false;
+        // Re-read to ensure we have the latest after sync (sync already set state, but
+        // tabRestorationDone needs to be false before the render that triggers restoration)
+        const nbs = await listNotebooks();
+        tabRestorationDone.current = false;
+        setNotebooks(nbs);
+      }
     })();
   }, [userId]);
 
-  // Poll for permission changes on shared notebooks (every 60s)
+  // Poll for permission changes on shared notebooks (every 60s) — skip on desktop
   useEffect(() => {
-    if (!userId || isDemoMode) return;
+    if (!userId || isDemoMode || isTauriEnvironment()) return;
     const hasShared = notebooks.some(nb => nb.sharedBy);
     const hasShares = notebooks.some(nb => nb.hasShares);
     if (!hasShared && !hasShares) return;

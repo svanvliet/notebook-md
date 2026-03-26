@@ -14,6 +14,7 @@ interface TitleBarProps {
   onDisplayModeChange: (mode: DisplayMode) => void;
   user?: User | null;
   isDemoMode?: boolean;
+  isDesktopMode?: boolean;
   onSignOut?: () => void;
   onExitDemo?: () => void;
   onCreateAccount?: () => void;
@@ -23,7 +24,7 @@ interface TitleBarProps {
   onToggleMobilePane?: () => void;
 }
 
-export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings, onDevLogin, onToggleMobilePane }: TitleBarProps) {
+export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, isDesktopMode, onSignOut, onExitDemo, onCreateAccount, onOpenAccount, onOpenSettings, onDevLogin, onToggleMobilePane }: TitleBarProps) {
   const { t } = useTranslation();
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -93,7 +94,17 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, o
           ))}
         </div>
 
-        {/* Account dropdown */}
+        {/* Account dropdown — hidden in desktop mode (no auth) */}
+        {isDesktopMode ? (
+          <button
+            onClick={() => onOpenSettings?.()}
+            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors ml-1"
+            aria-label={t('settings.title')}
+            title={t('settings.title')}
+          >
+            <UserIcon className="w-5 h-5" />
+          </button>
+        ) : (
         <div className="relative ml-1" ref={menuRef}>
           <button
             onClick={() => setShowAccountMenu(!showAccountMenu)}
@@ -155,6 +166,7 @@ export function TitleBar({ displayMode, onDisplayModeChange, user, isDemoMode, o
             </div>
           )}
         </div>
+        )}
       </div>
     </header>
   );

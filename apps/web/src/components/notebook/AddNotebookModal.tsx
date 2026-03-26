@@ -43,6 +43,7 @@ interface AddNotebookModalProps {
   userId?: string;
   initialSource?: string | null;
   isDemoMode?: boolean;
+  isDesktopMode?: boolean;
   onDemoSignUp?: () => void;
   /** Existing notebook names for uniqueness validation */
   existingNames?: string[];
@@ -50,7 +51,7 @@ interface AddNotebookModalProps {
 
 type Step = 'source' | 'configure' | 'name';
 
-export function AddNotebookModal({ onAdd, onCancel, onFolderOpened, userId, initialSource, isDemoMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
+export function AddNotebookModal({ onAdd, onCancel, onFolderOpened, userId, initialSource, isDemoMode, isDesktopMode, onDemoSignUp, existingNames = [] }: AddNotebookModalProps) {
   const cloudEnabled = useFeatureFlag('cloud_notebooks');
   const validSource = initialSource && initialSource in SOURCE_TYPES ? initialSource as SourceType : null;
   const [step, setStep] = useState<Step>(validSource ? 'configure' : 'source');
@@ -182,7 +183,8 @@ function SourcePicker({ onSelect, isDemoMode, onDemoSignUp, hiddenSources = [] }
   const isDesktop = isTauriEnvironment();
   const types = (Object.entries(SOURCE_TYPES) as [SourceType, typeof SOURCE_TYPES[SourceType]][])
     .filter(([type, info]) => !hiddenSources.includes(type))
-    .filter(([, info]) => !info.desktopOnly || isDesktop);
+    .filter(([, info]) => !info.desktopOnly || isDesktop)
+    .filter(([, info]) => !info.webOnly || !isDesktop);
 
   return (
     <div className="space-y-2">

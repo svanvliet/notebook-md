@@ -4,6 +4,7 @@ import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '../icons/Icons';
 import { NotebookIcon } from '../icons/Icons';
 import { NotebookTree } from '../notebook/NotebookTree';
 import type { NotebookMeta, FileEntry } from '../../stores/localNotebookStore';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
 
 // Small SVG icons for the + dropdown
 const ic = 'w-4 h-4 shrink-0';
@@ -47,6 +48,8 @@ interface NotebookPaneProps {
   onLeaveNotebook?: (notebookId: string) => void;
   onAcceptInvite?: (shareId: string) => Promise<void>;
   onDeclineInvite?: (shareId: string) => Promise<void>;
+  /** Desktop only: open a folder as a notebook via native dialog */
+  onOpenFolder?: () => void;
 }
 
 export function NotebookPane({
@@ -79,6 +82,7 @@ export function NotebookPane({
   onLeaveNotebook,
   onAcceptInvite,
   onDeclineInvite,
+  onOpenFolder,
 }: NotebookPaneProps) {
   const { t } = useTranslation();
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -181,6 +185,30 @@ export function NotebookPane({
       {/* Tree content */}
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
+          {/* Desktop empty state — shown when no notebooks exist */}
+          {isTauriEnvironment() && notebooks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full px-4 text-center">
+              <NotebookIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Welcome to Notebook.md</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Your notebooks are plain folders and Markdown files.</p>
+              <div className="flex flex-col gap-2 w-full max-w-[180px]">
+                {onOpenFolder && (
+                  <button
+                    onClick={onOpenFolder}
+                    className="w-full px-3 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    Open Folder…
+                  </button>
+                )}
+                <button
+                  onClick={onCreateNotebook}
+                  className="w-full px-3 py-2 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  New Notebook
+                </button>
+              </div>
+            </div>
+          ) : (
           <NotebookTree
             notebooks={notebooks}
             files={files}
@@ -206,6 +234,7 @@ export function NotebookPane({
             onAcceptInvite={onAcceptInvite}
             onDeclineInvite={onDeclineInvite}
           />
+          )}
         </div>
       )}
 

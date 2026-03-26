@@ -10,6 +10,8 @@ interface SourceTypeInfo {
   available: boolean;
   /** Only show in certain environments */
   desktopOnly?: boolean;
+  /** Only show in web (browser) — hidden on desktop */
+  webOnly?: boolean;
 }
 
 const isDesktop = typeof window !== 'undefined' && isTauriEnvironment();
@@ -33,30 +35,35 @@ export const SOURCE_TYPES: Record<SourceType, SourceTypeInfo> = {
     icon: CloudIcon,
     color: 'text-blue-500',
     available: true,
+    webOnly: true,
   },
   github: {
     label: 'GitHub',
     icon: GitHubIcon,
     color: 'text-gray-800 dark:text-white',
     available: true,
+    webOnly: true,
   },
   onedrive: {
     label: 'OneDrive',
     icon: OneDriveIcon,
     color: 'text-blue-500',
     available: true,
+    webOnly: true,
   },
   'google-drive': {
     label: 'Google Drive',
     icon: GoogleDriveIcon,
     color: 'text-green-500',
     available: true,
+    webOnly: true,
   },
   icloud: {
     label: 'iCloud',
     icon: AppleIcon,
     color: 'text-gray-600 dark:text-gray-300',
     available: false,
+    webOnly: true,
   },
 };
 

@@ -43,11 +43,5 @@
       }
     ]
   },
-  "plugins": {
-    "deep-link": {
-      "desktop": {
-        "schemes": ["notebookmd"]
-      }
-    }
-  }
+  "plugins": {}
 }
