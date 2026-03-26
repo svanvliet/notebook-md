@@ -121,11 +121,14 @@ pub async fn rename_notebook(
 #[tauri::command]
 pub async fn delete_notebook(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let nb = find_notebook(&state, &id)?;
-    let dir = state.notebook_dir(&nb);
 
-    // Move to OS trash if the directory exists
-    if dir.exists() {
-        trash::delete(&dir).map_err(|e| e.to_string())?;
+    // Only trash the directory for notebooks we created (sourceType "local").
+    // For external folders (sourceType "local-folder"), just remove from the manifest.
+    if nb.source_type != "local-folder" {
+        let dir = state.notebook_dir(&nb);
+        if dir.exists() {
+            trash::delete(&dir).map_err(|e| e.to_string())?;
+        }
     }
 
     {
@@ -528,6 +531,16 @@ pub async fn open_folder_as_notebook(
         return Err(format!("Not a valid directory: {path}"));
     }
 
+    // Check if a notebook for this path already exists
+    {
+        let nbs = state.notebooks.lock().map_err(|e| e.to_string())?;
+        if let Some(existing) = nbs.iter().find(|n| {
+            n.source_config.get("path").and_then(|v| v.as_str()) == Some(&path)
+        }) {
+            return Ok(existing.clone());
+        }
+    }
+
     let name = dir
         .file_name()
         .unwrap_or_default()
@@ -540,7 +553,7 @@ pub async fn open_folder_as_notebook(
     let nb = NotebookMeta {
         id,
         name,
-        source_type: "local".into(),
+        source_type: "local-folder".into(),
         source_config: serde_json::json!({ "path": path }),
         sort_order: now,
         created_at: now,

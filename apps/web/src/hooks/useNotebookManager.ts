@@ -246,7 +246,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         setNotebooks(nbs);
         const fileMap: Record<string, FileEntry[]> = {};
         for (const nb of nbs) {
-          if (nb.sourceType === 'local' || !nb.sourceType) {
+          if (nb.sourceType === 'local' || nb.sourceType === 'local-folder' || !nb.sourceType) {
             fileMap[nb.id] = await adapter.listFiles(nb.id);
           }
         }
@@ -481,7 +481,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   const handleDeleteNotebook = useCallback(async (id: string) => {
     const nb = notebooks.find((n) => n.id === id);
     if (!nb) return;
-    if (!confirm(`Delete notebook "${nb.name}" and all its files? This cannot be undone.`)) return;
+    const isExternalFolder = nb.sourceType === 'local-folder';
+    const confirmMsg = isExternalFolder
+      ? `Close folder "${nb.name}"? The folder and its files will not be deleted.`
+      : `Delete notebook "${nb.name}" and all its files? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
 
     // Close any open tabs from this notebook
     setTabs((prev) => prev.filter((t) => t.notebookId !== id));
@@ -493,14 +497,19 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       return prev;
     });
 
-    await deleteNb(id);
+    if (isTauriEnvironment()) {
+      const adapter = getStorageAdapter();
+      await adapter.deleteNotebook(id);
+    } else {
+      await deleteNb(id);
+    }
     setNotebooks((prev) => prev.filter((n) => n.id !== id));
     setFiles((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
-    toast?.(`Deleted notebook "${nb.name}"`, 'success');
+    toast?.(isExternalFolder ? `Closed folder "${nb.name}"` : `Deleted notebook "${nb.name}"`, 'success');
   }, [notebooks, tabs, flash, toast]);
 
   const handleRenameNotebook = useCallback(async (id: string, name: string) => {
@@ -1071,7 +1080,12 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       }
 
       // Local file
-      const entry = await getFile(notebookId, path);
+      let entry: FileEntry | undefined;
+      if (isTauriEnvironment()) {
+        entry = await getStorageAdapter().getFile(notebookId, path);
+      } else {
+        entry = await getFile(notebookId, path);
+      }
       if (!entry || entry.type === 'folder') return;
 
       // Convert markdown to HTML if the stored content is raw markdown
@@ -1128,7 +1142,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         return result.sha ?? undefined;
       }
       // Local save
-      await saveFileContent(tab.notebookId, tab.path, markdown);
+      if (isTauriEnvironment()) {
+        await getStorageAdapter().saveFileContent(tab.notebookId, tab.path, markdown);
+      } else {
+        await saveFileContent(tab.notebookId, tab.path, markdown);
+      }
       return undefined;
     },
     [notebooks, ensureWorkingBranch],
@@ -1514,7 +1532,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     setNotebooks(nbs);
     const fileMap: Record<string, FileEntry[]> = {};
     for (const nb of nbs) {
-      if (nb.sourceType === 'local' || !nb.sourceType) {
+      if (nb.sourceType === 'local' || nb.sourceType === 'local-folder' || !nb.sourceType) {
         fileMap[nb.id] = adapter ? await adapter.listFiles(nb.id) : await listFiles(nb.id);
       }
     }
