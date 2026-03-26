@@ -11,6 +11,7 @@ import { isTauriEnvironment } from '../stores/storageAdapterFactory';
 export type MenuAction =
   | 'new_notebook'
   | 'new_file'
+  | 'open_file'
   | 'open_folder'
   | 'save'
   | 'close_tab'

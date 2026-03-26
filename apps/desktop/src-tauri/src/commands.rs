@@ -1,4 +1,4 @@
-use crate::state::{AppState, FileEntry, NotebookMeta};
+use crate::state::{AppState, FileEntry, NotebookMeta, StandaloneFile};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -566,4 +566,40 @@ pub async fn open_folder_as_notebook(
     }
     state.save_manifest()?;
     Ok(nb)
+}
+
+// ---------------------------------------------------------------------------
+// Standalone file operations (outside any notebook)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn read_standalone_file(path: String) -> Result<StandaloneFile, String> {
+    let abs = std::path::PathBuf::from(&path);
+    if !abs.exists() || !abs.is_file() {
+        return Err(format!("File not found: {path}"));
+    }
+    let content = fs::read_to_string(&abs).map_err(|e| e.to_string())?;
+    let meta = fs::metadata(&abs).map_err(|e| e.to_string())?;
+    let name = abs
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    Ok(StandaloneFile {
+        path,
+        name,
+        content,
+        updated_at: fs_time_millis(meta.modified()),
+    })
+}
+
+#[tauri::command]
+pub async fn write_standalone_file(path: String, content: String) -> Result<(), String> {
+    let abs = std::path::PathBuf::from(&path);
+    let dir = abs.parent().ok_or_else(|| "Invalid file path".to_string())?;
+    let tmp = tempfile::NamedTempFile::new_in(dir).map_err(|e| e.to_string())?;
+    let mut file = tmp.as_file();
+    file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+    tmp.persist(&abs).map_err(|e| e.to_string())?;
+    Ok(())
 }

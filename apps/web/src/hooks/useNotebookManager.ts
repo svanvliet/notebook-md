@@ -1121,6 +1121,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const nb = notebooks.find((n) => n.id === tab.notebookId);
       // Convert HTML from the WYSIWYG editor back to Markdown for storage
       const markdown = htmlToMarkdown(tab.content);
+
+      // Standalone file (opened outside any notebook)
+      if (tab.notebookId === '__standalone__' && isTauriEnvironment()) {
+        const { invoke: tauriInvoke } = await import('@tauri-apps/api/core');
+        await tauriInvoke('write_standalone_file', { path: tab.path, content: markdown });
+        return undefined;
+      }
+
       if (nb && nb.sourceType === 'github') {
         const rootPath = nb.sourceConfig.rootPath as string;
         const branch = await ensureWorkingBranch(tab.notebookId, nb);
@@ -1539,6 +1547,28 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     setFiles(fileMap);
   }, []);
 
+  // Open a standalone file (not inside any notebook) as a tab
+  const openStandaloneTab = useCallback((filePath: string, name: string, htmlContent: string, updatedAt: number) => {
+    const tabId = `__standalone__:${filePath}`;
+    // If already open, just switch to it
+    if (tabs.find((t) => t.id === tabId)) {
+      setActiveTabId(tabId);
+      return;
+    }
+    const tab: OpenTab = {
+      id: tabId,
+      notebookId: '__standalone__',
+      path: filePath,
+      name,
+      content: htmlContent,
+      savedContent: htmlContent,
+      hasUnsavedChanges: false,
+      lastSaved: updatedAt,
+    };
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tabId);
+  }, [tabs]);
+
   // Restore previously open tabs from sessionStorage + URL file (single coordinated flow)
   const restoreTabs = useCallback(async (urlFile?: { notebookId: string; path: string } | null) => {
     if (tabRestorationDone.current) return;
@@ -1767,6 +1797,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     clearPendingExpandPath: useCallback(() => setPendingExpandPath(null), []),
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
+    openStandaloneTab,
     syncNotebooksFromServer,
     restoreTabs,
     pendingPrs,

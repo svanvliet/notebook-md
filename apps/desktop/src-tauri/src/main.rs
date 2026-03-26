@@ -61,11 +61,29 @@ fn main() {
             commands::move_file,
             commands::ensure_assets_folder,
             commands::open_folder_as_notebook,
+            commands::read_standalone_file,
+            commands::write_standalone_file,
             watcher::watch_directory,
             watcher::unwatch_directory,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Notebook.md");
+        .build(tauri::generate_context!())
+        .expect("error while building Notebook.md");
+
+    app.run(|app_handle, event| {
+        #[allow(clippy::single_match)]
+        match event {
+            tauri::RunEvent::Opened { urls } => {
+                // File association: user double-clicked a .md file in Finder/Explorer
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        let path_str = path.to_string_lossy().to_string();
+                        let _ = app_handle.emit("file-open", path_str);
+                    }
+                }
+            }
+            _ => {}
+        }
+    });
 }
 
 /// Resolve the default notebooks directory: ~/Documents/Notebook.md/

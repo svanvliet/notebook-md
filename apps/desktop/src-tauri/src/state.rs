@@ -31,6 +31,16 @@ pub struct FileEntry {
     pub updated_at: i64,
 }
 
+/// A standalone file opened outside any notebook context.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StandaloneFile {
+    pub path: String,
+    pub name: String,
+    pub content: String,
+    pub updated_at: i64,
+}
+
 /// Shared application state managed by Tauri.
 pub struct AppState {
     /// Path to the Tauri app data directory (notebooks.json lives here).

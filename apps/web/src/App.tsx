@@ -105,6 +105,51 @@ export default function App() {
   // Guard: prevent auto-enter effect from re-entering demo after intentional exit
   const demoExitingRef = useRef(false);
 
+  // Helper: open a standalone file (outside any notebook) in the editor
+  const openStandaloneFile = useCallback(async (filePath: string) => {
+    if (!isTauriEnvironment()) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const file = await invoke<{ path: string; name: string; content: string; updatedAt: number }>('read_standalone_file', { path: filePath });
+      const { isMarkdownContent, markdownToHtml } = await import('./components/editor/markdownConverter');
+      let content = file.content;
+      if (isMarkdownContent(content)) {
+        content = markdownToHtml(content);
+      }
+      nb.openStandaloneTab(file.path, file.name, content, file.updatedAt);
+    } catch (err) {
+      addToast(`Failed to open file: ${err}`, 'error');
+    }
+  }, [nb, addToast]);
+
+  // Helper: validate a folder path isn't too broad (home dir, root, etc.)
+  const isLargeDirectory = (path: string) => {
+    const home = typeof window !== 'undefined' ? (window as unknown as Record<string, string>).__HOME__ : '';
+    const normalized = path.replace(/\/+$/, '');
+    const blocked = ['/', '/Users', '/home', '/var', '/tmp', '/System', '/Library', 'C:\\', 'C:\\Users'];
+    if (blocked.includes(normalized)) return true;
+    if (home && normalized === home.replace(/\/+$/, '')) return true;
+    return false;
+  };
+
+  // Listen for file-open events (file associations: double-click .md in Finder)
+  useEffect(() => {
+    if (!isDesktop) return;
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlistenFn = await listen<string>('file-open', (event) => {
+          openStandaloneFile(event.payload);
+        });
+        unlisten = unlistenFn;
+      } catch (err) {
+        console.error('[file-open] Failed to listen:', err);
+      }
+    })();
+    return () => { unlisten?.(); };
+  }, [isDesktop, openStandaloneFile]);
+
   // Native menu bar actions (desktop only — no-op in browser)
   useNativeMenu({
     onMenuAction: useCallback((action: MenuAction) => {
@@ -115,14 +160,35 @@ export default function App() {
         case 'new_file':
           if (nb.activeNotebook) nb.handleCreateFile(nb.activeNotebook.id, '', 'file');
           break;
+        case 'open_file':
+          if (isTauriEnvironment()) {
+            (async () => {
+              try {
+                const { open } = await import('@tauri-apps/plugin-dialog');
+                const selected = await open({
+                  title: 'Open Markdown File',
+                  filters: [{ name: 'Markdown', extensions: ['md', 'mdx', 'markdown', 'txt'] }],
+                });
+                if (selected) {
+                  openStandaloneFile(selected as string);
+                }
+              } catch (err) {
+                addToast(`Failed to open file: ${err}`, 'error');
+              }
+            })();
+          }
+          break;
         case 'open_folder':
           if (isTauriEnvironment()) {
-            // Directly invoke folder dialog — don't go through AddNotebookModal
             (async () => {
               try {
                 const { open } = await import('@tauri-apps/plugin-dialog');
                 const selected = await open({ directory: true, title: 'Open Notebook Folder' });
                 if (selected) {
+                  if (isLargeDirectory(selected as string)) {
+                    addToast('This folder is too broad. Choose a specific project or notes folder instead.', 'error');
+                    return;
+                  }
                   const { invoke } = await import('@tauri-apps/api/core');
                   await invoke('open_folder_as_notebook', { path: selected });
                   nb.reloadNotebooks();
@@ -155,7 +221,7 @@ export default function App() {
         default:
           break;
       }
-    }, [nb.activeNotebook, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast]),
+    }, [nb.activeNotebook, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast, openStandaloneFile, isLargeDirectory]),
   });
 
   // Enter demo mode via /demo route or "Try Demo" button
@@ -693,6 +759,10 @@ export default function App() {
               const { open } = await import('@tauri-apps/plugin-dialog');
               const selected = await open({ directory: true, title: 'Open Notebook Folder' });
               if (selected) {
+                if (isLargeDirectory(selected as string)) {
+                  addToast('This folder is too broad. Choose a specific project or notes folder instead.', 'error');
+                  return;
+                }
                 const { invoke } = await import('@tauri-apps/api/core');
                 await invoke('open_folder_as_notebook', { path: selected });
                 nb.reloadNotebooks();
