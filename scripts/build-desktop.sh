@@ -65,6 +65,16 @@ export APPLE_TEAM_ID="97379Y67S5"
 export APPLE_ID="svanvliet@gmail.com"
 export APPLE_PASSWORD="$(cat "$CERT_DIR/app-specific-password.txt")"
 
+# Tauri updater signing key (signs .tar.gz for auto-updates)
+TAURI_KEY_DIR="$HOME/certs/tauri"
+if [[ -f "$TAURI_KEY_DIR/notebook-md.key" ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY_PATH="$TAURI_KEY_DIR/notebook-md.key"
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+else
+  echo -e "${YELLOW}Warning: Tauri updater signing key not found at $TAURI_KEY_DIR/notebook-md.key${NC}"
+  echo -e "${YELLOW}Update artifacts will not be signed.${NC}"
+fi
+
 # ── Parse arguments ──────────────────────────────────────────────────
 
 TAURI_ARGS=""
@@ -85,9 +95,18 @@ echo ""
 echo -e "${BOLD}Building Tauri desktop app (signed)...${NC}"
 npm -w apps/desktop run build $TAURI_ARGS
 
+# ── Output summary ───────────────────────────────────────────────────
+
+VERSION=$(grep '"version"' apps/desktop/src-tauri/tauri.conf.json | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/')
+BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
+
 echo ""
 echo -e "${GREEN}${BOLD}✅ Build complete!${NC}"
 echo ""
-echo "  App: apps/desktop/src-tauri/target/release/bundle/macos/Notebook.md.app"
-echo "  DMG: apps/desktop/src-tauri/target/release/bundle/dmg/Notebook.md_0.1.0_aarch64.dmg"
+echo "  App:     $BUNDLE_DIR/macos/Notebook.md.app"
+echo "  DMG:     $BUNDLE_DIR/dmg/Notebook.md_${VERSION}_aarch64.dmg"
+if [[ -f "$BUNDLE_DIR/macos/Notebook.md.app.tar.gz" ]]; then
+  echo "  Update:  $BUNDLE_DIR/macos/Notebook.md.app.tar.gz"
+  echo "  Sig:     $BUNDLE_DIR/macos/Notebook.md.app.tar.gz.sig"
+fi
 echo ""

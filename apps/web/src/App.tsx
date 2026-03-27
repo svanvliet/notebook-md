@@ -152,6 +152,43 @@ export default function App() {
     return () => { unlisten?.(); };
   }, [isDesktop]);
 
+  // Auto-update: check for updates on startup (5s delay) and via menu
+  const checkForUpdates = useCallback(async (silent = false) => {
+    if (!isTauriEnvironment()) return;
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      if (update) {
+        addToast(`Update available: v${update.version}`, 'info', {
+          label: 'Install & Restart',
+          onClick: async () => {
+            try {
+              addToast('Downloading update…', 'info');
+              await update.downloadAndInstall();
+              const { relaunch } = await import('@tauri-apps/plugin-process');
+              await relaunch();
+            } catch (err) {
+              addToast(`Update failed: ${err}`, 'error');
+            }
+          },
+        });
+      } else if (!silent) {
+        addToast('You\'re on the latest version', 'success');
+      }
+    } catch (err) {
+      if (!silent) {
+        addToast(`Failed to check for updates: ${err}`, 'error');
+      }
+    }
+  }, [addToast]);
+
+  // Check for updates on startup (5s delay, silent)
+  useEffect(() => {
+    if (!isDesktop) return;
+    const timer = setTimeout(() => checkForUpdates(true), 5000);
+    return () => clearTimeout(timer);
+  }, [isDesktop, checkForUpdates]);
+
   // Native menu bar actions (desktop only — no-op in browser)
   useNativeMenu({
     onMenuAction: useCallback((action: MenuAction) => {
@@ -219,7 +256,10 @@ export default function App() {
           setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'dark' : 'dark');
           break;
         case 'about':
-          addToast('Notebook.md v0.1.0 — A beautiful Markdown notebook', 'info');
+          addToast('Notebook.md v0.1.2 — A beautiful Markdown notebook', 'info');
+          break;
+        case 'check_updates':
+          checkForUpdates(false);
           break;
         case 'docs':
           window.open('https://www.notebookmd.io/features', '_blank');
@@ -227,7 +267,7 @@ export default function App() {
         default:
           break;
       }
-    }, [nb.activeTab, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast, openStandaloneFile, isLargeDirectory]),
+    }, [nb.activeTab, nb.activeTabId, nb.handleCreateFile, nb.handleTabClose, nb.reloadNotebooks, sidebar, mode, setMode, addToast, openStandaloneFile, isLargeDirectory, checkForUpdates]),
   });
 
   // Enter demo mode via /demo route or "Try Demo" button
