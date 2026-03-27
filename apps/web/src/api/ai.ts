@@ -1,4 +1,5 @@
 import { apiFetch } from './apiFetch';
+import { isTauriEnvironment } from '../stores/storageAdapterFactory';
 
 export interface AiGenerateParams {
   prompt: string;
@@ -21,7 +22,116 @@ export interface AiGenerateCallbacks {
   onQuota?: (quota: AiQuotaInfo) => void;
 }
 
+/**
+ * Start AI content generation. Auto-detects desktop (Tauri) vs web mode.
+ * Returns an AbortController that can be used to cancel the generation.
+ */
 export function generateAiContent(
+  params: AiGenerateParams,
+  callbacks: AiGenerateCallbacks,
+  options?: { demo?: boolean },
+): AbortController {
+  if (isTauriEnvironment()) {
+    return generateAiContentDesktop(params, callbacks);
+  }
+  return generateAiContentWeb(params, callbacks, options);
+}
+
+// ---------------------------------------------------------------------------
+// Desktop (Tauri) implementation — uses invoke + event listeners
+// ---------------------------------------------------------------------------
+
+function generateAiContentDesktop(
+  params: AiGenerateParams,
+  callbacks: AiGenerateCallbacks,
+): AbortController {
+  const controller = new AbortController();
+  let unlistenToken: (() => void) | null = null;
+  let unlistenDone: (() => void) | null = null;
+  let unlistenError: (() => void) | null = null;
+  let cleaned = false;
+
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    unlistenToken?.();
+    unlistenDone?.();
+    unlistenError?.();
+    unlistenToken = null;
+    unlistenDone = null;
+    unlistenError = null;
+  }
+
+  // Register abort handler synchronously so it works even if abort fires
+  // before the async setup completes
+  controller.signal.addEventListener('abort', () => {
+    cleanup();
+    // Fire-and-forget cancel to Rust side
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke('ai_cancel').catch(() => {});
+    }).catch(() => {});
+  });
+
+  (async () => {
+    try {
+      // If already aborted before we even start, bail out
+      if (controller.signal.aborted) return;
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { listen } = await import('@tauri-apps/api/event');
+
+      // Check again after async imports — abort may have fired during await
+      if (controller.signal.aborted) return;
+
+      // Set up event listeners before invoking
+      unlistenToken = await listen<{ content?: string }>('ai:token', (event) => {
+        if (controller.signal.aborted) return;
+        if (event.payload.content) {
+          callbacks.onToken(event.payload.content);
+        }
+      });
+
+      unlistenDone = await listen('ai:done', () => {
+        cleanup();
+        callbacks.onDone();
+      });
+
+      unlistenError = await listen<{ message?: string }>('ai:error', (event) => {
+        cleanup();
+        callbacks.onError(event.payload.message || 'Generation failed');
+      });
+
+      // If aborted while setting up listeners, clean up immediately
+      if (controller.signal.aborted) {
+        cleanup();
+        return;
+      }
+
+      // Start generation
+      await invoke('ai_generate', {
+        params: {
+          prompt: params.prompt,
+          length: params.length,
+          documentContext: params.documentContext,
+          cursorContext: params.cursorContext,
+          webSearch: params.webSearch,
+        },
+      });
+    } catch (err: any) {
+      cleanup();
+      if (controller.signal.aborted) return;
+      callbacks.onError(err.message || err.toString());
+    }
+  })();
+
+  return controller;
+}
+
+// ---------------------------------------------------------------------------
+// Web implementation — uses fetch + SSE streaming
+// ---------------------------------------------------------------------------
+
+function generateAiContentWeb(
   params: AiGenerateParams,
   callbacks: AiGenerateCallbacks,
   options?: { demo?: boolean },

@@ -1,10 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
+mod ai_settings;
 mod commands;
 mod menu;
 mod state;
 mod watcher;
 
+use ai_settings::AiSettingsState;
 use state::AppState;
 use std::path::PathBuf;
 use tauri::{Emitter, Manager};
@@ -27,8 +30,10 @@ fn main() {
             let notebooks_root = dirs_next()
                 .unwrap_or_else(|| app_data_dir.join("notebooks"));
 
+            let ai_settings = AiSettingsState::new(&app_data_dir);
             let app_state = AppState::new(app_data_dir, notebooks_root);
             app.manage(app_state);
+            app.manage(ai_settings);
             app.manage(WatcherRegistry::new());
 
             // Build and attach native menu bar
@@ -67,6 +72,12 @@ fn main() {
             commands::write_standalone_file,
             watcher::watch_directory,
             watcher::unwatch_directory,
+            ai_settings::get_ai_settings,
+            ai_settings::is_ai_configured,
+            ai_settings::save_ai_settings,
+            ai_settings::test_ai_connection,
+            ai::ai_generate,
+            ai::ai_cancel,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Notebook.md");

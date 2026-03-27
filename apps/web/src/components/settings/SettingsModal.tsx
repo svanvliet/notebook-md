@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import type { DisplayMode } from '@notebook-md/shared';
 import type { AppSettings } from '../../hooks/useSettings';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
+import { AiSettingsSection } from './AiSettingsSection';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -160,6 +162,13 @@ export function SettingsModal({ settings, onUpdate, displayMode, onDisplayModeCh
               Require re-authentication after inactivity
             </p>
           </div>
+
+          {/* AI Settings — desktop only */}
+          {isTauriEnvironment() && (
+            <div className="border-t border-gray-200 dark:border-gray-800 pt-4">
+              <AiSettingsSection />
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end">
