@@ -1395,11 +1395,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         ),
       );
 
-      // Auto-save with debounce (local: 1s, GitHub: 5s to avoid spamming)
-      const nb = notebooks.find((n) => {
-        const nbId = tabId.split(':')[0];
-        return n.id === nbId;
-      });
+      // Auto-save with debounce — skip for untitled tabs (no save path yet)
+      const nbId = tabId.split(':')[0];
+      if (nbId === '__untitled__') return;
+
+      const nb = notebooks.find((n) => n.id === nbId);
       const delay = nb?.sourceType === 'github' ? 5000 : 1000;
 
       if (autoSaveTimers.current[tabId]) {
@@ -1431,6 +1431,38 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   // --- Manual save (Cmd+S) ---
 
+  // Save As flow for untitled tabs — resolves to the saved file path, or null if cancelled
+  const saveUntitledTab = useCallback(async (tab: OpenTab): Promise<string | null> => {
+    if (!isTauriEnvironment()) return null;
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const markdown = htmlToMarkdown(tab.content);
+
+    // If user has notebooks, let them pick one OR save to disk
+    if (notebooks.length > 0) {
+      // For now, show native save dialog — notebook picker can be added later
+      const filePath = await save({
+        title: 'Save Markdown File',
+        defaultPath: tab.name,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      });
+      if (!filePath) return null;
+      const { invoke: tauriInvoke } = await import('@tauri-apps/api/core');
+      await tauriInvoke('write_standalone_file', { path: filePath, content: markdown });
+      return filePath as string;
+    }
+
+    // No notebooks — native Save As dialog
+    const filePath = await save({
+      title: 'Save Markdown File',
+      defaultPath: tab.name,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (!filePath) return null;
+    const { invoke: tauriInvoke } = await import('@tauri-apps/api/core');
+    await tauriInvoke('write_standalone_file', { path: filePath, content: markdown });
+    return filePath as string;
+  }, [notebooks]);
+
   const handleSave = useCallback(async () => {
     // Use a promise to read fresh state inside the setter
     let tabToSave: OpenTab | undefined;
@@ -1439,7 +1471,31 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       return prev;
     });
 
-    if (!tabToSave || !tabToSave.hasUnsavedChanges) return;
+    if (!tabToSave) return;
+
+    // Untitled tab — needs Save As first
+    if (tabToSave.notebookId === '__untitled__') {
+      if (!tabToSave.content && !tabToSave.hasUnsavedChanges) return; // empty untitled, skip
+      try {
+        const filePath = await saveUntitledTab(tabToSave);
+        if (!filePath) return; // user cancelled
+        const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'file.md';
+        const newTabId = `__standalone__:${filePath}`;
+        // Convert untitled tab to a standalone tab with the real path
+        setTabs((prev) => prev.map((t) =>
+          t.id === tabToSave!.id
+            ? { ...t, id: newTabId, notebookId: '__standalone__', path: filePath, name: fileName, savedContent: t.content, hasUnsavedChanges: false, lastSaved: Date.now() }
+            : t,
+        ));
+        setActiveTabId(newTabId);
+        flash('Saved');
+      } catch {
+        flash('Failed to save');
+      }
+      return;
+    }
+
+    if (!tabToSave.hasUnsavedChanges) return;
 
     try {
       const newSha = await saveTab(tabToSave);
@@ -1455,7 +1511,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     } catch {
       flash('Failed to save');
     }
-  }, [activeTabId, flash, saveTab]);
+  }, [activeTabId, flash, saveTab, saveUntitledTab]);
 
   // Register Cmd/Ctrl+S globally
   useEffect(() => {
@@ -1567,6 +1623,31 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     };
     setTabs((prev) => [...prev, tab]);
     setActiveTabId(tabId);
+  }, [tabs]);
+
+  // Create an untitled file tab (no path — not saved to disk yet)
+  const untitledCounter = useRef(0);
+  const createUntitledTab = useCallback(() => {
+    const existingUntitled = tabs.filter(t => t.notebookId === '__untitled__');
+    let name = 'Untitled.md';
+    if (existingUntitled.some(t => t.name === name)) {
+      let n = 1;
+      while (existingUntitled.some(t => t.name === `Untitled-${n}.md`)) n++;
+      name = `Untitled-${n}.md`;
+    }
+    const id = `__untitled__:${Date.now()}-${untitledCounter.current++}`;
+    const tab: OpenTab = {
+      id,
+      notebookId: '__untitled__',
+      path: name,
+      name,
+      content: '',
+      savedContent: '',
+      hasUnsavedChanges: false,
+      lastSaved: null,
+    };
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(id);
   }, [tabs]);
 
   // Restore previously open tabs from sessionStorage + URL file (single coordinated flow)
@@ -1798,6 +1879,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     expandToFile: useCallback((notebookId: string, path: string) => setPendingExpandPath({ notebookId, path }), []),
     reloadNotebooks,
     openStandaloneTab,
+    createUntitledTab,
     syncNotebooksFromServer,
     restoreTabs,
     pendingPrs,

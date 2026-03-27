@@ -158,7 +158,11 @@ export default function App() {
           setShowAddNotebook(true);
           break;
         case 'new_file':
-          if (nb.activeTab) nb.handleCreateFile(nb.activeTab.notebookId, '', 'file');
+          if (isDesktop) {
+            nb.createUntitledTab();
+          } else if (nb.activeTab) {
+            nb.handleCreateFile(nb.activeTab.notebookId, '', 'file');
+          }
           break;
         case 'open_file':
           if (isTauriEnvironment()) {

@@ -9,8 +9,8 @@ pub fn build_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::erro
 
     // --- File menu ---
     let file_menu = SubmenuBuilder::new(app, "File")
-        .item(&MenuItemBuilder::with_id("new_notebook", "New Notebook").accelerator("CmdOrCtrl+N").build(app)?)
-        .item(&MenuItemBuilder::with_id("new_file", "New File").accelerator("CmdOrCtrl+Shift+N").build(app)?)
+        .item(&MenuItemBuilder::with_id("new_file", "New File").accelerator("CmdOrCtrl+N").build(app)?)
+        .item(&MenuItemBuilder::with_id("new_notebook", "New Notebook").accelerator("CmdOrCtrl+Shift+N").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id("open_file", "Open File…").accelerator("CmdOrCtrl+O").build(app)?)
         .item(&MenuItemBuilder::with_id("open_folder", "Open Notebook Folder…").accelerator("CmdOrCtrl+Shift+O").build(app)?)
