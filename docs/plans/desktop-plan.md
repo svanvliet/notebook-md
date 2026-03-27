@@ -885,11 +885,24 @@ Full review: `docs/reviews/desktop-review-codex.md`
 | Phase 4: File Watching | ✅ Complete | notify crate watcher, useFsWatcher, useAutoSave (7 tests) |
 | Phase 5: Native OS | ✅ Complete | Menu bar, dialog/window-state plugins, file associations, file-open events |
 | Phase 6: Auth & Cloud | ⏸️ Deferred | See "Deferred Features" below |
-| Phase 7: Build & Distribute | ✅ Complete | Signed + notarized builds via `scripts/build-desktop.sh` |
+| Phase 7: Build & Distribute | ✅ Complete | Signed + notarized builds via `scripts/build-desktop.sh`; GitHub Releases |
 | Phase 8: UX Polish | ✅ Complete | Icons, cookie, labels, menus, folder-open, auth bypass, desktop empty state |
 
 **Test totals:** 232 web tests + 4 Rust tests — all passing
+**Current version:** 0.1.2
 **Branch:** `feature/desktop` → merged to `main`
+
+---
+
+## Releases
+
+| Version | Tag | Date | Highlights |
+|---------|-----|------|------------|
+| **0.1.0** | `desktop-v0.1.0` | 2026-03-26 | Initial V1 release — zero-auth local editor, signed + notarized |
+| **0.1.1** | `desktop-v0.1.1` | 2026-03-27 | Untitled file support (Cmd+N), Save As flow, bug fixes |
+| **0.1.2** | `desktop-v0.1.2` | 2026-03-27 | Fix Finder duplicate tabs, app name/icon cleanup |
+
+All releases published as GitHub Releases with signed `.dmg` artifacts (macOS Apple Silicon).
 
 ---
 
@@ -913,13 +926,45 @@ The desktop app was simplified to focus on its core value: a zero-auth local mar
 12. **External folder safety** — "Close Folder" (not "Delete") for external folders; no filesystem deletion
 13. **Duplicate prevention** — `open_folder_as_notebook` returns existing notebook if path already registered
 14. **Signed builds** — `scripts/build-desktop.sh` produces signed + notarized .app/.dmg via Developer ID certificate
+15. **Untitled files** — Cmd+N creates an untitled tab with zero friction; Shift+Cmd+N creates a new notebook
+16. **Save As flow** — Cmd+S on untitled files opens native Save As dialog; tab converts to standalone with auto-save
+17. **App identity** — productName changed to "Notebook MD" (dot in "Notebook.md" caused macOS to show ".app" suffix)
+18. **Production icon** — Clean icon without DEV badge; solid blue fills full canvas for proper macOS rounding
+
+### Keyboard Shortcuts (Desktop)
+
+| Shortcut | Action |
+|----------|--------|
+| **Cmd+N** | New untitled file |
+| **Shift+Cmd+N** | New notebook |
+| **Cmd+O** | Open file from disk |
+| **Shift+Cmd+O** | Open folder as notebook |
+| **Cmd+S** | Save (or Save As for untitled files) |
+| **Cmd+W** | Close tab |
+| **Cmd+B** | Toggle sidebar |
+| **Shift+Cmd+D** | Toggle dark mode |
+| **Cmd+F** | Find |
+
+### Bug Fixes (v0.1.1–v0.1.2)
+
+| Bug | Fix | Version |
+|-----|-----|---------|
+| Folder notebooks show device icon | Set sourceType to `local-folder` in Rust | 0.1.1 |
+| Opening same folder creates duplicates | Dedup check in `open_folder_as_notebook` | 0.1.1 |
+| "Delete" shown for external folders | "Close Folder" label + skip trash for local-folder | 0.1.1 |
+| Files don't open from notebook tree | Route through TauriFilesystemAdapter in handleOpenFile/saveTab | 0.1.1 |
+| Non-markdown files in tree | `is_supported_file` filter in list_notebook_files/list_children | 0.1.1 |
+| Cmd+N creates duplicate tabs | 300ms debounce guard (Tauri accelerator + WebView keydown) | 0.1.1 |
+| Finder double-click creates duplicate tabs | Atomic dedup via `setTabs` callback + stable event listener ref | 0.1.2 |
+| App shows as "Notebook.md.app" in Finder | Changed productName to "Notebook MD" | 0.1.2 |
+| Icon has DEV badge + grey outline | Regenerated from clean production source with full-bleed blue | 0.1.2 |
 
 ### Files modified
 
 | File | Change |
 |------|--------|
-| `apps/web/src/App.tsx` | Auth gate, isDesktop, standalone file open, large dir guard, file-open listener, menu handlers |
-| `apps/web/src/hooks/useNotebookManager.ts` | Tauri adapter in init/save/open, standalone tabs, local-folder type support |
+| `apps/web/src/App.tsx` | Auth gate, isDesktop, standalone file open, file-open listener (ref-based), untitled tab via menu, large dir guard |
+| `apps/web/src/hooks/useNotebookManager.ts` | Tauri adapter in init/save/open, standalone tabs (atomic dedup), untitled tabs, Save As flow, local-folder type, auto-save skip for untitled |
 | `apps/web/src/hooks/useNativeMenu.ts` | Added `open_file` MenuAction |
 | `apps/web/src/components/layout/TitleBar.tsx` | `isDesktopMode` prop; Settings button replaces account dropdown |
 | `apps/web/src/components/layout/NotebookPane.tsx` | Desktop empty state; `onOpenFolder` prop |
@@ -927,13 +972,15 @@ The desktop app was simplified to focus on its core value: a zero-auth local mar
 | `apps/web/src/components/notebook/AddNotebookModal.tsx` | `isDesktopMode` prop; filters `webOnly` sources |
 | `apps/web/src/components/notebook/NotebookTree.tsx` | "Close Folder" for local-folder notebooks |
 | `apps/web/src/stores/localNotebookStore.ts` | Added `local-folder` to sourceType union |
-| `apps/desktop/src-tauri/src/main.rs` | Removed deferred plugins, file-open event handler, Emitter import |
-| `apps/desktop/src-tauri/src/commands.rs` | `local-folder` sourceType, dedup check, standalone file ops, file type filter |
+| `apps/desktop/src-tauri/src/main.rs` | Removed deferred plugins, file-open event handler, Emitter import, `let app = .build()` pattern |
+| `apps/desktop/src-tauri/src/commands.rs` | `local-folder` sourceType, dedup check, standalone file read/write, file type filter, external folder safety |
 | `apps/desktop/src-tauri/src/state.rs` | `StandaloneFile` struct |
-| `apps/desktop/src-tauri/src/menu.rs` | Open File (Cmd+O), Open Folder (Cmd+Shift+O) |
+| `apps/desktop/src-tauri/src/menu.rs` | New File (Cmd+N), New Notebook (Shift+Cmd+N), Open File (Cmd+O), Open Folder (Shift+Cmd+O) |
 | `apps/desktop/src-tauri/Cargo.toml` | Removed deferred plugin deps |
-| `apps/desktop/src-tauri/tauri.conf.json` | Removed deep-link config |
+| `apps/desktop/src-tauri/tauri.conf.json` | productName "Notebook MD", removed deep-link config |
 | `apps/desktop/src-tauri/capabilities/default.json` | Removed deferred permissions |
+| `apps/desktop/src-tauri/icons/*` | Regenerated from clean production source |
+| `apps/desktop/app-icon.png` | Full-bleed production icon (1024×1024) |
 | `scripts/build-desktop.sh` | Signed + notarized build script |
 | `docs/plans/desktop-plan.md` | This document |
 
@@ -957,8 +1004,23 @@ The desktop app was simplified to focus on its core value: a zero-auth local mar
 - Rust toolchain, Node.js, npm dependencies installed
 
 **Output:**
-- `apps/desktop/src-tauri/target/release/bundle/macos/Notebook.md.app` — signed + notarized
-- `apps/desktop/src-tauri/target/release/bundle/dmg/Notebook.md_0.1.0_aarch64.dmg` — signed DMG
+- `apps/desktop/src-tauri/target/release/bundle/macos/Notebook MD.app` — signed + notarized
+- `apps/desktop/src-tauri/target/release/bundle/dmg/Notebook MD_<version>_aarch64.dmg` — signed DMG
+
+### Releasing
+```bash
+# 1. Bump version in tauri.conf.json, package.json, Cargo.toml
+# 2. Commit and push
+# 3. Build
+./scripts/build-desktop.sh
+# 4. Tag and push
+git tag desktop-v<version> -m "Desktop v<version> — description"
+git push origin desktop-v<version>
+# 5. Create GitHub Release (switch to svanvliet account)
+gh auth switch --user svanvliet
+gh release create desktop-v<version> "apps/desktop/src-tauri/target/release/bundle/dmg/Notebook MD_<version>_aarch64.dmg" --title "Notebook MD v<version>" --notes "..." --latest
+gh auth switch --user svanvliet_green
+```
 
 ---
 
@@ -977,3 +1039,5 @@ These features are partially or fully scaffolded in the codebase but not wired i
 | **Download page** (`/download` route) | Not implemented | No distribution channel yet |
 | **IndexedDB → filesystem migration** | Not implemented | No web users to migrate from yet |
 | **AI features in desktop** | Scaffolded (AI hooks) | Requires auth + API key management |
+| **Windows build** | Not built | Need Windows CI runner + code signing certificate |
+| **Intel Mac (x86_64)** | Not built | Need `--target universal-apple-darwin` in build script |
