@@ -256,7 +256,13 @@ export default function App() {
           setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'dark' : 'dark');
           break;
         case 'about':
-          addToast('Notebook.md v0.1.2 — A beautiful Markdown notebook', 'info');
+          if (isTauriEnvironment()) {
+            import('@tauri-apps/api/app').then(({ getVersion }) =>
+              getVersion().then((v) => addToast(`Notebook.md v${v} — A beautiful Markdown notebook`, 'info'))
+            );
+          } else {
+            addToast('Notebook.md — A beautiful Markdown notebook', 'info');
+          }
           break;
         case 'check_updates':
           checkForUpdates(false);
