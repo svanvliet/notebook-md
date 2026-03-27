@@ -68,8 +68,8 @@ export APPLE_PASSWORD="$(cat "$CERT_DIR/app-specific-password.txt")"
 # Tauri updater signing key (signs .tar.gz for auto-updates)
 TAURI_KEY_DIR="$HOME/certs/tauri"
 if [[ -f "$TAURI_KEY_DIR/notebook-md.key" ]]; then
-  export TAURI_SIGNING_PRIVATE_KEY_PATH="$TAURI_KEY_DIR/notebook-md.key"
-  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat "$TAURI_KEY_DIR/notebook-md.key")"
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="notebookmd"
 else
   echo -e "${YELLOW}Warning: Tauri updater signing key not found at $TAURI_KEY_DIR/notebook-md.key${NC}"
   echo -e "${YELLOW}Update artifacts will not be signed.${NC}"
