@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFlag } from '../../hooks/useFlagProvider';
+import { isTauriEnvironment } from '../../stores/storageAdapterFactory';
 
 export type AiLength = 'short' | 'medium' | 'long';
 
@@ -25,12 +26,14 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit, 
   const [webSearch, setWebSearch] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const webSearchEnabled = useFlag('ai_web_search');
+  const isDesktop = isTauriEnvironment();
 
   useEffect(() => {
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
-  const isQuotaExhausted = remainingQuota !== null && remainingQuota <= 0;
+  // Desktop has no server-enforced quota
+  const isQuotaExhausted = !isDesktop && remainingQuota !== null && remainingQuota <= 0;
   const canSubmit = prompt.trim().length > 0 && !isQuotaExhausted;
 
   const handleSubmit = () => {
@@ -118,8 +121,8 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit, 
             </label>
           )}
 
-          {/* Quota display */}
-          {remainingQuota !== null && quotaLimit !== null && (
+          {/* Quota display — not shown on desktop (BYOK has no quota) */}
+          {!isDesktop && remainingQuota !== null && quotaLimit !== null && (
             <div className="mt-2">
               {isQuotaExhausted ? (
                 isDemoMode ? (
@@ -152,7 +155,9 @@ export function AiPromptModal({ onSubmit, onCancel, remainingQuota, quotaLimit, 
 
           {/* Disclaimer */}
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2 leading-relaxed">
-            {t('editor.ai.modal.disclaimer', 'Your prompt and document content are sent to an AI service (Azure OpenAI) to generate a response.')}
+            {isDesktop
+              ? t('editor.ai.modal.disclaimerDesktop', 'Your prompt and document content are sent to your configured AI provider to generate a response.')
+              : t('editor.ai.modal.disclaimer', 'Your prompt and document content are sent to an AI service (Azure OpenAI) to generate a response.')}
           </p>
         </div>
 

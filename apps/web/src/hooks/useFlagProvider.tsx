@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { apiFetch } from '../api/apiFetch';
+import { isTauriEnvironment } from '../stores/storageAdapterFactory';
 
 interface ResolvedFlag {
   enabled: boolean;
@@ -22,11 +23,23 @@ const FlagContext = createContext<FlagContextValue>({
 
 const POLL_INTERVAL_MS = 90_000; // 90 seconds
 
+// Desktop (Tauri) flags — AI features are always available if the user has configured a key.
+// The actual "is configured" check happens at generation time; flags just control UI visibility.
+const DESKTOP_FLAGS: Record<string, ResolvedFlag> = {
+  ai_content_generation: { enabled: true, variant: null, badge: null, source: 'desktop' },
+  ai_web_search: { enabled: true, variant: null, badge: null, source: 'desktop' },
+  ai_demo_mode: { enabled: false, variant: null, badge: null, source: 'desktop' },
+};
+
 export function FlagProvider({ children }: { children: ReactNode }) {
-  const [flags, setFlags] = useState<Record<string, ResolvedFlag>>({});
-  const [loading, setLoading] = useState(true);
+  const isDesktop = isTauriEnvironment();
+  const [flags, setFlags] = useState<Record<string, ResolvedFlag>>(isDesktop ? DESKTOP_FLAGS : {});
+  const [loading, setLoading] = useState(!isDesktop);
 
   const fetchFlags = useCallback(() => {
+    // Desktop mode: no remote flag server, use hardcoded flags
+    if (isDesktop) return;
+
     apiFetch('/api/flags')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -34,13 +47,14 @@ export function FlagProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [isDesktop]);
 
   useEffect(() => {
+    if (isDesktop) return;
     fetchFlags();
     const interval = setInterval(fetchFlags, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchFlags]);
+  }, [fetchFlags, isDesktop]);
 
   return (
     <FlagContext.Provider value={{ flags, loading, refresh: fetchFlags }}>
