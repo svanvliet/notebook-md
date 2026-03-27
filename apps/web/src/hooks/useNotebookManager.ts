@@ -1627,7 +1627,13 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   // Create an untitled file tab (no path — not saved to disk yet)
   const untitledCounter = useRef(0);
+  const lastUntitledAt = useRef(0);
   const createUntitledTab = useCallback(() => {
+    // Guard against duplicate calls from Tauri menu accelerator + keydown
+    const now = Date.now();
+    if (now - lastUntitledAt.current < 300) return;
+    lastUntitledAt.current = now;
+
     const existingUntitled = tabs.filter(t => t.notebookId === '__untitled__');
     let name = 'Untitled.md';
     if (existingUntitled.some(t => t.name === name)) {
