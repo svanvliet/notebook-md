@@ -119,7 +119,7 @@ gh release create "$TAG" \
   "$SIG_FILE" \
   "$BUNDLE_DIR/latest.json" \
   --title "Notebook.md Desktop v${VERSION}" \
-  --generate-release-notes \
+  --generate-notes \
   --latest
 
 gh auth switch --user svanvliet_green 2>/dev/null || true
