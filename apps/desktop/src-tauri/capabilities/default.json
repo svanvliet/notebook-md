@@ -11,6 +11,7 @@
     "core:path:default",
     "dialog:default",
     "window-state:default",
-    "updater:default"
+    "updater:default",
+    "process:default"
   ]
 }
