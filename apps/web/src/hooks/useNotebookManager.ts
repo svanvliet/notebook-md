@@ -1606,24 +1606,24 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   // Open a standalone file (not inside any notebook) as a tab
   const openStandaloneTab = useCallback((filePath: string, name: string, htmlContent: string, updatedAt: number) => {
     const tabId = `__standalone__:${filePath}`;
-    // If already open, just switch to it
-    if (tabs.find((t) => t.id === tabId)) {
-      setActiveTabId(tabId);
-      return;
-    }
-    const tab: OpenTab = {
-      id: tabId,
-      notebookId: '__standalone__',
-      path: filePath,
-      name,
-      content: htmlContent,
-      savedContent: htmlContent,
-      hasUnsavedChanges: false,
-      lastSaved: updatedAt,
-    };
-    setTabs((prev) => [...prev, tab]);
+    setTabs((prev) => {
+      // Atomic dedup: check inside the setter to avoid stale closure
+      if (prev.some((t) => t.id === tabId)) {
+        return prev;
+      }
+      return [...prev, {
+        id: tabId,
+        notebookId: '__standalone__',
+        path: filePath,
+        name,
+        content: htmlContent,
+        savedContent: htmlContent,
+        hasUnsavedChanges: false,
+        lastSaved: updatedAt,
+      }];
+    });
     setActiveTabId(tabId);
-  }, [tabs]);
+  }, []);
 
   // Create an untitled file tab (no path — not saved to disk yet)
   const untitledCounter = useRef(0);

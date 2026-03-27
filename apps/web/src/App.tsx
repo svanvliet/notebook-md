@@ -120,7 +120,9 @@ export default function App() {
     } catch (err) {
       addToast(`Failed to open file: ${err}`, 'error');
     }
-  }, [nb, addToast]);
+  }, [nb.openStandaloneTab, addToast]);
+  const openStandaloneFileRef = useRef(openStandaloneFile);
+  openStandaloneFileRef.current = openStandaloneFile;
 
   // Helper: validate a folder path isn't too broad (home dir, root, etc.)
   const isLargeDirectory = (path: string) => {
@@ -140,7 +142,7 @@ export default function App() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         const unlistenFn = await listen<string>('file-open', (event) => {
-          openStandaloneFile(event.payload);
+          openStandaloneFileRef.current(event.payload);
         });
         unlisten = unlistenFn;
       } catch (err) {
@@ -148,7 +150,7 @@ export default function App() {
       }
     })();
     return () => { unlisten?.(); };
-  }, [isDesktop, openStandaloneFile]);
+  }, [isDesktop]);
 
   // Native menu bar actions (desktop only — no-op in browser)
   useNativeMenu({
