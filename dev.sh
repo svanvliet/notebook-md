@@ -70,7 +70,7 @@ wait_for_service() {
   local name="$1" url="$2" max_wait="${3:-30}"
   local elapsed=0
   printf "  Waiting for %-14s " "$name..."
-  while ! curl -sf "$url" > /dev/null 2>&1; do
+  while ! curl -so /dev/null --max-time 2 "$url" 2>/dev/null; do
     sleep 1
     elapsed=$((elapsed + 1))
     if [ $elapsed -ge $max_wait ]; then
