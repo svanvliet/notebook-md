@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
-  "productName": "Notebook MD",
+  "productName": "Notebook.md",
   "version": "0.1.2",
   "identifier": "io.notebookmd.desktop",
   "build": {
@@ -41,6 +41,16 @@
         "mimeType": "text/markdown",
         "description": "Markdown Document"
       }
+    ],
+    "macOS": {
+      "entitlements": null,
+      "infoPlist": {
+        "LSHasLocalizedDisplayName": true,
+        "CFBundleDisplayName": "Notebook.md"
+      }
+    },
+    "resources": [
+      "en.lproj/InfoPlist.strings"
     ]
   },
   "plugins": {}
