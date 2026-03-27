@@ -659,7 +659,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
               return;
             }
           } else {
-            await createFile(notebookId, parentPath, name, type);
+            if (isTauriEnvironment()) {
+              await getStorageAdapter().createFile(notebookId, parentPath, name, type);
+            } else {
+              await createFile(notebookId, parentPath, name, type);
+            }
             await refreshFiles(notebookId);
             toast?.(`Created ${type} "${name}"`, 'success');
           }
@@ -898,7 +902,11 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
         } else if (nb?.sourceType === 'cloud') {
           await deleteCloudFile(notebookId, path);
         } else {
-          await deleteF(notebookId, path);
+          if (isTauriEnvironment()) {
+            await getStorageAdapter().deleteFile(notebookId, path);
+          } else {
+            await deleteF(notebookId, path);
+          }
         }
         await refreshFiles(notebookId);
         toast?.(`Deleted "${name}"`, 'success');
@@ -920,6 +928,8 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       if (nb?.sourceType === 'cloud') {
         await renameCloudFile(notebookId, path, newPath);
         entry = { path: newPath, name: newName };
+      } else if (isTauriEnvironment()) {
+        entry = await getStorageAdapter().renameFile(notebookId, path, newName);
       } else {
         entry = await renameF(notebookId, path, newName);
       }
@@ -1555,7 +1565,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
   const handleMoveFile = useCallback(async (notebookId: string, oldPath: string, newParentPath: string) => {
     try {
       const notebook = notebooks.find((n) => n.id === notebookId);
-      if (notebook && notebook.sourceType !== 'local' && notebook.sourceType) {
+      if (notebook && notebook.sourceType !== 'local' && notebook.sourceType !== 'local-folder' && notebook.sourceType) {
         // Remote move not yet supported
         toast?.('File move is not supported for remote notebooks', 'warning');
         return;
@@ -1565,21 +1575,24 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
       const newPath = newParentPath ? `${newParentPath}/${fileName}` : fileName;
       const newKey = `${notebookId}:${newPath}`;
 
-      await moveF(notebookId, oldPath, newParentPath);
+      if (isTauriEnvironment()) {
+        await getStorageAdapter().moveFile(notebookId, oldPath, newParentPath);
+      } else {
+        await moveF(notebookId, oldPath, newParentPath);
+      }
 
       // Update any open tab pointing to the old path
       setTabs((prev) =>
         prev.map((tab) =>
           tab.id === oldKey
-            ? { ...tab, id: newKey, title: tab.title }
+            ? { ...tab, id: newKey, path: newPath, name: fileName }
             : tab,
         ),
       );
       setActiveTabId((prev) => (prev === oldKey ? newKey : prev));
 
       // Reload files for this notebook
-      const updatedFiles = await listFiles(notebookId);
-      setFiles((prev) => ({ ...prev, [notebookId]: updatedFiles }));
+      await refreshFiles(notebookId);
     } catch (err) {
       toast?.('Failed to move file', 'error');
     }
@@ -1587,9 +1600,15 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   const handleReorderNotebooks = useCallback(async (orderedIds: string[]) => {
     try {
-      await reorderNbs(orderedIds);
-      const nbs = await listNotebooks();
-      setNotebooks(nbs);
+      if (isTauriEnvironment()) {
+        await getStorageAdapter().reorderNotebooks(orderedIds);
+        const nbs = await getStorageAdapter().listNotebooks();
+        setNotebooks(nbs);
+      } else {
+        await reorderNbs(orderedIds);
+        const nbs = await listNotebooks();
+        setNotebooks(nbs);
+      }
     } catch (err) {
       toast?.('Failed to reorder notebooks', 'error');
     }
