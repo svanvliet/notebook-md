@@ -152,6 +152,59 @@ export default function App() {
     return () => { unlisten?.(); };
   }, [isDesktop]);
 
+  // File system watcher: watch all local notebooks for external changes
+  const fsWatchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isDesktop || nb.notebooks.length === 0) return;
+
+    let unlisten: (() => void) | null = null;
+    const localNotebooks = nb.notebooks.filter(
+      (n) => n.sourceType === 'local' || n.sourceType === 'local-folder' || !n.sourceType
+    );
+
+    (async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { listen } = await import('@tauri-apps/api/event');
+
+        // Start watching all local notebooks
+        for (const notebook of localNotebooks) {
+          await invoke('watch_directory', { notebookId: notebook.id }).catch(() => {});
+        }
+
+        // Listen for fs-change events — debounce refreshes per notebook
+        const pending = new Set<string>();
+        const unlistenFn = await listen<{ notebookId: string; kind: string; path: string }>('fs-change', (event) => {
+          pending.add(event.payload.notebookId);
+          if (fsWatchTimer.current) clearTimeout(fsWatchTimer.current);
+          fsWatchTimer.current = setTimeout(() => {
+            for (const id of pending) {
+              nb.refreshFiles(id);
+            }
+            pending.clear();
+          }, 500);
+        });
+        unlisten = unlistenFn;
+      } catch (err) {
+        console.warn('[fs-watcher] Failed to start:', err);
+      }
+    })();
+
+    return () => {
+      unlisten?.();
+      if (fsWatchTimer.current) clearTimeout(fsWatchTimer.current);
+      // Stop watching (fire and forget)
+      (async () => {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          for (const notebook of localNotebooks) {
+            await invoke('unwatch_directory', { notebookId: notebook.id }).catch(() => {});
+          }
+        } catch { /* ignore */ }
+      })();
+    };
+  }, [isDesktop, nb.notebooks.length]); // re-run when notebooks change
+
   // Auto-update: check for updates on startup (5s delay) and via menu
   const checkForUpdates = useCallback(async (silent = false) => {
     if (!isTauriEnvironment()) return;

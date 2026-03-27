@@ -437,10 +437,10 @@ export function NotebookTree({
               } else {
                 if (!onCopyFile) return;
                 const targetNb = notebooks.find((n) => n.id === file.notebookId);
-                const tgtLocal = (targetNb?.sourceType ?? 'local') === 'local';
+                const tgtLocal = (targetNb?.sourceType ?? 'local') === 'local' || targetNb?.sourceType === 'local-folder';
                 const tgtCloud = targetNb?.sourceType === 'cloud';
                 // Allow: local-to-local or any-to-cloud
-                if (!((data.sourceType === 'local' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
+                if (!((data.sourceType === 'local' || data.sourceType === 'local-folder' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
                 onCopyFile(data.notebookId, data.path, file.notebookId, file.path);
               }
             } catch { /* ignore */ }
@@ -625,9 +625,9 @@ export function NotebookTree({
                     } else {
                       // Cross-notebook → copy to root (local-to-local or any-to-cloud)
                       if (!onCopyFile) return;
-                      const tgtLocal = (nb.sourceType ?? 'local') === 'local';
+                      const tgtLocal = (nb.sourceType ?? 'local') === 'local' || nb.sourceType === 'local-folder';
                       const tgtCloud = nb.sourceType === 'cloud';
-                      if (!((data.sourceType === 'local' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
+                      if (!((data.sourceType === 'local' || data.sourceType === 'local-folder' || !data.sourceType) && tgtLocal) && !tgtCloud) return;
                       onCopyFile(data.notebookId, data.path, nb.id, '');
                     }
                   } catch { /* ignore */ }
