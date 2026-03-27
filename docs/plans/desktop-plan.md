@@ -1033,7 +1033,7 @@ These features are partially or fully scaffolded in the codebase but not wired i
 | **Authentication** (OAuth, magic links, 2FA) | Scaffolded (useAuth, WelcomeScreen) | Not needed for local-only editing; adds startup friction |
 | **Cloud notebooks** (GitHub, OneDrive, Google Drive) | Scaffolded (SourceTypes, cloud adapters) | Requires auth + API; not core desktop value prop |
 | **Deep links** (`notebookmd://`) | Plugin removed; useDeepLink.ts retained | Only needed for magic link auth callbacks |
-| **Auto-updater** (Tauri updater plugin) | Not implemented | Adds CI/CD complexity; manual updates fine for V1 |
+| **Auto-updater** (Tauri updater plugin) | 🔧 Planned | See "Auto-Update Plan" below |
 | **Multiple windows** | Not implemented | Nice-to-have; adds state management complexity |
 | **Native notifications** | Plugin removed | Only needed for file-watch alerts + update prompts |
 | **Download page** (`/download` route) | Not implemented | No distribution channel yet |
@@ -1041,3 +1041,79 @@ These features are partially or fully scaffolded in the codebase but not wired i
 | **AI features in desktop** | Scaffolded (AI hooks) | Requires auth + API key management |
 | **Windows build** | Not built | Need Windows CI runner + code signing certificate |
 | **Intel Mac (x86_64)** | Not built | Need `--target universal-apple-darwin` in build script |
+
+---
+
+## Auto-Update Plan
+
+### Overview
+
+Add auto-update support using Tauri v2's built-in updater plugin with GitHub Releases as the update endpoint. When a new `desktop-v*` release is published, running apps can detect, download, and apply the update.
+
+### Architecture
+
+```
+┌──────────────┐   GET latest.json    ┌──────────────────┐
+│  Desktop App  │ ──────────────────► │  GitHub Releases   │
+│  (Tauri)      │ ◄── version, URL ── │  (public repo)     │
+│               │   download .tar.gz  │  latest.json       │
+│               │ ◄── signed binary ─ │  *.tar.gz + *.sig  │
+└──────────────┘   verify signature   └──────────────────┘
+```
+
+1. On startup (5s delay) + Help → Check for Updates: fetch `latest.json`
+2. Compare version — if newer, show non-intrusive toast: "Update available (vX.Y.Z)"
+3. User clicks "Update" → download `.tar.gz`, verify signature, apply, prompt restart
+4. Signing uses a Tauri-specific keypair (separate from Apple codesign)
+
+### Update Endpoint
+
+```
+https://github.com/svanvliet/notebook-md/releases/latest/download/latest.json
+```
+
+GitHub resolves this to the `latest.json` attached to the most recent release. Requires the repo to be **public**.
+
+### Signing
+
+- **Private key**: `~/certs/tauri/notebook-md.key` — used during builds via `TAURI_SIGNING_PRIVATE_KEY`
+- **Public key**: embedded in `tauri.conf.json` → `plugins.updater.pubkey`
+- Each build produces `*.tar.gz.sig` — uploaded alongside the `.dmg` in the release
+
+### latest.json Format
+
+```json
+{
+  "version": "0.2.0",
+  "notes": "New features and bug fixes",
+  "pub_date": "2026-04-01T00:00:00Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "<contents of .sig file>",
+      "url": "https://github.com/svanvliet/notebook-md/releases/download/desktop-v0.2.0/Notebook.md.app.tar.gz"
+    }
+  }
+}
+```
+
+### Implementation Steps
+
+| Step | Description |
+|------|-------------|
+| Generate updater keypair | `tauri signer generate -w ~/certs/tauri/notebook-md.key` |
+| Add `tauri-plugin-updater` | Cargo.toml + main.rs + capabilities |
+| Configure updater in tauri.conf.json | Endpoints, pubkey, `createUpdaterArtifacts: true` |
+| Frontend: check on startup + menu | Async check with toast notification, download + restart |
+| Update build script | Set `TAURI_SIGNING_PRIVATE_KEY` from `~/certs/tauri/` |
+| Update release process | Generate + upload `latest.json` with version, signature, URL |
+| Make repo public | Required for GitHub Releases URL |
+
+### Decisions
+
+| Question | Decision |
+|----------|----------|
+| Update endpoint | GitHub Releases (no CDN needed) |
+| Check frequency | On startup (5s delay) + manual menu |
+| User prompt | Non-intrusive toast; user chooses when to install |
+| Restart | Prompt: "Restart now to apply update?" |
+| Repo visibility | Public |
