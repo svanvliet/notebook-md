@@ -379,9 +379,14 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
     const nb = notebooks.find((n) => n.id === notebookId);
     // Skip pending invite notebooks — they have no file access yet
     if (nb?.pendingInvite) return;
-    if (!nb || nb.sourceType === 'local' || !nb.sourceType) {
-      const entries = await listFiles(notebookId);
-      setFiles((prev) => ({ ...prev, [notebookId]: entries }));
+    if (!nb || nb.sourceType === 'local' || nb.sourceType === 'local-folder' || !nb.sourceType) {
+      if (isTauriEnvironment()) {
+        const entries = await getStorageAdapter().listFiles(notebookId);
+        setFiles((prev) => ({ ...prev, [notebookId]: entries }));
+      } else {
+        const entries = await listFiles(notebookId);
+        setFiles((prev) => ({ ...prev, [notebookId]: entries }));
+      }
     } else {
       setLoadingNotebooks((prev) => new Set(prev).add(notebookId));
       try {
