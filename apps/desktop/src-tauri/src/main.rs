@@ -49,6 +49,24 @@ fn main() {
                 menu::handle_menu_event(&handle2, event.id().as_ref());
             });
 
+            // On Windows, file associations pass the path as a CLI argument.
+            // Delay the emit so the frontend has time to mount its listener.
+            #[cfg(target_os = "windows")]
+            {
+                let args: Vec<String> = std::env::args().collect();
+                if let Some(file_path) = args.get(1) {
+                    let path = std::path::Path::new(file_path);
+                    if path.exists() {
+                        let handle = app.handle().clone();
+                        let file_path = file_path.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(1500));
+                            let _ = handle.emit("file-open", file_path);
+                        });
+                    }
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -83,6 +101,8 @@ fn main() {
         .expect("error while building Notebook.md");
 
     app.run(|_app_handle, event| {
+        // macOS: handle file-open events via RunEvent::Opened
+        #[cfg(target_os = "macos")]
         if let tauri::RunEvent::Opened { urls } = &event {
             for url in urls {
                 if let Ok(path) = url.to_file_path() {
@@ -91,6 +111,7 @@ fn main() {
                 }
             }
         }
+        let _ = &event; // suppress unused warning on non-macOS
     });
 }
 
