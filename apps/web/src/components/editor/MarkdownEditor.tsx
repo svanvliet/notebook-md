@@ -669,7 +669,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
               onChange={(e) => handleSourceChange(e.target.value)}
               onScroll={(e) => {
                 syncLineNumScroll();
-                if (effectiveViewMode === 'split') handleSourceScroll(e);
+                if (effectiveViewMode === 'split') handleSourceScroll();
               }}
               className={`resize-none font-mono text-sm py-6 bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 focus:outline-none w-full h-full ${
                 wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'

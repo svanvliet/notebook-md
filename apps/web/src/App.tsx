@@ -631,7 +631,7 @@ export default function App() {
       hasUnsavedChanges: t.hasUnsavedChanges,
       content: t.content,
       loading: t.loading,
-      readOnly: nb.pendingPrs.has(t.notebookId) || notebook?.sharedPermission === 'viewer' || (!collabEnabled && notebook?.sharedPermission && notebook.sharedPermission !== 'owner'),
+      readOnly: Boolean(nb.pendingPrs.has(t.notebookId) || notebook?.sharedPermission === 'viewer' || (!collabEnabled && notebook?.sharedPermission && notebook.sharedPermission !== 'owner')),
       cloudDoc: notebook?.sourceType === 'cloud' ? { notebookId: t.notebookId, path: t.path } : undefined,
     };
   });

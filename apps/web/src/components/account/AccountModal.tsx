@@ -425,7 +425,7 @@ export function AccountModal({ user, onUpdateProfile, onChangePassword, onDelete
                 <div className="flex gap-2">
                   <button
                     onClick={handleDeleteAccount}
-                    disabled={(user.hasPassword ? !deletePassword : deleteConfirmation !== 'DELETE') || (cloudDeleteWarning && cloudDeleteWarning.notebooks > 0 && !cloudDeleteConfirmed)}
+                    disabled={(user.hasPassword ? !deletePassword : deleteConfirmation !== 'DELETE') || !!(cloudDeleteWarning && cloudDeleteWarning.notebooks > 0 && !cloudDeleteConfirmed)}
                     className="px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Delete My Account

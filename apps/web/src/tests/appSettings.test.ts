@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   spellCheck: true,
   lineNumbers: false,
   tabSize: 2,
+  idleTimeoutMinutes: null,
 };
 
 describe('AppSettings', () => {

@@ -26,7 +26,10 @@ export function useDeepLink({ onAuthCallback, onOpenRequest }: UseDeepLinkOption
 
     (async () => {
       try {
-        const { onOpenUrl } = await import('tauri-plugin-deep-link-api');
+        // Specifier kept in a variable so the optional plugin (not a declared
+        // dependency) isn't statically resolved by TypeScript or the bundler.
+        const deepLinkPlugin = 'tauri-plugin-deep-link-api';
+        const { onOpenUrl } = await import(/* @vite-ignore */ deepLinkPlugin);
         unlisten = await onOpenUrl((urls: string[]) => {
           for (const rawUrl of urls) {
             try {

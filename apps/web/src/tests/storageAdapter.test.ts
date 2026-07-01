@@ -81,7 +81,7 @@ describe('storageAdapterFactory', () => {
   });
 
   it('returns IndexedDBAdapter in browser environment', async () => {
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const { getStorageAdapter, isTauriEnvironment } = await import('../stores/storageAdapterFactory');
     expect(isTauriEnvironment()).toBe(false);
     const adapter = getStorageAdapter();
@@ -89,16 +89,16 @@ describe('storageAdapterFactory', () => {
   });
 
   it('returns TauriFilesystemAdapter in Tauri environment', async () => {
-    (window as Record<string, unknown>).__TAURI_INTERNALS__ = { __tauriModule: 'mock' };
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = { __tauriModule: 'mock' };
     const { getStorageAdapter, isTauriEnvironment } = await import('../stores/storageAdapterFactory');
     expect(isTauriEnvironment()).toBe(true);
     const adapter = getStorageAdapter();
     expect(adapter.constructor.name).toBe('TauriFilesystemAdapter');
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
   });
 
   it('caches the adapter instance', async () => {
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const { getStorageAdapter } = await import('../stores/storageAdapterFactory');
     const a1 = getStorageAdapter();
     const a2 = getStorageAdapter();

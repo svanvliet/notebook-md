@@ -552,7 +552,7 @@ export function useNotebookManager(userId?: string | null, toast?: ToastFn, isDe
 
   // Working branch per notebook: notebookId → branch name
   const workingBranches = useRef<Record<string, string>>({});
-  const branchCreating = useRef<Record<string, Promise<string>>>({});
+  const branchCreating = useRef<Record<string, Promise<string> | undefined>>({});
   // Default branch per notebook (detected from GitHub)
   const defaultBranches = useRef<Record<string, string>>({});
   // Reactive set of notebook IDs that have a working branch (for UI)
