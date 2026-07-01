@@ -5,7 +5,6 @@ import { FlagProvider } from './hooks/useFlagProvider';
 import './lib/sentry';
 import './i18n';
 import './index.css';
-import './print.css';
 import { Router } from './Router';
 import { reportWebVitals } from './lib/webVitals';
 

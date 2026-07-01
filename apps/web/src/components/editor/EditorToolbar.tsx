@@ -4,6 +4,7 @@ import { useCallback, useState, useRef, useEffect } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { useFlag } from '../../hooks/useFlagProvider';
 import { useAuth } from '../../hooks/useAuth';
+import { printActiveDocument } from '../../lib/print';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -559,7 +560,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
         {/* Print / Export PDF */}
         <ToolbarButton
-          onClick={() => window.print()}
+          onClick={() => void printActiveDocument()}
           title={`${t('editor.toolbar.print', 'Print')} (⌘P)`}
         >
           <PrintIcon />
@@ -690,7 +691,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
                   <RedoIcon />
                 </ToolbarButton>
                 <ToolbarButton
-                  onClick={() => { window.print(); setShowOverflow(false); }}
+                  onClick={() => { void printActiveDocument(); setShowOverflow(false); }}
                   title={t('editor.toolbar.print', 'Print')}
                 >
                   <PrintIcon />

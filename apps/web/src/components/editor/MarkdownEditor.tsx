@@ -11,6 +11,7 @@ import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import { useToast } from '../../hooks/useToast';
 import { useAuth } from '../../hooks/useAuth';
+import { printActiveDocument } from '../../lib/print';
 import { AiPromptModal } from './AiPromptModal';
 import { MobileCommandFab } from './MobileCommandFab';
 import type { AiLength } from './AiPromptModal';
@@ -291,7 +292,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
       }
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'p') {
         e.preventDefault();
-        window.print();
+        void printActiveDocument();
       }
     };
     document.addEventListener('keydown', handler);
@@ -708,7 +709,6 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
             className={`relative editor-wrapper overflow-auto ${
               effectiveViewMode === 'split' ? 'w-1/2' : 'w-full'
             }`}
-            data-print-root
             onMouseEnter={() => { scrollSource.current = null; }}
             onContextMenu={handleContextMenu}
             onScroll={effectiveViewMode === 'split' ? handleWysiwygScroll : undefined}

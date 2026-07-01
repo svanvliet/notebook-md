@@ -37,33 +37,9 @@ import { useDocumentOutline } from './hooks/useDocumentOutline';
 import type { Editor } from '@tiptap/react';
 import { useNativeMenu, type MenuAction } from './hooks/useNativeMenu';
 import { isTauriEnvironment } from './stores/storageAdapterFactory';
+import { printActiveDocument } from './lib/print';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-
-/** True when running on macOS (WKWebView, where `window.print()` is a no-op). */
-function isMacOS(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const platform = navigator.platform || '';
-  return /Mac/i.test(platform) || /Macintosh/i.test(navigator.userAgent);
-}
-
-/**
- * Print the active document. Windows/WebView2 supports `window.print()` directly;
- * macOS/WKWebView needs the native `print_document` Tauri command. Output is shaped
- * by the app's `@media print` styles (see print.css).
- */
-async function printActiveDocument(): Promise<void> {
-  if (isTauriEnvironment() && isMacOS()) {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('print_document');
-      return;
-    } catch (err) {
-      console.error('[print] native print failed, falling back to window.print()', err);
-    }
-  }
-  window.print();
-}
 
 export default function App() {
   const isDesktop = isTauriEnvironment();
