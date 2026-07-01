@@ -17,6 +17,8 @@ pub fn build_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::erro
         .separator()
         .item(&MenuItemBuilder::with_id("save", "Save").accelerator("CmdOrCtrl+S").build(app)?)
         .separator()
+        .item(&MenuItemBuilder::with_id("print", "Print…").accelerator("CmdOrCtrl+P").build(app)?)
+        .separator()
         .item(&MenuItemBuilder::with_id("close_tab", "Close Tab").accelerator("CmdOrCtrl+W").build(app)?)
         .close_window()
         .build()?;

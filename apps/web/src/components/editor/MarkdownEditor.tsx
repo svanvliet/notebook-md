@@ -708,6 +708,7 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
             className={`relative editor-wrapper overflow-auto ${
               effectiveViewMode === 'split' ? 'w-1/2' : 'w-full'
             }`}
+            data-print-root
             onMouseEnter={() => { scrollSource.current = null; }}
             onContextMenu={handleContextMenu}
             onScroll={effectiveViewMode === 'split' ? handleWysiwygScroll : undefined}

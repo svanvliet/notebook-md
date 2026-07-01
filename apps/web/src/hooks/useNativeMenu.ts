@@ -14,6 +14,7 @@ export type MenuAction =
   | 'open_file'
   | 'open_folder'
   | 'save'
+  | 'print'
   | 'close_tab'
   | 'find'
   | 'toggle_sidebar'

@@ -4,6 +4,7 @@ mod ai;
 mod ai_settings;
 mod commands;
 mod menu;
+mod print;
 mod state;
 mod watcher;
 
@@ -78,6 +79,7 @@ fn main() {
             ai_settings::test_ai_connection,
             ai::ai_generate,
             ai::ai_cancel,
+            print::print_document,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Notebook.md");

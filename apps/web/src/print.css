@@ -1,0 +1,133 @@
+/**
+ * print.css — print styles for the desktop "Print…" action.
+ *
+ * Goal: print the active document's rendered (WYSIWYG) content only, with all app
+ * chrome (sidebar, tabs, toolbars, status bar, title bar, floating widgets, source
+ * pane) stripped out. Works for both the Windows (`window.print()`) and macOS
+ * (WKWebView native print operation) trigger paths, since WKWebView's print
+ * operation honours these `@media print` rules.
+ */
+
+@media print {
+  @page {
+    margin: 1.6cm;
+  }
+
+  /* Hide everything by default, then reveal only the rendered document subtree. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  [data-print-root],
+  [data-print-root] *,
+  .ProseMirror,
+  .ProseMirror * {
+    visibility: visible !important;
+  }
+
+  /* Let ancestors flow onto paper instead of clipping to on-screen scroll boxes. */
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  [data-print-root] {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Pull the document to the top-left of the printed page and let it paginate. */
+  .ProseMirror {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    color: #000 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Neutralise dark-theme text so content stays legible on paper. */
+  .ProseMirror,
+  .ProseMirror p,
+  .ProseMirror li,
+  .ProseMirror h1,
+  .ProseMirror h2,
+  .ProseMirror h3,
+  .ProseMirror h4,
+  .ProseMirror h5,
+  .ProseMirror h6,
+  .ProseMirror blockquote,
+  .ProseMirror td,
+  .ProseMirror th {
+    color: #000 !important;
+  }
+
+  /* Keep code / quote surfaces as a light box regardless of theme. */
+  .ProseMirror pre,
+  .ProseMirror code,
+  .ProseMirror blockquote,
+  .ProseMirror table,
+  .ProseMirror th {
+    background: #f5f5f5 !important;
+  }
+
+  /* Hide editor affordances and any leftover UI inside the content. */
+  .ProseMirror .drag-handle,
+  .drag-handle,
+  .ProseMirror-gapcursor,
+  .ProseMirror-dropcursor,
+  .ProseMirror-separator,
+  .collaboration-cursor__caret,
+  .collaboration-cursor__label {
+    display: none !important;
+  }
+
+  /* Do not render the empty-node placeholder text in print. */
+  .ProseMirror .is-empty::before,
+  .ProseMirror [data-placeholder]::before {
+    content: none !important;
+  }
+
+  /* Sensible page-break etiquette. */
+  .ProseMirror h1,
+  .ProseMirror h2,
+  .ProseMirror h3,
+  .ProseMirror h4,
+  .ProseMirror h5,
+  .ProseMirror h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .ProseMirror pre,
+  .ProseMirror table,
+  .ProseMirror img,
+  .ProseMirror blockquote {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ProseMirror p,
+  .ProseMirror li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .ProseMirror img {
+    max-width: 100% !important;
+  }
+}

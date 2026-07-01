@@ -40,6 +40,31 @@ import { isTauriEnvironment } from './stores/storageAdapterFactory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+/** True when running on macOS (WKWebView, where `window.print()` is a no-op). */
+function isMacOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const platform = navigator.platform || '';
+  return /Mac/i.test(platform) || /Macintosh/i.test(navigator.userAgent);
+}
+
+/**
+ * Print the active document. Windows/WebView2 supports `window.print()` directly;
+ * macOS/WKWebView needs the native `print_document` Tauri command. Output is shaped
+ * by the app's `@media print` styles (see print.css).
+ */
+async function printActiveDocument(): Promise<void> {
+  if (isTauriEnvironment() && isMacOS()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('print_document');
+      return;
+    } catch (err) {
+      console.error('[print] native print failed, falling back to window.print()', err);
+    }
+  }
+  window.print();
+}
+
 export default function App() {
   const isDesktop = isTauriEnvironment();
   const { mode, setMode } = useDisplayMode();
@@ -298,6 +323,9 @@ export default function App() {
           break;
         case 'save':
           // Cmd+S is already handled by useAutoSave keydown listener
+          break;
+        case 'print':
+          if (nb.activeTab) printActiveDocument();
           break;
         case 'close_tab':
           if (nb.activeTabId) nb.handleTabClose(nb.activeTabId);
