@@ -146,12 +146,6 @@
     height: auto !important;
   }
 
-  /* Horizontal rule: thin, matching the heading underlines */
-  .ProseMirror hr {
-    border: none !important;
-    border-top: 1px solid #d1d9e0b3 !important;
-  }
-
   /* Links: show URL */
   .ProseMirror a {
     color: #000 !important;
