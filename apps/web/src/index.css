@@ -78,6 +78,14 @@
     background: #fff !important;
   }
 
+  /* Print background colors (table headers, code blocks, callouts, etc.) —
+     browsers and WKWebView omit backgrounds unless color-adjust is exact. */
+  .ProseMirror,
+  .ProseMirror * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Headings */
   .ProseMirror h1 { font-size: 22pt !important; margin-top: 18pt !important; }
   .ProseMirror h2 { font-size: 18pt !important; margin-top: 16pt !important; }
