@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiFetch';
 import { markdownToHtml, isMarkdownContent } from '../editor/markdownConverter';
+import { enhanceMermaidBlocks } from '../../lib/mermaid';
 import { NotebookIcon, ChevronRightIcon } from '../icons/Icons';
 import '../editor/editor.css';
 
@@ -228,6 +229,26 @@ export default function PublicDocumentViewer() {
     return isMarkdownContent(raw) ? markdownToHtml(raw) : raw;
   }, [document]);
 
+  const articleRef = useRef<HTMLElement>(null);
+
+  // Render any Mermaid diagrams in the static HTML, re-theming on dark-mode toggle.
+  // Note: `document` is shadowed by state here, so reach the root via ownerDocument.
+  useEffect(() => {
+    const el = articleRef.current;
+    if (!el || !renderedHtml) return;
+    let disposed = false;
+    const run = () => { if (!disposed) void enhanceMermaidBlocks(el); };
+    run();
+    const root = el.ownerDocument.documentElement;
+    const observer = new MutationObserver(() => {
+      if (disposed) return;
+      el.innerHTML = renderedHtml;
+      run();
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => { disposed = true; observer.disconnect(); };
+  }, [renderedHtml]);
+
   const toggleFolder = (path: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
@@ -301,6 +322,7 @@ export default function PublicDocumentViewer() {
           ) : document ? (
             <div className="px-8 py-6 max-w-5xl">
               <article
+                ref={articleRef}
                 className="prose dark:prose-invert max-w-none"
                 dangerouslySetInnerHTML={{ __html: renderedHtml }}
               />

@@ -146,6 +146,25 @@
     height: auto !important;
   }
 
+  /* Mermaid diagrams: print the rendered SVG, never the source or edit chrome. */
+  .mermaid-block .mermaid-source,
+  .mermaid-block .mermaid-source-shell {
+    display: none !important;
+  }
+  .mermaid-block .mermaid-preview {
+    display: flex !important;
+    justify-content: center !important;
+    border: none !important;
+    padding: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .mermaid-svg svg,
+  .mermaid-rendered svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
   /* Links: show URL */
   .ProseMirror a {
     color: #000 !important;
