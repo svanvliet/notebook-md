@@ -165,8 +165,14 @@
   background: transparent;
 }
 
+.mermaid-block .mermaid-svg {
+  width: 100%;
+  max-width: 760px;
+}
 .mermaid-block .mermaid-svg svg {
-  max-width: 100%;
+  /* Override Mermaid's tiny inline `max-width` so diagrams fill the width. */
+  max-width: 100% !important;
+  width: 100%;
   height: auto;
 }
 
@@ -178,8 +184,12 @@
   overflow-x: auto;
 }
 .mermaid-rendered svg {
-  max-width: 100%;
+  max-width: 100% !important;
+  width: 100%;
   height: auto;
+}
+.mermaid-rendered > svg {
+  max-width: 760px;
 }
 .mermaid-rendered.mermaid-error {
   display: block;
