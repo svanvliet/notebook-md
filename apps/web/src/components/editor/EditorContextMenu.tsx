@@ -1,5 +1,6 @@
 import { Editor } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
+import { openExternal } from '../../lib/openExternal';
 
 // --- Inline SVG icons for context menu items ---
 const ic = 'w-4 h-4 shrink-0';
@@ -169,7 +170,7 @@ export function EditorContextMenu({ editor, x, y, onClose }: EditorContextMenuPr
           label: 'Open Link',
           icon: <ExternalLinkIcon />,
           onClick: () => {
-            if (attrs.href) window.open(attrs.href, '_blank', 'noopener,noreferrer');
+            if (attrs.href) void openExternal(attrs.href);
             onClose();
           },
         },

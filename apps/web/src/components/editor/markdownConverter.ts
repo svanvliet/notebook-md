@@ -26,6 +26,28 @@ turndown.addRule('video', {
   },
 });
 
+// Preserve image size as Pandoc-style attributes: ![alt](src){width="..." height="..."}
+turndown.addRule('imageWithSize', {
+  filter: 'img',
+  replacement: (_content, node) => {
+    const el = node as HTMLImageElement;
+    const alt = el.getAttribute('alt') || '';
+    const src = el.getAttribute('src') || '';
+    const title = el.getAttribute('title');
+    const width = el.getAttribute('width') || el.style.width;
+    const height = el.getAttribute('height') || el.style.height;
+    const titlePart = title ? ` "${title}"` : '';
+    let md = `![${alt}](${src}${titlePart})`;
+    if (width || height) {
+      const parts: string[] = [];
+      if (width) parts.push(`width="${width}"`);
+      if (height) parts.push(`height="${height}"`);
+      md += `{${parts.join(' ')}}`;
+    }
+    return md;
+  },
+});
+
 // Strip Tiptap's table wrapper div so GFM plugin can process <table> directly
 turndown.addRule('tableWrapper', {
   filter: (node) =>
@@ -179,7 +201,23 @@ marked.use(calloutExtension);
  * Post-processes to produce Tiptap-compatible HTML for task lists.
  */
 export function markdownToHtml(md: string): string {
-  let html = marked.parse(md, { async: false }) as string;
+  // Pandoc-style image attributes: ![alt](src){width="6.76in" height="3.8in"} — fold
+  // the size into an <img> tag before Markdown parsing (operating on the raw source
+  // avoids marked HTML-escaping the quotes in the leftover braces).
+  const withImageSizes = md.replace(
+    /!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"([^"]*)")?\s*\)\{([^}]*)\}/g,
+    (_match, alt: string, src: string, title: string | undefined, attrs: string) => {
+      const width = attrs.match(/width\s*=\s*"?([^"\s}]+)"?/i)?.[1];
+      const height = attrs.match(/height\s*=\s*"?([^"\s}]+)"?/i)?.[1];
+      let tag = `<img src="${src}" alt="${alt}"`;
+      if (title) tag += ` title="${title}"`;
+      if (width) tag += ` width="${width}"`;
+      if (height) tag += ` height="${height}"`;
+      return `${tag}>`;
+    },
+  );
+
+  let html = marked.parse(withImageSizes, { async: false }) as string;
 
   // Convert GFM task list HTML to Tiptap-compatible format.
   // marked may output with or without <p> wrappers depending on spacing:

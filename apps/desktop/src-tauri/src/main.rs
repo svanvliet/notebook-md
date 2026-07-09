@@ -20,6 +20,7 @@ fn main() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // Resolve the Tauri app data directory
             let app_data_dir = app
@@ -71,6 +72,7 @@ fn main() {
             commands::open_folder_as_notebook,
             commands::read_standalone_file,
             commands::write_standalone_file,
+            commands::read_notebook_asset,
             watcher::watch_directory,
             watcher::unwatch_directory,
             ai_settings::get_ai_settings,

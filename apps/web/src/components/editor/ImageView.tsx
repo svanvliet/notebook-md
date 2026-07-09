@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import { resolveAssetSrc, type DocContext } from '../../lib/assets';
 
-export function ImageView({ node, updateAttributes, selected }: NodeViewProps) {
-  const { src, alt, title } = node.attrs;
+export function ImageView({ node, updateAttributes, selected, extension }: NodeViewProps) {
+  const { src, alt, title, width, height } = node.attrs;
 
   const [editingAlt, setEditingAlt] = useState(false);
   const [editingUrl, setEditingUrl] = useState(false);
   const [altValue, setAltValue] = useState(alt || '');
   const [urlValue, setUrlValue] = useState(src || '');
+  // Display src may differ from the stored src (e.g. a relative path resolved to a
+  // data URL for the desktop app); the stored src stays relative for round-tripping.
+  const [displaySrc, setDisplaySrc] = useState(src || '');
 
   useEffect(() => {
     setAltValue(alt || '');
@@ -16,6 +20,16 @@ export function ImageView({ node, updateAttributes, selected }: NodeViewProps) {
   useEffect(() => {
     setUrlValue(src || '');
   }, [src]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ctx = (extension.options.docContext as DocContext | null) ?? null;
+    setDisplaySrc(src || '');
+    resolveAssetSrc(src || '', ctx).then((resolved) => {
+      if (!cancelled) setDisplaySrc(resolved);
+    });
+    return () => { cancelled = true; };
+  }, [src, extension.options.docContext]);
 
   const commitAlt = () => {
     updateAttributes({ alt: altValue });
@@ -85,10 +99,11 @@ export function ImageView({ node, updateAttributes, selected }: NodeViewProps) {
 
         {/* Image */}
         <img
-          src={src}
+          src={displaySrc}
           alt={alt || ''}
           title={title || ''}
           className="rounded-lg max-w-full"
+          style={{ width: width || undefined, height: height || undefined }}
           draggable={false}
         />
       </div>

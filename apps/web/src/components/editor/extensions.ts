@@ -3,7 +3,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
+import Image, { type ImageOptions } from '@tiptap/extension-image';
 import { ImageView } from './ImageView';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -82,7 +82,19 @@ export interface CollabOptions {
   user: { name: string; color: string };
 }
 
-export function getEditorExtensions(placeholder?: string, collab?: CollabOptions) {
+/** Document location, used to resolve relative image paths and Pandoc size attrs. */
+export interface DocContext {
+  notebookId: string;
+  path: string;
+}
+
+declare module '@tiptap/extension-image' {
+  interface ImageOptions {
+    docContext?: DocContext | null;
+  }
+}
+
+export function getEditorExtensions(placeholder?: string, collab?: CollabOptions, docContext?: DocContext | null) {
   const extensions: AnyExtension[] = [
     StarterKit.configure({
       // We use CodeBlockLowlight instead of the default code block
@@ -117,13 +129,35 @@ export function getEditorExtensions(placeholder?: string, collab?: CollabOptions
         }, 0];
       },
     }),
-    Image.configure({
-      inline: true,
-      allowBase64: true,
-    }).extend({
+    Image.extend({
+      addOptions() {
+        return {
+          ...this.parent?.(),
+          docContext: null,
+        } as ImageOptions;
+      },
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          width: {
+            default: null,
+            parseHTML: (element) => element.getAttribute('width') || element.style.width || null,
+            renderHTML: (attributes) => (attributes.width ? { width: attributes.width } : {}),
+          },
+          height: {
+            default: null,
+            parseHTML: (element) => element.getAttribute('height') || element.style.height || null,
+            renderHTML: (attributes) => (attributes.height ? { height: attributes.height } : {}),
+          },
+        };
+      },
       addNodeView() {
         return ReactNodeViewRenderer(ImageView);
       },
+    }).configure({
+      inline: true,
+      allowBase64: true,
+      docContext: docContext ?? null,
     }),
     TaskList,
     TaskItem.configure({ nested: true }),

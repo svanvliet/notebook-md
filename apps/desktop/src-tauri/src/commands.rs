@@ -630,3 +630,65 @@ pub async fn write_standalone_file(path: String, content: String) -> Result<(), 
     tmp.persist(&abs).map_err(|e| e.to_string())?;
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Local assets (images referenced by relative path inside a notebook document)
+// ---------------------------------------------------------------------------
+
+/// Map a file extension to an image MIME type.
+fn image_mime(path: &Path) -> Option<&'static str> {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .as_deref()
+    {
+        Some("png") => Some("image/png"),
+        Some("jpg") | Some("jpeg") => Some("image/jpeg"),
+        Some("gif") => Some("image/gif"),
+        Some("webp") => Some("image/webp"),
+        Some("svg") => Some("image/svg+xml"),
+        Some("bmp") => Some("image/bmp"),
+        Some("avif") => Some("image/avif"),
+        Some("ico") => Some("image/x-icon"),
+        _ => None,
+    }
+}
+
+/// Resolve an image referenced by a document via a relative `src` and return it as a
+/// `data:` URL. `doc_path` is the document's path within the notebook; `src` is the
+/// relative reference (e.g. `media/diagram.png`). Access is confined to the notebook
+/// directory to prevent path traversal.
+#[tauri::command]
+pub async fn read_notebook_asset(
+    notebook_id: String,
+    doc_path: String,
+    src: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    use base64::Engine;
+
+    let nb = find_notebook(&state, &notebook_id)?;
+    let root = state.notebook_dir(&nb);
+
+    let doc_dir = Path::new(&doc_path)
+        .parent()
+        .map(|p| root.join(p))
+        .unwrap_or_else(|| root.clone());
+    let target = doc_dir.join(&src);
+
+    // Confine access to the notebook directory.
+    let canon_root = root.canonicalize().map_err(|e| e.to_string())?;
+    let canon_target = target
+        .canonicalize()
+        .map_err(|_| format!("Asset not found: {src}"))?;
+    if !canon_target.starts_with(&canon_root) {
+        return Err("Asset is outside the notebook".to_string());
+    }
+
+    let mime = image_mime(&canon_target)
+        .ok_or_else(|| format!("Unsupported asset type: {src}"))?;
+    let bytes = fs::read(&canon_target).map_err(|e| e.to_string())?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}

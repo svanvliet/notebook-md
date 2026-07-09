@@ -12,6 +12,7 @@ import { htmlToMarkdown, markdownToHtml } from './markdownConverter';
 import { useToast } from '../../hooks/useToast';
 import { useAuth } from '../../hooks/useAuth';
 import { printActiveDocument } from '../../lib/print';
+import { openExternal } from '../../lib/openExternal';
 import { AiPromptModal } from './AiPromptModal';
 import { MobileCommandFab } from './MobileCommandFab';
 import type { AiLength } from './AiPromptModal';
@@ -47,6 +48,8 @@ interface MarkdownEditorProps {
     user: { name: string; color: string };
     isSynced?: boolean;
   };
+  /** Document location — used to resolve relative image paths in the desktop app */
+  docContext?: { notebookId: string; path: string } | null;
 }
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -117,7 +120,7 @@ function MediaInsertModal({ mediaType, onClose, onInsertUrl, onUploadFile }: {
   );
 }
 
-export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly, collaborative }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorReady, fontFamily, fontSize, spellCheck: spellCheckProp, margins, lineNumbers, readOnly, collaborative, docContext }: MarkdownEditorProps) {
   const { addToast } = useToast();
   const { isDemoMode } = useAuth();
   // 'wysiwyg' = design only, 'source' = raw only, 'split' = side-by-side
@@ -148,8 +151,8 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
   // Memoize extensions to prevent TipTap from re-registering them on every render.
   // CollaborationCursor re-init triggers awareness updates → re-render → infinite loop.
   const extensions = useMemo(
-    () => [...getEditorExtensions(undefined, collaborative ? { provider: collaborative.provider, user: collaborative.user } : undefined), SlashCommandExtension, DragHandle],
-    [collaborative?.provider],
+    () => [...getEditorExtensions(undefined, collaborative ? { provider: collaborative.provider, user: collaborative.user } : undefined, docContext ?? null), SlashCommandExtension, DragHandle],
+    [collaborative?.provider, docContext?.notebookId, docContext?.path],
   );
 
   // Memoize editorProps — TipTap's compareOptions checks all keys by reference.
@@ -547,6 +550,15 @@ export function MarkdownEditor({ content, onChange, onWordCountChange, onEditorR
         window.dispatchEvent(
           new CustomEvent('notebook-link-click', { detail: { href } }),
         );
+        return;
+      }
+
+      // Absolute web links open in the system browser (WKWebView/WebView2 ignore
+      // target="_blank"; the browser opens a new tab).
+      if (/^https?:\/\//i.test(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        void openExternal(href);
       }
     };
 

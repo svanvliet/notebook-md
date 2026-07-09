@@ -15,6 +15,9 @@ export interface Tab {
   content: string;
   loading?: boolean;
   readOnly?: boolean;
+  /** Notebook + path this document lives at — used to resolve relative image paths */
+  notebookId?: string;
+  docPath?: string;
   /** Cloud document info — when set, enables collaboration features */
   cloudDoc?: {
     notebookId: string;
@@ -278,6 +281,7 @@ export function DocumentPane({
               lineNumbers={lineNumbers}
               readOnly={activeTab.readOnly}
               collaborative={collab.provider && currentUser ? { provider: collab.provider, user: { name: currentUser.name, color: currentUser.color ?? '#3B82F6' }, isSynced: collab.isSynced } : undefined}
+              docContext={activeTab.notebookId && activeTab.docPath !== undefined ? { notebookId: activeTab.notebookId, path: activeTab.docPath } : undefined}
             />
           </EditorErrorBoundary>
           )
