@@ -20,13 +20,39 @@ export function MermaidView({ node, editor, getPos, languageSelect }: MermaidVie
   const [editing, setEditing] = useState(false);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [fontSize, setFontSize] = useState(16);
+  const [themeTick, setThemeTick] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Render (debounced) whenever the source, language, or theme changes.
+  // Track the editor's base font size (settings-driven) and theme so the diagram's
+  // text matches the body text and re-renders when either changes.
+  useEffect(() => {
+    const dom = editor.view.dom as HTMLElement;
+    const readFont = () => {
+      const px = parseFloat(getComputedStyle(dom).fontSize);
+      return Number.isFinite(px) ? px : 16;
+    };
+    setFontSize(readFont());
+
+    // The `--editor-font-size` CSS var lives on an ancestor; observe it for changes.
+    let host: HTMLElement | null = dom;
+    while (host && !host.style.getPropertyValue('--editor-font-size')) {
+      host = host.parentElement;
+    }
+    const fontObserver = new MutationObserver(() => setFontSize(readFont()));
+    if (host) fontObserver.observe(host, { attributes: true, attributeFilter: ['style'] });
+
+    const themeObserver = new MutationObserver(() => setThemeTick((t) => t + 1));
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+    return () => { fontObserver.disconnect(); themeObserver.disconnect(); };
+  }, [editor]);
+
+  // Render (debounced) whenever the source, language, font size, or theme changes.
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const result = await renderMermaid(buildMermaidSource(language, source), isDarkMode());
+      const result = await renderMermaid(buildMermaidSource(language, source), isDarkMode(), fontSize);
       if (cancelled) return;
       if (result.error) {
         setError(result.error);
@@ -36,18 +62,7 @@ export function MermaidView({ node, editor, getPos, languageSelect }: MermaidVie
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [source, language]);
-
-  // Re-render when the app toggles dark mode.
-  useEffect(() => {
-    const observer = new MutationObserver(async () => {
-      const result = await renderMermaid(buildMermaidSource(language, source), isDarkMode());
-      if (result.error) setError(result.error);
-      else { setError(null); setSvg(result.svg ?? ''); }
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, [source, language]);
+  }, [source, language, fontSize, themeTick]);
 
   // Exit edit mode when the user clicks outside this block.
   useEffect(() => {

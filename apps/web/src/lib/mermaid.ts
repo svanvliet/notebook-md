@@ -101,16 +101,21 @@ export function isDarkMode(): boolean {
 
 let mermaidModule: typeof import('mermaid').default | null = null;
 
-async function getMermaid(dark: boolean): Promise<typeof import('mermaid').default> {
+async function getMermaid(dark: boolean, fontSize: number): Promise<typeof import('mermaid').default> {
   if (!mermaidModule) {
     mermaidModule = (await import('mermaid')).default;
   }
-  // Re-initialize each render so the theme tracks light/dark changes.
+  // Re-initialize each render so the theme and font size track the app settings.
   mermaidModule.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
     theme: dark ? 'dark' : 'default',
     fontFamily: 'inherit',
+    fontSize,
+    themeVariables: {
+      fontFamily: 'inherit',
+      fontSize: `${fontSize}px`,
+    },
   });
   return mermaidModule;
 }
@@ -122,16 +127,42 @@ export interface MermaidRenderResult {
   error?: string;
 }
 
+/**
+ * Render the SVG at its natural pixel size.
+ *
+ * Mermaid emits `width="100%"` + `style="max-width: <natural>px"` (its useMaxWidth
+ * behavior), which lets the container scale the whole SVG — shrinking the text on
+ * wide diagrams. We pin the width to the natural size and drop the cap so the text
+ * always renders at the configured font size; oversized diagrams scroll instead.
+ */
+function toNaturalSize(svg: string): string {
+  const styleMatch = svg.match(/<svg\b[^>]*\sstyle="([^"]*)"/);
+  const widthMatch = styleMatch?.[1].match(/max-width:\s*([\d.]+)px/);
+  if (!widthMatch) return svg;
+  const naturalWidth = widthMatch[1];
+
+  let out = svg.replace(/(<svg\b[^>]*?)\swidth="[^"]*"/, `$1 width="${naturalWidth}px"`);
+  out = out.replace(/(<svg\b[^>]*\sstyle=")([^"]*)(")/, (_m, p1, style, p3) => {
+    const cleaned = style.replace(/max-width:\s*[\d.]+px;?/, '').trim();
+    return `${p1}${cleaned}${p3}`;
+  });
+  return out;
+}
+
 /** Render Mermaid source to an SVG string, returning an error message on failure. */
-export async function renderMermaid(source: string, dark: boolean): Promise<MermaidRenderResult> {
+export async function renderMermaid(
+  source: string,
+  dark: boolean,
+  fontSize: number,
+): Promise<MermaidRenderResult> {
   const trimmed = source.trim();
   if (!trimmed) return { error: 'Empty diagram' };
 
   const id = `mmd-${Date.now()}-${renderSeq++}`;
   try {
-    const mermaid = await getMermaid(dark);
+    const mermaid = await getMermaid(dark, fontSize);
     const { svg } = await mermaid.render(id, trimmed);
-    return { svg };
+    return { svg: toNaturalSize(svg) };
   } catch (err) {
     // Mermaid may leave an orphaned element behind on parse failure.
     if (typeof document !== 'undefined') {
@@ -165,11 +196,12 @@ export async function enhanceMermaidBlocks(root: HTMLElement): Promise<void> {
   if (targets.length === 0) return;
 
   const dark = isDarkMode();
+  const fontSize = parseFloat(root.ownerDocument.defaultView?.getComputedStyle(root).fontSize ?? '16') || 16;
   for (const { code, lang } of targets) {
     const pre = code.closest('pre');
     if (!pre) continue;
     const source = buildMermaidSource(lang, code.textContent ?? '');
-    const { svg, error } = await renderMermaid(source, dark);
+    const { svg, error } = await renderMermaid(source, dark, fontSize);
 
     const wrapper = root.ownerDocument.createElement('div');
     wrapper.className = 'mermaid-rendered';

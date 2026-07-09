@@ -135,7 +135,6 @@
 /* Rendered diagram: shown in preview mode, kept as a live preview while editing. */
 .mermaid-block .mermaid-preview {
   display: flex;
-  justify-content: center;
   padding: 12px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -166,30 +165,23 @@
 }
 
 .mermaid-block .mermaid-svg {
-  width: 100%;
-  max-width: 760px;
+  margin: auto;
 }
 .mermaid-block .mermaid-svg svg {
-  /* Override Mermaid's tiny inline `max-width` so diagrams fill the width. */
-  max-width: 100% !important;
-  width: 100%;
+  display: block;
   height: auto;
 }
 
 /* Static-HTML rendered diagrams (public share viewer). */
 .mermaid-rendered {
   display: flex;
-  justify-content: center;
   margin: 16px 0;
   overflow-x: auto;
 }
-.mermaid-rendered svg {
-  max-width: 100% !important;
-  width: 100%;
-  height: auto;
-}
 .mermaid-rendered > svg {
-  max-width: 760px;
+  display: block;
+  margin: auto;
+  height: auto;
 }
 .mermaid-rendered.mermaid-error {
   display: block;
